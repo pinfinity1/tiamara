@@ -1,10 +1,7 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-body {
-  font-family: Arial, Helvetica, sans-serif;
-}
+@import "../../public/font/style.css";
 
 @layer base {
   :root {
@@ -65,6 +62,7 @@ body {
 @layer base {
   * {
     @apply border-border;
+    font-family: Vazir !important;
   }
   body {
     @apply bg-background text-foreground;
