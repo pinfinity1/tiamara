@@ -49,7 +49,6 @@ function Header() {
 
   async function handleLogout() {
     await logout();
-    router.push("/auth/login");
   }
 
   const renderMobileMenuItems = () => {

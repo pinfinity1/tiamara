@@ -47,7 +47,7 @@ function LoginPage() {
 
     if (success) {
       toast({
-        title: "Login Successfull!",
+        title: "خوش آمدید",
       });
       const user = useAuthStore.getState().user;
       if (user?.role === "SUPER_ADMIN") {
