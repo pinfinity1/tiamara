@@ -12,7 +12,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useRouter } from "next/navigation";
 import { protectSignInAction } from "@/actions/auth";
-import { log } from "console";
 
 function LoginPage() {
   const [formData, setFormData] = useState({
@@ -52,7 +51,6 @@ function LoginPage() {
       });
       const user = useAuthStore.getState().user;
       if (user?.role === "SUPER_ADMIN") {
-        console.log(user);
         router.push("/super-admin");
       } else {
         router.push("/home");
