@@ -1,8 +1,7 @@
 "use client";
 
+import HomeBannerCarousel from "@/components/layout/home/HomeBannerCarousel";
 import { Button } from "@/components/ui/button";
-import { useSettingsStore } from "@/store/useSettingsStore";
-import { useEffect, useState } from "react";
 
 const gridItems = [
   {
@@ -32,79 +31,9 @@ const gridItems = [
 ];
 
 function HomePage() {
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const { banners, featuredProducts, fetchFeaturedProducts, fetchBanners } =
-    useSettingsStore();
-
-  useEffect(() => {
-    fetchBanners();
-    fetchFeaturedProducts();
-  }, [fetchBanners, fetchFeaturedProducts]);
-
-  useEffect(() => {
-    const bannerTimer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % banners.length);
-    }, 5000);
-
-    return () => clearInterval(bannerTimer);
-  }, [banners.length]);
-
-  console.log(banners, featuredProducts);
-
   return (
     <div className="min-h-screen bg-white">
-      <section className="relative h-[600px] overflow-hidden">
-        {banners.map((bannerItem, index) => (
-          <div
-            className={`absolute inset-0 transition-opacity duration-1000 ${
-              currentSlide === index ? "opacity-100" : "opacity-0"
-            }`}
-            key={bannerItem.id}
-          >
-            <div className="absolute inset-0">
-              <img
-                src={bannerItem.imageUrl}
-                alt={`Banner ${index + 1}`}
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-black bg-opacity-20" />
-            </div>
-            <div className="relative h-full container mx-auto px-4 flex items-center">
-              <div className="text-white space-y-6">
-                <span className="text-sm uppercase tracking-wider">
-                  I AM JOHN
-                </span>
-                <h1 className="text-5xl lg:text-7xl font-bold leading-tight">
-                  BEST SELLING
-                  <br />
-                  E-COMMERCE WEBSITE
-                </h1>
-                <p className="text-lg">
-                  A Creative, Flexible , Clean, Easy to use and
-                  <br />
-                  High Performance E-Commerce Theme
-                </p>
-                <Button className="bg-white text-black hover:bg-gray-100 px-8 py-6 text-lg">
-                  SHOP NOW
-                </Button>
-              </div>
-            </div>
-          </div>
-        ))}
-        <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex space-x-2">
-          {banners.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => setCurrentSlide(index)}
-              className={`w-2 h-2 rounded-full transition-all ${
-                currentSlide === index
-                  ? "bg-white w-6"
-                  : "bg-white/50 hover:bg-white/75"
-              }`}
-            />
-          ))}
-        </div>
-      </section>
+      <HomeBannerCarousel />
 
       {/* grid section */}
       <section className="py-16">
@@ -143,7 +72,7 @@ function HomePage() {
       </section>
 
       {/* Feature products section */}
-      <section className="py-16">
+      {/* <section className="py-16">
         <div className="container mx-auto px-4">
           <h2 className="text-center text-3xl font-semibold mb-2">
             NEW ARRIVALS
@@ -152,7 +81,7 @@ function HomePage() {
             Shop our new arrivals from established brands
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {featuredProducts.map((productItem, index) => (
+            {/* {featuredProducts.map((productItem, index) => (
               <div key={index} className="relative group overflow-hidden">
                 <div className="aspect-[3/4]">
                   <img
@@ -173,10 +102,10 @@ function HomePage() {
                   </div>
                 </div>
               </div>
-            ))}
+            ))} 
           </div>
         </div>
-      </section>
+      </section> */}
     </div>
   );
 }
