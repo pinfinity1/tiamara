@@ -1,19 +1,18 @@
 import { prisma } from "../server";
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import { SignJWT } from "jose";
 import { v4 as uuidv4 } from "uuid";
 
-function generateToken(userId: string, email: string, role: string) {
-  const accessToken = jwt.sign(
-    {
-      userId,
-      email,
-      role,
-    },
-    process.env.JWT_SECRET!,
-    { expiresIn: "60m" }
-  );
+async function generateToken(userId: string, email: string, role: string) { 
+  const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
+  const accessToken = await new SignJWT({ userId, email, role })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('60m')
+    .sign(secret);
+    
+
   const refreshToken = uuidv4();
   return { accessToken, refreshToken };
 }
@@ -33,7 +32,7 @@ async function setTokens(
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
-    maxAge: 7 * 24 * 60 * 60,
+    maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 }
 
@@ -89,11 +88,16 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
     //create our access and refreshtoken
-    const { accessToken, refreshToken } = generateToken(
+    const { accessToken, refreshToken } = await generateToken(
       extractCurrentUser.id,
       extractCurrentUser.email,
       extractCurrentUser.role
     );
+
+    await prisma.user.update({
+      where: { id: extractCurrentUser.id },
+      data: { refreshToken: refreshToken },
+    });
 
     //set out tokens
     await setTokens(res, accessToken, refreshToken);
@@ -123,6 +127,7 @@ export const refreshAccessToken = async (
       success: false,
       error: "Invalid refresh token",
     });
+    return
   }
 
   try {
@@ -140,11 +145,17 @@ export const refreshAccessToken = async (
       return;
     }
 
-    const { accessToken, refreshToken: newRefreshToken } = generateToken(
+    const { accessToken, refreshToken: newRefreshToken } = await generateToken(
       user.id,
       user.email,
       user.role
     );
+
+    await prisma.user.update({
+        where: { id: user.id },
+        data: { refreshToken: newRefreshToken },
+    });
+
     //set out tokens
     await setTokens(res, accessToken, newRefreshToken);
     res.status(200).json({
@@ -158,6 +169,13 @@ export const refreshAccessToken = async (
 };
 
 export const logout = async (req: Request, res: Response): Promise<void> => {
+  const { refreshToken } = req.cookies;
+  if (refreshToken) {
+        await prisma.user.updateMany({
+            where: { refreshToken: refreshToken },
+            data: { refreshToken: null },
+        });
+  }
   res.clearCookie("accessToken");
   res.clearCookie("refreshToken");
   res.json({

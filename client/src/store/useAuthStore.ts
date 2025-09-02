@@ -19,7 +19,7 @@ type AuthStore = {
     email: string,
     password: string
   ) => Promise<string | null>;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<User | null>;
   logout: () => Promise<void>;
   refreshAccessToken: () => Promise<Boolean>;
 };
@@ -66,7 +66,7 @@ export const useAuthStore = create<AuthStore>()(
           });
 
           set({ isLoading: false, user: response.data.user });
-          return true;
+          return response.data.user;
         } catch (error) {
           set({
             isLoading: false,
@@ -75,7 +75,7 @@ export const useAuthStore = create<AuthStore>()(
               : "Login failed",
           });
 
-          return false;
+          return null;
         }
       },
       logout: async () => {
