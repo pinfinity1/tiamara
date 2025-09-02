@@ -20,6 +20,8 @@ import {
 } from "../ui/sheet";
 import { useEffect, useState } from "react";
 import { useCartStore } from "@/store/useCartStore";
+import logo from "../../../public/images/Logo/tiamara-logo.png";
+import Image from "next/image";
 
 const navItems = [
   {
@@ -94,7 +96,7 @@ function Header() {
               <div className="space-y-3">
                 {navItems.map((navItem) => (
                   <p
-                    className="block w-full font-semibold p-2 cursor-pointer"
+                    className="block w-full font-semibold p-2 cursor-pointer hover:bg-black/5 rounded transition-all duration-200"
                     onClick={() => {
                       setShowSheetDialog(false);
                       router.push(navItem.to);
@@ -163,7 +165,15 @@ function Header() {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-20">
           <Link className="text-2xl font-bold" href="/">
-            الف
+            <div className="overflow-hidden w-[100px] h-[60px] relative">
+              <Image
+                src={logo}
+                fill
+                priority
+                alt="Logo"
+                className="object-cover"
+              />
+            </div>
           </Link>
           <div className="hidden lg:flex items-center space-x-8 flex-1 justify-center">
             <nav className="flex items-center gap-4">
@@ -181,15 +191,17 @@ function Header() {
           <div className="hidden lg:flex items-center gap-4">
             {user ? (
               <>
-                <div
-                  className="relative cursor-pointer"
+                <Button
+                  size="icon"
+                  variant={"ghost"}
+                  className="relative group"
                   onClick={() => router.push("/cart")}
                 >
-                  <ShoppingCart className="size-4" />
-                  <span className="absolute -top-2 -right-3 size-4 bg-black/20 backdrop-blur-lg text-black text-xs rounded-full flex items-center justify-center pt-0.5">
+                  <ShoppingCart className="size-5" />
+                  <span className="absolute top-0 right-0 size-4 bg-black/20 backdrop-blur-lg text-black text-xs rounded-full flex items-center justify-center pt-0.5 group-hover:-top-1 group-hover:-right-1 group-hover:bg-black/30 transition-all duration-200 ">
                     {items?.length}
                   </span>
-                </div>
+                </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button size="icon" variant={"ghost"}>
@@ -227,9 +239,19 @@ function Header() {
               >
                 <Menu className="h-6 w-6" />
               </Button>
-              <SheetContent side="left" className="w-80">
+              <SheetContent side="left">
                 <SheetHeader>
-                  <SheetTitle>الف</SheetTitle>
+                  <SheetTitle className="pt-3 flex justify-center">
+                    <div className="w-[100px] h-[60px] relative">
+                      <Image
+                        src={logo}
+                        fill
+                        priority
+                        alt="Logo"
+                        className="object-cover object-center"
+                      />
+                    </div>
+                  </SheetTitle>
                 </SheetHeader>
                 {renderMobileMenuItems()}
               </SheetContent>

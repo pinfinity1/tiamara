@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import banner from "../../../../public/images/login-banner.webp";
-import logo from "../../../../public/images/TiamaraLogo.png";
+import logo from "../../../../public/images/Logo/tiamara-logo.png";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -71,7 +71,7 @@ function LoginPage() {
       <div className="w-full lg:w-1/2 flex flex-col p-8 lg:p-16 justify-center">
         <div className="max-w-md w-full mx-auto">
           <div className="flex justify-center">
-            <Image src={logo} width={200} height={50} alt="Logo" />
+            <Image src={logo} width={100} height={60} alt="Logo" />
           </div>
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="space-y-1">
