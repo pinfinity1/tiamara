@@ -100,23 +100,25 @@ function ProductDetailsContent({ id }: { id: string }) {
                 </span>
               </div>
             </div>
-            <div>
-              <h3 className="font-medium mb-2">Color</h3>
-              <div className="flex gap-2">
-                {product.colors.map((color: string, index: number) => (
-                  <button
-                    key={index}
-                    className={`w-12 h-12 rounded-full border-2 ${
-                      selectedColor === index
-                        ? "border-black"
-                        : "border-gray-300"
-                    }`}
-                    style={{ backgroundColor: color }}
-                    onClick={() => setSelectedColor(index)}
-                  />
-                ))}
+            {product.colors && product.colors.length > 0 && (
+              <div>
+                <h3 className="font-medium mb-2">Color</h3>
+                <div className="flex gap-2">
+                  {product.colors.map((color: string, index: number) => (
+                    <button
+                      key={index}
+                      className={`w-12 h-12 rounded-full border-2 ${
+                        selectedColor === index
+                          ? "border-black"
+                          : "border-gray-300"
+                      }`}
+                      style={{ backgroundColor: color }}
+                      onClick={() => setSelectedColor(index)}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
             <div>
               <h3 className="font-medium mb-2">Size</h3>
               <div className="flex gap-2">

@@ -28,22 +28,36 @@ model User {
 }
 
 model product {
-  id          String   @id @default(cuid())
-  name        String
-  brand       String
-  description String
-  category    String
-  gender      String
-  sizes       String[]
-  colors      String[]
-  price       Float
-  stock       Int
-  soldCount   Int
-  rating      Float?
-  images      String[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  isFeatured  Boolean  @default(false)
+  id                String    @id @default(cuid())
+  name              String
+  brand             String
+  category          String
+  description       String?   
+  how_to_use        String?   
+  caution           String?   
+  price             Float
+  discount_price    Float?    
+  stock             Int
+  sku               String?   @unique 
+  barcode           String?   @unique 
+  volume            Float?    
+  unit              String?    
+  expiry_date       DateTime? 
+  manufacture_date  DateTime? 
+  country_of_origin String?   
+  images            String[]
+  attributes        Json?      
+  skin_type         String[]  
+  concern           String[]  
+  product_form      String?   
+  ingredients       String[]  
+  tags              String[]  
+  average_rating    Float?    @default(0) 
+  review_count      Int?      @default(0) 
+  soldCount         Int
+  isFeatured        Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 }
 
 model Cart {
@@ -62,7 +76,7 @@ model CartItem {
   productId String
   quantity  Int
   size      String?
-  color     String
+  color     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

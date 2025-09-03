@@ -24,16 +24,16 @@ import { ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-const colors = [
-  { name: "Navy", class: "bg-[#0F172A]" },
-  { name: "Yellow", class: "bg-[#FCD34D]" },
-  { name: "White", class: "bg-white border" },
-  { name: "Orange", class: "bg-[#FB923C]" },
-  { name: "Green", class: "bg-[#22C55E]" },
-  { name: "Pink", class: "bg-[#EC4899]" },
-  { name: "Cyan", class: "bg-[#06B6D4]" },
-  { name: "Blue", class: "bg-[#3B82F6]" },
-];
+// const colors = [
+//   { name: "Navy", class: "bg-[#0F172A]" },
+//   { name: "Yellow", class: "bg-[#FCD34D]" },
+//   { name: "White", class: "bg-white border" },
+//   { name: "Orange", class: "bg-[#FB923C]" },
+//   { name: "Green", class: "bg-[#22C55E]" },
+//   { name: "Pink", class: "bg-[#EC4899]" },
+//   { name: "Cyan", class: "bg-[#06B6D4]" },
+//   { name: "Blue", class: "bg-[#3B82F6]" },
+// ];
 
 function ProductListingPage() {
   const [priceRange, setPriceRange] = useState([0, 100000]);
@@ -151,7 +151,7 @@ function ProductListingPage() {
             ))}
           </div>
         </div>
-        <div>
+        {/* <div>
           <h3 className="mb-3 font-semibold">Size</h3>
           <div className="flex flex-wrap gap-2">
             {sizes.map((sizeItem) => (
@@ -168,8 +168,8 @@ function ProductListingPage() {
               </Button>
             ))}
           </div>
-        </div>
-        <div>
+        </div> */}
+        {/* <div>
           <h3 className="mb-3 font-semibold">Colors</h3>
           <div className="flex flex-wrap gap-2">
             {colors.map((color) => (
@@ -185,7 +185,7 @@ function ProductListingPage() {
               />
             ))}
           </div>
-        </div>
+        </div> */}
         <div>
           <h3 className="mb-3 font-semibold">Price range</h3>
           <Slider

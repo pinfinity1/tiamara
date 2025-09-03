@@ -14,13 +14,26 @@ export const createProduct = async (
     const {
       name,
       brand,
-      description,
       category,
-      gender,
-      sizes,
+      description,
+      how_to_use,
+      caution,
       colors,
       price,
+      discount_price,
       stock,
+      sku,
+      barcode,
+      volume,
+      unit,
+      expiry_date,
+      manufacture_date,
+      country_of_origin,
+      skin_type,
+      concern,
+      product_form,
+      ingredients,
+      tags,
     } = req.body;
 
     const files = req.files as Express.Multer.File[];
@@ -28,7 +41,7 @@ export const createProduct = async (
     //upload all images to cloudinary
     const uploadPromises = files.map((file) =>
       cloudinary.uploader.upload(file.path, {
-        folder: "ecommerce",
+        folder: "tiamara",
       })
     );
 
@@ -41,14 +54,28 @@ export const createProduct = async (
         brand,
         category,
         description,
-        gender,
-        sizes: sizes.split(","),
-        colors: colors.split(","),
+        how_to_use,
+        caution,
         price: parseFloat(price),
+        discount_price: discount_price ? parseFloat(discount_price) : null,
         stock: parseInt(stock),
+        sku,
+        barcode,
+        volume: volume ? parseFloat(volume) : null,
+        unit,
+        expiry_date: expiry_date ? new Date(expiry_date) : null,
+        manufacture_date: manufacture_date ? new Date(manufacture_date) : null,
+        country_of_origin,
         images: imageUrls,
+        colors: colors ? colors.split(",") : [],
+        skin_type: skin_type ? skin_type.split(",") : [],
+        concern: concern ? concern.split(",") : [],
+        product_form,
+        ingredients: ingredients ? ingredients.split(",") : [],
+        tags: tags ? tags.split(",") : [],
         soldCount: 0,
-        rating: 0,
+        average_rating: 0,
+        review_count: 0,
       },
     });
 
@@ -91,6 +118,7 @@ export const getProductByID = async (
         success: false,
         message: "Product not found",
       });
+      return;
     }
 
     res.status(200).json(product);
@@ -99,6 +127,7 @@ export const getProductByID = async (
     res.status(500).json({ success: false, message: "Some error occured!" });
   }
 };
+
 //update  a product (admin)
 export const updateProduct = async (
   req: AuthenticatedRequest,
@@ -109,19 +138,55 @@ export const updateProduct = async (
     const {
       name,
       brand,
-      description,
       category,
-      gender,
-      sizes,
-      colors,
+      description,
+      how_to_use,
+      caution,
       price,
+      discount_price,
       stock,
-      rating,
+      sku,
+      barcode,
+      volume,
+      unit,
+      expiry_date,
+      manufacture_date,
+      country_of_origin,
+      skin_type,
+      concern,
+      product_form,
+      ingredients,
+      tags,
     } = req.body;
 
-    console.log(req.body, "req.body");
+    const files = req.files as Express.Multer.File[];
+    let imageUrls: string[] | undefined = undefined;
 
-    //homework -> you can also implement image update func
+    // اگر فایل جدیدی آپلود شده باشد
+    if (files && files.length > 0) {
+      // ۱. آپلود عکس‌های جدید به کلادینری
+      const uploadPromises = files.map((file) =>
+        cloudinary.uploader.upload(file.path, {
+          folder: "tiamara", // تغییر نام پوشه
+        })
+      );
+      const uploadresults = await Promise.all(uploadPromises);
+      imageUrls = uploadresults.map((result) => result.secure_url);
+
+      // ۲. حذف فایل‌های موقت از سرور
+      files.forEach((file) => fs.unlinkSync(file.path));
+
+      // (اختیاری) ۳. حذف عکس‌های قدیمی از کلادینری
+      const existingProduct = await prisma.product.findUnique({
+        where: { id },
+      });
+      if (existingProduct && existingProduct.images.length > 0) {
+        const publicIds = existingProduct.images.map(
+          (url) => "tiamara/" + url.split("/").pop()?.split(".")[0]!
+        );
+        await cloudinary.api.delete_resources(publicIds);
+      }
+    }
 
     const product = await prisma.product.update({
       where: { id },
@@ -130,12 +195,24 @@ export const updateProduct = async (
         brand,
         category,
         description,
-        gender,
-        sizes: sizes.split(","),
-        colors: colors.split(","),
+        how_to_use,
+        caution,
         price: parseFloat(price),
+        discount_price: discount_price ? parseFloat(discount_price) : null,
         stock: parseInt(stock),
-        rating: parseInt(rating),
+        sku,
+        barcode,
+        volume: volume ? parseFloat(volume) : null,
+        unit,
+        expiry_date: expiry_date ? new Date(expiry_date) : null,
+        manufacture_date: manufacture_date ? new Date(manufacture_date) : null,
+        country_of_origin,
+        ...(imageUrls && { images: imageUrls }),
+        skin_type: skin_type.split(","),
+        concern: concern.split(","),
+        product_form,
+        ingredients: ingredients.split(","),
+        tags: tags.split(","),
       },
     });
 
@@ -145,6 +222,7 @@ export const updateProduct = async (
     res.status(500).json({ success: false, message: "Some error occured!" });
   }
 };
+
 //delete a product (admin)
 export const deleteProduct = async (
   req: AuthenticatedRequest,
@@ -177,10 +255,10 @@ export const getProductsForClient = async (
     const brands = ((req.query.brands as string) || "")
       .split(",")
       .filter(Boolean);
-    const sizes = ((req.query.sizes as string) || "")
+    const skin_types = ((req.query.skin_types as string) || "")
       .split(",")
       .filter(Boolean);
-    const colors = ((req.query.colors as string) || "")
+    const concerns = ((req.query.concerns as string) || "")
       .split(",")
       .filter(Boolean);
 
@@ -210,17 +288,17 @@ export const getProductsForClient = async (
               },
             }
           : {},
-        sizes.length > 0
+        skin_types.length > 0
           ? {
-              sizes: {
-                hasSome: sizes,
+              skin_type: {
+                hasSome: skin_types,
               },
             }
           : {},
-        colors.length > 0
+        concerns.length > 0
           ? {
-              colors: {
-                hasSome: colors,
+              concern: {
+                hasSome: concerns,
               },
             }
           : {},
@@ -241,13 +319,6 @@ export const getProductsForClient = async (
       }),
       prisma.product.count({ where }),
     ]);
-
-    console.log(
-      Math.ceil(total / limit),
-      total,
-      limit,
-      "Math.ceil(total / limit)"
-    );
 
     res.status(200).json({
       success: true,
