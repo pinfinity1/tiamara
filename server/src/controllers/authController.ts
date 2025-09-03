@@ -4,14 +4,13 @@ import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import { v4 as uuidv4 } from "uuid";
 
-async function generateToken(userId: string, email: string, role: string) { 
+async function generateToken(userId: string, email: string, role: string) {
   const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
   const accessToken = await new SignJWT({ userId, email, role })
-    .setProtectedHeader({ alg: 'HS256' })
+    .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime('60m')
+    .setExpirationTime("60m")
     .sign(secret);
-    
 
   const refreshToken = uuidv4();
   return { accessToken, refreshToken };
@@ -125,9 +124,9 @@ export const refreshAccessToken = async (
   if (!refreshToken) {
     res.status(401).json({
       success: false,
-      error: "Invalid refresh token",
+      error: "Refresh token not provided",
     });
-    return
+    return;
   }
 
   try {
@@ -140,7 +139,7 @@ export const refreshAccessToken = async (
     if (!user) {
       res.status(401).json({
         success: false,
-        error: "User not found",
+        error: "Invalid refresh token or user not found",
       });
       return;
     }
@@ -152,15 +151,15 @@ export const refreshAccessToken = async (
     );
 
     await prisma.user.update({
-        where: { id: user.id },
-        data: { refreshToken: newRefreshToken },
+      where: { id: user.id },
+      data: { refreshToken: newRefreshToken },
     });
 
     //set out tokens
     await setTokens(res, accessToken, newRefreshToken);
     res.status(200).json({
       success: true,
-      message: "Refresh token refreshed successfully",
+      message: "Access token refreshed successfully",
     });
   } catch (error) {
     console.error(error);
@@ -171,10 +170,10 @@ export const refreshAccessToken = async (
 export const logout = async (req: Request, res: Response): Promise<void> => {
   const { refreshToken } = req.cookies;
   if (refreshToken) {
-        await prisma.user.updateMany({
-            where: { refreshToken: refreshToken },
-            data: { refreshToken: null },
-        });
+    await prisma.user.updateMany({
+      where: { refreshToken: refreshToken },
+      data: { refreshToken: null },
+    });
   }
   res.clearCookie("accessToken");
   res.clearCookie("refreshToken");

@@ -12,6 +12,7 @@ type User = {
 
 type AuthStore = {
   user: User | null;
+  isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
   register: (
@@ -21,7 +22,7 @@ type AuthStore = {
   ) => Promise<string | null>;
   login: (email: string, password: string) => Promise<User | null>;
   logout: () => Promise<void>;
-  refreshAccessToken: () => Promise<Boolean>;
+  checkAuth: () => Promise<void>;
 };
 
 const axiosInstance = axios.create({
@@ -33,6 +34,7 @@ export const useAuthStore = create<AuthStore>()(
   persist(
     (set, get) => ({
       user: null,
+      isAuthenticated: false,
       isLoading: false,
       error: null,
       register: async (name, email, password) => {
@@ -65,40 +67,38 @@ export const useAuthStore = create<AuthStore>()(
             password,
           });
 
-          set({ isLoading: false, user: response.data.user });
+          set({
+            isLoading: false,
+            user: response.data.user,
+            isAuthenticated: true,
+          });
           return response.data.user;
         } catch (error) {
           set({
             isLoading: false,
+            isAuthenticated: false,
             error: axios.isAxiosError(error)
               ? error?.response?.data?.error || "Login failed"
               : "Login failed",
           });
-
           return null;
         }
       },
       logout: async () => {
-        set({ isLoading: true, error: null });
         try {
           await axiosInstance.post("/logout");
-          set({ user: null, isLoading: false });
         } catch (error) {
-          set({
-            isLoading: false,
-            error: axios.isAxiosError(error)
-              ? error?.response?.data?.error || "Logout failed"
-              : "Logout failed",
-          });
+          console.error("Server logout failed, clearing client state.", error);
+        } finally {
+          set({ user: null, isAuthenticated: false });
         }
       },
-      refreshAccessToken: async () => {
+      checkAuth: async () => {
         try {
           await axiosInstance.post("/refresh-token");
-          return true;
+          set({ isAuthenticated: true });
         } catch (e) {
-          console.error(e);
-          return false;
+          set({ user: null, isAuthenticated: false });
         }
       },
     }),

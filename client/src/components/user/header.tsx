@@ -35,24 +35,26 @@ const navItems = [
 ];
 
 function Header() {
-  const { user, logout } = useAuthStore();
+  const { isAuthenticated, logout } = useAuthStore();
   const router = useRouter();
   const [mobileView, setMobileView] = useState<"menu" | "account">("menu");
   const [showSheetDialog, setShowSheetDialog] = useState(false);
   const { fetchCart, items } = useCartStore();
 
   useEffect(() => {
-    if (user) {
+    if (isAuthenticated) {
       fetchCart();
     }
-  }, [fetchCart, user]);
+  }, [fetchCart, isAuthenticated]);
 
   async function handleLogout() {
     await logout();
   }
 
+  console.log(isAuthenticated);
+
   const renderMobileMenuItems = () => {
-    if (user) {
+    if (isAuthenticated) {
       switch (mobileView) {
         case "account":
           return (
@@ -188,7 +190,7 @@ function Header() {
             </nav>
           </div>
           <div className="hidden lg:flex items-center gap-4">
-            {user ? (
+            {isAuthenticated ? (
               <>
                 <Button
                   size="icon"
