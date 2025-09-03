@@ -39,6 +39,7 @@ function Header() {
   const router = useRouter();
   const [mobileView, setMobileView] = useState<"menu" | "account">("menu");
   const [showSheetDialog, setShowSheetDialog] = useState(false);
+  const [showCategories, setShowCategories] = useState(true);
   const { fetchCart, items } = useCartStore();
 
   useEffect(() => {
@@ -50,8 +51,6 @@ function Header() {
   async function handleLogout() {
     await logout();
   }
-
-  console.log(isAuthenticated);
 
   const renderMobileMenuItems = () => {
     if (isAuthenticated) {
@@ -161,104 +160,140 @@ function Header() {
     }
   };
 
+  useEffect(() => {
+    let lastScrollY = window.scrollY;
+    let ticking = false;
+    const scrollThreshold = 50;
+
+    const updateScroll = () => {
+      if (Math.abs(window.scrollY - lastScrollY) > scrollThreshold) {
+        if (window.scrollY > lastScrollY) {
+          setShowCategories(false);
+        } else {
+          setShowCategories(true);
+        }
+        lastScrollY = window.scrollY;
+      }
+      ticking = false;
+    };
+
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(updateScroll);
+        ticking = true;
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   return (
-    <header className="sticky bg-white  top-0 z-50 shadow-sm">
-      <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-20">
-          <Link className="text-2xl font-bold" href="/">
-            <div className="overflow-hidden w-[100px] h-[60px] relative">
-              <Image
-                src={logo}
-                fill
-                priority
-                alt="Logo"
-                className="object-cover"
-              />
-            </div>
-          </Link>
-          <div className="hidden lg:flex items-center space-x-8 flex-1 justify-center">
-            <nav className="flex items-center gap-4">
-              {navItems.map((item, index) => (
-                <Link
-                  href={item.to}
-                  key={index}
-                  className="text-sm font-semibold hover:text-gray-700"
-                >
-                  {item.title}
-                </Link>
-              ))}
-            </nav>
+    <header className="w-full fixed top-0 z-50">
+      <div
+        className={`flex items-center justify-between w-full h-[80px] px-[20px] md:px-[40px] lg:px-[80px] bg-white ${
+          !showCategories ? "shadow-lg" : "shadow-none"
+        }`}
+      >
+        <Link className="text-2xl font-bold" href="/">
+          <div className="overflow-hidden w-[100px] h-[60px] relative">
+            <Image
+              src={logo}
+              fill
+              priority
+              alt="Logo"
+              className="object-cover"
+            />
           </div>
-          <div className="hidden lg:flex items-center gap-4">
-            {isAuthenticated ? (
-              <>
-                <Button
-                  size="icon"
-                  variant={"ghost"}
-                  className="relative group"
-                  onClick={() => router.push("/cart")}
-                >
-                  <ShoppingCart className="size-5" />
-                  <span className="absolute top-0 right-0 size-4 bg-black/20 backdrop-blur-lg text-black text-xs rounded-full flex items-center justify-center pt-0.5 group-hover:-top-1 group-hover:-right-1 group-hover:bg-black/30 transition-all duration-200 ">
-                    {items?.length}
-                  </span>
-                </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button size="icon" variant={"ghost"}>
-                      <User className="size-5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="text-right">
-                    <DropdownMenuItem onClick={() => router.push("/account")}>
-                      پروفایل
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleLogout}>
-                      خروج
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </>
-            ) : (
-              <Button onClick={() => router.push("/auth/login")}>
-                ورود / ثبت‌نام
-              </Button>
-            )}
-          </div>
-          <div className="lg:hidden">
-            <Sheet
-              open={showSheetDialog}
-              onOpenChange={() => {
-                setShowSheetDialog(false);
-                setMobileView("menu");
-              }}
-            >
+        </Link>
+        <div className="hidden lg:flex items-center gap-4">
+          {isAuthenticated ? (
+            <>
               <Button
-                onClick={() => setShowSheetDialog(!showSheetDialog)}
                 size="icon"
-                variant="ghost"
+                variant={"ghost"}
+                className="relative group"
+                onClick={() => router.push("/cart")}
               >
-                <Menu className="h-6 w-6" />
+                <ShoppingCart className="size-5" />
+                <span className="absolute top-0 right-0 size-4 bg-black/20 backdrop-blur-lg text-black text-xs rounded-full flex items-center justify-center pt-0.5 group-hover:-top-1 group-hover:-right-1 group-hover:bg-black/30 transition-all duration-200 ">
+                  {items?.length}
+                </span>
               </Button>
-              <SheetContent side="left">
-                <SheetHeader>
-                  <SheetTitle className="pt-3 flex justify-center">
-                    <div className="w-[100px] h-[60px] relative">
-                      <Image
-                        src={logo}
-                        fill
-                        priority
-                        alt="Logo"
-                        className="object-cover object-center"
-                      />
-                    </div>
-                  </SheetTitle>
-                </SheetHeader>
-                {renderMobileMenuItems()}
-              </SheetContent>
-            </Sheet>
-          </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="icon" variant={"ghost"}>
+                    <User className="size-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="text-right">
+                  <DropdownMenuItem onClick={() => router.push("/account")}>
+                    پروفایل
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleLogout}>
+                    خروج
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          ) : (
+            <Button onClick={() => router.push("/auth/login")}>
+              ورود / ثبت‌نام
+            </Button>
+          )}
         </div>
+        <div className="lg:hidden">
+          <Sheet
+            open={showSheetDialog}
+            onOpenChange={() => {
+              setShowSheetDialog(false);
+              setMobileView("menu");
+            }}
+          >
+            <Button
+              onClick={() => setShowSheetDialog(!showSheetDialog)}
+              size="icon"
+              variant="ghost"
+            >
+              <Menu className="h-6 w-6" />
+            </Button>
+            <SheetContent side="left">
+              <SheetHeader>
+                <SheetTitle className="pt-3 flex justify-center">
+                  <div className="w-[100px] h-[60px] relative">
+                    <Image
+                      src={logo}
+                      fill
+                      priority
+                      alt="Logo"
+                      className="object-cover object-center"
+                    />
+                  </div>
+                </SheetTitle>
+              </SheetHeader>
+              {renderMobileMenuItems()}
+            </SheetContent>
+          </Sheet>
+        </div>
+      </div>
+      <div
+        className={`hidden lg:flex items-center space-x-8 transition-transform duration-300 ${
+          showCategories
+            ? "translate-y-0 visible opacity-100"
+            : "-translate-y-5 invisible opacity-0"
+        } h-12 flex items-center shadow-sm bg-white px-[20px] md:px-[40px] lg:px-[80px] border-t`}
+      >
+        <nav className="flex items-center gap-4">
+          {navItems.map((item, index) => (
+            <Link
+              href={item.to}
+              key={index}
+              className="text-sm font-semibold hover:text-gray-700"
+            >
+              {item.title}
+            </Link>
+          ))}
+        </nav>
       </div>
     </header>
   );

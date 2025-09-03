@@ -22,7 +22,7 @@ function CommonLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-white">
       {showHeader && <Header />}
-      <main>{children}</main>
+      <main className="pt-[128px]">{children}</main>
     </div>
   );
 }
