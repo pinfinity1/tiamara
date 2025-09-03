@@ -18,7 +18,6 @@ export const createProduct = async (
       description,
       how_to_use,
       caution,
-      colors,
       price,
       discount_price,
       stock,
@@ -67,7 +66,6 @@ export const createProduct = async (
         manufacture_date: manufacture_date ? new Date(manufacture_date) : null,
         country_of_origin,
         images: imageUrls,
-        colors: colors ? colors.split(",") : [],
         skin_type: skin_type ? skin_type.split(",") : [],
         concern: concern ? concern.split(",") : [],
         product_form,
@@ -162,21 +160,17 @@ export const updateProduct = async (
     const files = req.files as Express.Multer.File[];
     let imageUrls: string[] | undefined = undefined;
 
-    // اگر فایل جدیدی آپلود شده باشد
     if (files && files.length > 0) {
-      // ۱. آپلود عکس‌های جدید به کلادینری
       const uploadPromises = files.map((file) =>
         cloudinary.uploader.upload(file.path, {
-          folder: "tiamara", // تغییر نام پوشه
+          folder: "tiamara",
         })
       );
       const uploadresults = await Promise.all(uploadPromises);
       imageUrls = uploadresults.map((result) => result.secure_url);
 
-      // ۲. حذف فایل‌های موقت از سرور
       files.forEach((file) => fs.unlinkSync(file.path));
 
-      // (اختیاری) ۳. حذف عکس‌های قدیمی از کلادینری
       const existingProduct = await prisma.product.findUnique({
         where: { id },
       });

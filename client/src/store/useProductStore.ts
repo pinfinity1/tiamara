@@ -7,15 +7,30 @@ export interface Product {
   name: string;
   brand: string;
   category: string;
-  description: string;
-  gender: string;
-  sizes: string[];
-  colors: string[];
+  description?: string | null;
+  how_to_use?: string | null;
+  caution?: string | null;
   price: number;
+  discount_price?: number | null;
   stock: number;
-  rating?: number;
-  soldCount: number;
+  sku?: string | null;
+  barcode?: string | null;
+  volume?: number | null;
+  unit?: string | null;
+  expiry_date?: string | null;
+  manufacture_date?: string | null;
+  country_of_origin?: string | null;
   images: string[];
+  attributes?: any | null;
+  skin_type: string[];
+  concern: string[];
+  product_form?: string | null;
+  ingredients: string[];
+  tags: string[];
+  average_rating?: number | null;
+  review_count?: number | null;
+  soldCount: number;
+  isFeatured: boolean;
 }
 
 interface ProductState {
@@ -26,17 +41,17 @@ interface ProductState {
   totalPages: number;
   totalProducts: number;
   fetchAllProductsForAdmin: () => Promise<void>;
-  createProduct: (productData: FormData) => Promise<Product>;
-  updateProduct: (id: string, productData: FormData) => Promise<Product>;
+  createProduct: (productData: FormData) => Promise<Product | null>;
+  updateProduct: (id: string, productData: FormData) => Promise<Product | null>;
   deleteProduct: (id: string) => Promise<boolean>;
   getProductById: (id: string) => Promise<Product | null>;
   fetchProductsForClient: (params: {
     page?: number;
     limit?: number;
     categories?: string[];
-    sizes?: string[];
-    colors?: string[];
     brands?: string[];
+    skin_types?: string[];
+    concerns?: string[];
     minPrice?: number;
     maxPrice?: number;
     sortBy?: string;
@@ -61,7 +76,6 @@ export const useProductStore = create<ProductState>((set, get) => ({
           withCredentials: true,
         }
       );
-
       set({ products: response.data, isLoading: false });
     } catch (e) {
       set({ error: "Failed to fetch product", isLoading: false });
@@ -84,6 +98,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
       return response.data;
     } catch (e) {
       set({ error: "Failed to create product", isLoading: false });
+      return null;
     }
   },
   updateProduct: async (id: string, productData: FormData) => {
@@ -94,15 +109,14 @@ export const useProductStore = create<ProductState>((set, get) => ({
         productData,
         {
           withCredentials: true,
-          headers: {
-            "Content-Type": "application/json",
-          },
+          // FormData handles its own Content-Type header
         }
       );
       set({ isLoading: false });
       return response.data;
     } catch (e) {
-      set({ error: "Failed to create product", isLoading: false });
+      set({ error: "Failed to update product", isLoading: false });
+      return null;
     }
   },
   deleteProduct: async (id: string) => {
@@ -114,7 +128,8 @@ export const useProductStore = create<ProductState>((set, get) => ({
       set({ isLoading: false });
       return response.data.success;
     } catch (e) {
-      set({ error: "Failed to create product", isLoading: false });
+      set({ error: "Failed to delete product", isLoading: false });
+      return false;
     }
   },
   getProductById: async (id: string) => {
@@ -126,7 +141,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
       set({ isLoading: false });
       return response.data;
     } catch (e) {
-      set({ error: "Failed to create product", isLoading: false });
+      set({ error: "Failed to fetch product by ID", isLoading: false });
       return null;
     }
   },
@@ -136,9 +151,9 @@ export const useProductStore = create<ProductState>((set, get) => ({
       const queryParams = {
         ...params,
         categories: params.categories?.join(","),
-        sizes: params.sizes?.join(","),
-        colors: params.colors?.join(","),
         brands: params.brands?.join(","),
+        skin_types: params.skin_types?.join(","),
+        concerns: params.concerns?.join(","),
       };
 
       const response = await axios.get(

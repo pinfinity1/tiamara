@@ -83,9 +83,9 @@ function SuperAdminProductListingPage() {
                         </div>
                         <div>
                           <p className="font-medium">{product.name}</p>
-                          <p className="text-sm text-muted-foreground">
+                          {/* <p className="text-sm text-muted-foreground">
                             Size: {product.sizes.join(",")}
-                          </p>
+                          </p> */}
                         </div>
                       </div>
                     </TableCell>

@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { useProductStore } from "@/store/useProductStore";
-import { brands, categories, sizes } from "@/utils/config";
+import { brands, categories } from "@/utils/config";
 import { ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";

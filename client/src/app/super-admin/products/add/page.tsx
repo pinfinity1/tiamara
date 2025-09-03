@@ -2,6 +2,7 @@
 
 import { protectProductFormAction } from "@/actions/product";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -14,35 +15,39 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useProductStore } from "@/store/useProductStore";
-import { brands, categories, colors, sizes } from "@/utils/config";
+import { brands, categories, concerns, skinTypes } from "@/utils/config";
 import { Upload } from "lucide-react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 
-interface FormState {
-  name: string;
-  brand: string;
-  description: string;
-  category: string;
-  gender: string;
-  price: string;
-  stock: string;
-}
+const initialFormState = {
+  name: "",
+  brand: "",
+  category: "",
+  description: "",
+  how_to_use: "",
+  caution: "",
+  price: "",
+  discount_price: "",
+  stock: "",
+  sku: "",
+  barcode: "",
+  volume: "",
+  unit: "",
+  expiry_date: "",
+  manufacture_date: "",
+  country_of_origin: "",
+  product_form: "",
+  ingredients: "",
+  tags: "",
+};
 
 function SuperAdminManageProductPage() {
-  const [formState, setFormState] = useState({
-    name: "",
-    brand: "",
-    description: "",
-    category: "",
-    gender: "",
-    price: "",
-    stock: "",
-  });
+  const [formState, setFormState] = useState(initialFormState);
 
-  const [selectedSizes, setSelectSizes] = useState<string[]>([]);
-  const [selectedColors, setSelectColors] = useState<string[]>([]);
+  const [selectedSkinTypes, setSelectedSkinTypes] = useState<string[]>([]);
+  const [selectedConcerns, setSelectedConcerns] = useState<string[]>([]);
   const [selectedfiles, setSelectFiles] = useState<File[]>([]);
   const { toast } = useToast();
   const searchParams = useSearchParams();
@@ -58,38 +63,45 @@ function SuperAdminManageProductPage() {
       getProductById(getCurrentEditedProductId).then((product) => {
         if (product) {
           setFormState({
-            name: product.name,
-            brand: product.brand,
-            description: product.description,
-            category: product.category,
-            gender: product.gender,
-            price: product.price.toString(),
-            stock: product.stock.toString(),
+            name: product.name || "",
+            brand: product.brand || "",
+            category: product.category || "",
+            description: product.description || "",
+            how_to_use: product.how_to_use || "",
+            caution: product.caution || "",
+            price: product.price?.toString() || "",
+            discount_price: product.discount_price?.toString() || "",
+            stock: product.stock?.toString() || "",
+            sku: product.sku || "",
+            barcode: product.barcode || "",
+            volume: product.volume?.toString() || "",
+            unit: product.unit || "",
+            expiry_date: product.expiry_date
+              ? new Date(product.expiry_date).toISOString().split("T")[0]
+              : "",
+            manufacture_date: product.manufacture_date
+              ? new Date(product.manufacture_date).toISOString().split("T")[0]
+              : "",
+            country_of_origin: product.country_of_origin || "",
+            product_form: product.product_form || "",
+            ingredients: product.ingredients?.join(", ") || "",
+            tags: product.tags?.join(", ") || "",
           });
-          setSelectSizes(product.sizes);
-          setSelectColors(product.colors);
+          setSelectedSkinTypes(product.skin_type || []);
+          setSelectedConcerns(product.concern || []);
         }
       });
     }
   }, [isEditMode, getCurrentEditedProductId, getProductById]);
 
   useEffect(() => {
-    console.log(getCurrentEditedProductId, "getCurrentEditedProductId");
-
-    if (getCurrentEditedProductId === null) {
-      setFormState({
-        name: "",
-        brand: "",
-        description: "",
-        category: "",
-        gender: "",
-        price: "",
-        stock: "",
-      });
-      setSelectColors([]);
-      setSelectSizes([]);
+    if (!isEditMode) {
+      setFormState(initialFormState);
+      setSelectedSkinTypes([]);
+      setSelectedConcerns([]);
+      setSelectFiles([]);
     }
-  }, [getCurrentEditedProductId]);
+  }, [isEditMode]);
 
   const handleInputChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -107,15 +119,12 @@ function SuperAdminManageProductPage() {
     }));
   };
 
-  const handleToggleSize = (size: string) => {
-    setSelectSizes((prev) =>
-      prev.includes(size) ? prev.filter((s) => s !== size) : [...prev, size]
-    );
-  };
-
-  const handleToggleColor = (color: string) => {
-    setSelectColors((prev) =>
-      prev.includes(color) ? prev.filter((s) => s !== color) : [...prev, color]
+  const handleToggleFilter = (
+    setter: React.Dispatch<React.SetStateAction<string[]>>,
+    value: string
+  ) => {
+    setter((prev) =>
+      prev.includes(value) ? prev.filter((s) => s !== value) : [...prev, value]
     );
   };
 
@@ -133,30 +142,58 @@ function SuperAdminManageProductPage() {
     if (!checkFirstLevelFormSanitization.success) {
       toast({
         title: checkFirstLevelFormSanitization.error,
+        variant: "destructive",
       });
       return;
     }
 
     const formData = new FormData();
-    Object.entries(formState).forEach(([Key, value]) => {
-      formData.append(Key, value);
+    Object.entries(formState).forEach(([key, value]) => {
+      formData.append(key, value);
     });
+    formData.append("skin_type", selectedSkinTypes.join(","));
+    formData.append("concern", selectedConcerns.join(","));
 
-    formData.append("sizes", selectedSizes.join(","));
-    formData.append("colors", selectedColors.join(","));
-
+    // if (!isEditMode) {
+    //   selectedfiles.forEach((file) => {
+    //     formData.append("images", file);
+    //   });
+    // }
     if (!isEditMode) {
+      if (selectedfiles.length === 0) {
+        toast({
+          title: "Please upload at least one image.",
+          variant: "destructive",
+        });
+        return;
+      }
       selectedfiles.forEach((file) => {
         formData.append("images", file);
       });
     }
 
-    const result = isEditMode
-      ? await updateProduct(getCurrentEditedProductId, formData)
-      : await createProduct(formData);
-    console.log(result, "result");
+    // const result = isEditMode
+    //   ? await updateProduct(getCurrentEditedProductId, formData)
+    //   : await createProduct(formData);
+    // console.log(result, "result");
+    // if (result) {
+    //   router.push("/super-admin/products/list");
+    // }
+    const result =
+      isEditMode && getCurrentEditedProductId
+        ? await updateProduct(getCurrentEditedProductId, formData)
+        : await createProduct(formData);
+
     if (result) {
+      toast({
+        title: `Product ${isEditMode ? "updated" : "created"} successfully!`,
+      });
       router.push("/super-admin/products/list");
+    } else {
+      toast({
+        title: `Failed to ${isEditMode ? "update" : "create"} product.`,
+        variant: "destructive",
+      });
     }
   };
 
@@ -234,6 +271,24 @@ function SuperAdminManageProductPage() {
               </Select>
             </div>
             <div>
+              <Label>Category</Label>
+              <Select
+                value={formState.category}
+                onValueChange={(value) => handleSelectChange("category", value)}
+              >
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="Select Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {item}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
               <Label>Product Description</Label>
               <Textarea
                 name="description"
@@ -244,25 +299,46 @@ function SuperAdminManageProductPage() {
               />
             </div>
             <div>
-              <Label>Category</Label>
-              <Select
-                value={formState.category}
-                onValueChange={(value) => handleSelectChange("category", value)}
-                name="category"
-              >
-                <SelectTrigger className="mt-1.5">
-                  <SelectValue placeholder="Select Category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((item) => (
-                    <SelectItem key={item} value={item.toLowerCase()}>
-                      {item}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>How to use</Label>
+              <Textarea
+                name="how_to_use"
+                className="mt-1.5 min-h-[100px]"
+                placeholder="How to use"
+                onChange={handleInputChange}
+                value={formState.how_to_use}
+              />
             </div>
             <div>
+              <Label>Caution</Label>
+              <Textarea
+                name="caution"
+                className="mt-1.5 min-h-[100px]"
+                placeholder="precaution"
+                onChange={handleInputChange}
+                value={formState.caution}
+              />
+            </div>
+            <div>
+              <Label>Ingredients (comma-separated)</Label>
+              <Textarea
+                name="ingredients"
+                className="mt-1.5"
+                placeholder="مثال: آب، گلیسیرین، ..."
+                onChange={handleInputChange}
+                value={formState.ingredients}
+              />
+            </div>
+            <div>
+              <Label>Tags (comma-separated)</Label>
+              <Textarea
+                name="tags"
+                className="mt-1.5"
+                placeholder="مثال: وگان، ارگانیک، ..."
+                onChange={handleInputChange}
+                value={formState.tags}
+              />
+            </div>
+            {/* <div>
               <Label>Gender</Label>
               <Select
                 value={formState.gender}
@@ -278,42 +354,7 @@ function SuperAdminManageProductPage() {
                   <SelectItem value="kids">Kids</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            <div>
-              <Label>Size</Label>
-              <div className="mt-1.5 flex flex-wrap gap-2">
-                {sizes.map((item) => (
-                  <Button
-                    onClick={() => handleToggleSize(item)}
-                    variant={
-                      selectedSizes.includes(item) ? "default" : "outline"
-                    }
-                    key={item}
-                    type="button"
-                    size={"sm"}
-                  >
-                    {item}
-                  </Button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <Label>Colors</Label>
-              <div className="mt-1.5 flex flex-wrap gap-2">
-                {colors.map((color) => (
-                  <Button
-                    key={color.name}
-                    type="button"
-                    className={`h-8 w-8 rounded-full ${color.class} ${
-                      selectedColors.includes(color.name)
-                        ? "ring-2 ring-primary ring-offset-2"
-                        : ""
-                    }`}
-                    onClick={() => handleToggleColor(color.name)}
-                  />
-                ))}
-              </div>
-            </div>
+            </div> */}
             <div>
               <Label>Product Price</Label>
               <Input
@@ -321,6 +362,17 @@ function SuperAdminManageProductPage() {
                 className="mt-1.5"
                 placeholder="Enter Product Price"
                 value={formState.price}
+                onChange={handleInputChange}
+              />
+            </div>
+            <div>
+              <Label>Discount Price (Optional)</Label>
+              <Input
+                name="discount_price"
+                type="number"
+                className="mt-1.5"
+                placeholder="Discount Price"
+                value={formState.discount_price}
                 onChange={handleInputChange}
               />
             </div>
@@ -333,6 +385,125 @@ function SuperAdminManageProductPage() {
                 value={formState.stock}
                 onChange={handleInputChange}
               />
+            </div>
+            <div>
+              <Label>SKU</Label>
+              <Input
+                name="sku"
+                className="mt-1.5"
+                placeholder="شناسه محصول (SKU)"
+                value={formState.sku}
+                onChange={handleInputChange}
+              />
+            </div>
+            <div>
+              <Label>Barcode</Label>
+              <Input
+                name="barcode"
+                className="mt-1.5"
+                placeholder="بارکد"
+                value={formState.barcode}
+                onChange={handleInputChange}
+              />
+            </div>
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <Label>Volume/Weight</Label>
+                <Input
+                  name="volume"
+                  type="number"
+                  className="mt-1.5"
+                  placeholder="حجم/وزن"
+                  value={formState.volume}
+                  onChange={handleInputChange}
+                />
+              </div>
+              <div className="flex-1">
+                <Label>Unit</Label>
+                <Input
+                  name="unit"
+                  className="mt-1.5"
+                  placeholder="واحد (ml, g, ...)"
+                  value={formState.unit}
+                  onChange={handleInputChange}
+                />
+              </div>
+            </div>
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <Label>Manufacture Date</Label>
+                <Input
+                  name="manufacture_date"
+                  type="date"
+                  className="mt-1.5"
+                  value={formState.manufacture_date}
+                  onChange={handleInputChange}
+                />
+              </div>
+              <div className="flex-1">
+                <Label>Expiry Date</Label>
+                <Input
+                  name="expiry_date"
+                  type="date"
+                  className="mt-1.5"
+                  value={formState.expiry_date}
+                  onChange={handleInputChange}
+                />
+              </div>
+            </div>
+            <div>
+              <Label>Country of Origin</Label>
+              <Input
+                name="country_of_origin"
+                className="mt-1.5"
+                placeholder="کشور سازنده"
+                value={formState.country_of_origin}
+                onChange={handleInputChange}
+              />
+            </div>
+            <div>
+              <Label>Product Form</Label>
+              <Input
+                name="product_form"
+                className="mt-1.5"
+                placeholder="شکل محصول (کرم، سرم، ...)"
+                value={formState.product_form}
+                onChange={handleInputChange}
+              />
+            </div>
+            <div>
+              <Label>Skin Type</Label>
+              <div className="mt-1.5 flex flex-wrap gap-4">
+                {skinTypes.map((type) => (
+                  <div key={type} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`skin-${type}`}
+                      checked={selectedSkinTypes.includes(type)}
+                      onCheckedChange={() =>
+                        handleToggleFilter(setSelectedSkinTypes, type)
+                      }
+                    />
+                    <Label htmlFor={`skin-${type}`}>{type}</Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label>Concern</Label>
+              <div className="mt-1.5 flex flex-wrap gap-4">
+                {concerns.map((concern) => (
+                  <div key={concern} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`concern-${concern}`}
+                      checked={selectedConcerns.includes(concern)}
+                      onCheckedChange={() =>
+                        handleToggleFilter(setSelectedConcerns, concern)
+                      }
+                    />
+                    <Label htmlFor={`concern-${concern}`}>{concern}</Label>
+                  </div>
+                ))}
+              </div>
             </div>
             <Button
               disabled={isLoading}
