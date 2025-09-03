@@ -23,7 +23,7 @@ function HomeBannerCarousel() {
 
     return () => clearInterval(bannerTimer);
   }, [banners.length]);
-  console.log(banners, featuredProducts);
+  // console.log(banners, featuredProducts);
 
   const [emblaRef, emblaApi] = useEmblaCarousel(
     {

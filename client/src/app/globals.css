@@ -87,11 +87,13 @@ body::-webkit-scrollbar-thumb {
   }
   .embla__viewport {
     overflow: hidden;
+    height: 100%;
   }
   .embla__container {
     display: flex;
     touch-action: pan-y pinch-zoom;
     margin-left: calc(var(--slide-spacing) * -1);
+    height: 100%;
   }
   .embla__slide {
     flex: 0 0 100%;

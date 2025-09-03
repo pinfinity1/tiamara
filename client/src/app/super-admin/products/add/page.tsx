@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useProductStore } from "@/store/useProductStore";
 import { brands, categories, concerns, skinTypes } from "@/utils/config";
-import { Upload } from "lucide-react";
+import { Upload, X } from "lucide-react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
@@ -45,6 +45,8 @@ const initialFormState = {
 
 function SuperAdminManageProductPage() {
   const [formState, setFormState] = useState(initialFormState);
+  const [existingImages, setExistingImages] = useState<string[]>([]);
+  const [imagesToDelete, setImagesToDelete] = useState<string[]>([]);
 
   const [selectedSkinTypes, setSelectedSkinTypes] = useState<string[]>([]);
   const [selectedConcerns, setSelectedConcerns] = useState<string[]>([]);
@@ -89,6 +91,7 @@ function SuperAdminManageProductPage() {
           });
           setSelectedSkinTypes(product.skin_type || []);
           setSelectedConcerns(product.concern || []);
+          setExistingImages(product.images || []);
         }
       });
     }
@@ -100,6 +103,8 @@ function SuperAdminManageProductPage() {
       setSelectedSkinTypes([]);
       setSelectedConcerns([]);
       setSelectFiles([]);
+      setExistingImages([]);
+      setImagesToDelete([]);
     }
   }, [isEditMode]);
 
@@ -130,7 +135,26 @@ function SuperAdminManageProductPage() {
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
-      setSelectFiles(Array.from(event.target.files));
+      const newFiles = Array.from(event.target.files);
+      setSelectFiles((prevFiles) => {
+        const existingFileNames = prevFiles.map((file) => file.name);
+        const uniqueNewFiles = newFiles.filter(
+          (file) => !existingFileNames.includes(file.name)
+        );
+        return [...prevFiles, ...uniqueNewFiles];
+      });
+    }
+  };
+
+  const handleRemoveNewImage = (index: number) => {
+    setSelectFiles((prevFiles) => prevFiles.filter((_, i) => i !== index));
+  };
+
+  const handleRemoveExistingImage = (imageUrl: string) => {
+    const publicId = imageUrl.split("/").pop()?.split(".")[0];
+    if (publicId) {
+      setImagesToDelete((prev) => [...prev, publicId]);
+      setExistingImages((prev) => prev.filter((img) => img !== imageUrl));
     }
   };
 
@@ -154,22 +178,25 @@ function SuperAdminManageProductPage() {
     formData.append("skin_type", selectedSkinTypes.join(","));
     formData.append("concern", selectedConcerns.join(","));
 
+    if (isEditMode) {
+      formData.append("imagesToDelete", imagesToDelete.join(","));
+    }
+
+    selectedfiles.forEach((file) => {
+      formData.append("images", file);
+    });
+
     // if (!isEditMode) {
     //   selectedfiles.forEach((file) => {
     //     formData.append("images", file);
     //   });
     // }
-    if (!isEditMode) {
-      if (selectedfiles.length === 0) {
-        toast({
-          title: "Please upload at least one image.",
-          variant: "destructive",
-        });
-        return;
-      }
-      selectedfiles.forEach((file) => {
-        formData.append("images", file);
+    if (!isEditMode && selectedfiles.length === 0) {
+      toast({
+        title: "Please upload at least one image.",
+        variant: "destructive",
       });
+      return;
     }
 
     // const result = isEditMode
@@ -197,49 +224,84 @@ function SuperAdminManageProductPage() {
     }
   };
 
+  console.log(existingImages, "existingImages");
+  console.log(selectedfiles, "selectedfiles");
+
   return (
     <div className="p-6">
       <div className="flex flex-col gap-6">
         <header className="flex items-center justify-between">
-          <h1>Add Product</h1>
+          <h1>{isEditMode ? "Edit Product" : "Add Product"}</h1>
         </header>
         <form
           onSubmit={handleFormSubmit}
           className="grid gap-6 md:grid-cols-2 lg:grid-cols-1"
         >
-          {isEditMode ? null : (
-            <div className="mt-2 w-full flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-400 p-12">
-              <div className="text-center">
+          <div className="mt-2 w-full flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-400 p-12">
+            <div className="text-center">
+              <Label className="cursor-pointer">
                 <Upload className="mx-auto h-12 w-12 text-gray-400" />
                 <div className="mt-4 flex text-sm leadin-6 text-gray-600">
-                  <Label>
-                    <span>Click to browse</span>
-                    <input
-                      type="file"
-                      className="sr-only"
-                      multiple
-                      onChange={handleFileChange}
-                    />
-                  </Label>
+                  <span>Click to browse</span>
+                  <input
+                    type="file"
+                    className="sr-only"
+                    multiple
+                    onChange={handleFileChange}
+                  />
                 </div>
-              </div>
-              {selectedfiles.length > 0 && (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {selectedfiles.map((file, index) => (
-                    <div key={index} className="relative">
-                      <Image
-                        src={URL.createObjectURL(file)}
-                        alt={`Preview ${index + 1}`}
-                        width={80}
-                        height={80}
-                        className="h-20 w-20 object-cover rounded-md"
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
+              </Label>
             </div>
-          )}
+            {selectedfiles.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {selectedfiles.map((file, index) => (
+                  <div key={index} className="relative">
+                    <Image
+                      src={URL.createObjectURL(file)}
+                      alt={`Preview ${index + 1}`}
+                      width={80}
+                      height={80}
+                      className="h-20 w-20 object-cover rounded-md"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-0 right-0 h-6 w-6"
+                      onClick={() => handleRemoveNewImage(index)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {isEditMode && existingImages.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {existingImages.map((imageUrl, index) => (
+                  <div key={index} className="relative">
+                    <Image
+                      src={imageUrl}
+                      alt={`Existing Image ${index + 1}`}
+                      width={80}
+                      height={80}
+                      className="h-20 w-20 object-cover rounded-md"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-0 right-0 h-6 w-6"
+                      onClick={() => handleRemoveExistingImage(imageUrl)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="space-y-4">
             <div>
               <Label>Product Name</Label>

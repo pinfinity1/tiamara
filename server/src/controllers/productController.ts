@@ -66,11 +66,12 @@ export const createProduct = async (
         manufacture_date: manufacture_date ? new Date(manufacture_date) : null,
         country_of_origin,
         images: imageUrls,
-        skin_type: skin_type ? skin_type.split(",") : [],
-        concern: concern ? concern.split(",") : [],
+        skin_type: typeof skin_type === "string" ? skin_type.split(",") : [],
+        concern: typeof concern === "string" ? concern.split(",") : [],
         product_form,
-        ingredients: ingredients ? ingredients.split(",") : [],
-        tags: tags ? tags.split(",") : [],
+        ingredients:
+          typeof ingredients === "string" ? ingredients.split(",") : [],
+        tags: typeof tags === "string" ? tags.split(",") : [],
         soldCount: 0,
         average_rating: 0,
         review_count: 0,
@@ -155,31 +156,46 @@ export const updateProduct = async (
       product_form,
       ingredients,
       tags,
+      imagesToDelete,
     } = req.body;
 
-    const files = req.files as Express.Multer.File[];
-    let imageUrls: string[] | undefined = undefined;
+    const existingProduct = await prisma.product.findUnique({
+      where: { id },
+    });
 
+    if (!existingProduct) {
+      res.status(404).json({ success: false, message: "Product not found!" });
+      return;
+    }
+
+    let updatedImageUrls = [...existingProduct.images];
+
+    if (imagesToDelete) {
+      const idsToDelete = (imagesToDelete as string).split(",").filter(Boolean);
+
+      if (idsToDelete.length > 0) {
+        const publicIdsForCloudinary = idsToDelete.map((id) => `tiamara/${id}`);
+
+        await cloudinary.api.delete_resources(publicIdsForCloudinary);
+
+        updatedImageUrls = updatedImageUrls.filter((url) => {
+          const idFromUrl = url.split("/").pop()?.split(".")[0];
+          return !idsToDelete.includes(idFromUrl!);
+        });
+      }
+    }
+
+    const files = req.files as Express.Multer.File[];
     if (files && files.length > 0) {
       const uploadPromises = files.map((file) =>
-        cloudinary.uploader.upload(file.path, {
-          folder: "tiamara",
-        })
+        cloudinary.uploader.upload(file.path, { folder: "tiamara" })
       );
-      const uploadresults = await Promise.all(uploadPromises);
-      imageUrls = uploadresults.map((result) => result.secure_url);
+      const uploadResults = await Promise.all(uploadPromises);
+      const newImageUrls = uploadResults.map((result) => result.secure_url);
+
+      updatedImageUrls.push(...newImageUrls);
 
       files.forEach((file) => fs.unlinkSync(file.path));
-
-      const existingProduct = await prisma.product.findUnique({
-        where: { id },
-      });
-      if (existingProduct && existingProduct.images.length > 0) {
-        const publicIds = existingProduct.images.map(
-          (url) => "tiamara/" + url.split("/").pop()?.split(".")[0]!
-        );
-        await cloudinary.api.delete_resources(publicIds);
-      }
     }
 
     const product = await prisma.product.update({
@@ -201,19 +217,20 @@ export const updateProduct = async (
         expiry_date: expiry_date ? new Date(expiry_date) : null,
         manufacture_date: manufacture_date ? new Date(manufacture_date) : null,
         country_of_origin,
-        ...(imageUrls && { images: imageUrls }),
-        skin_type: skin_type.split(","),
-        concern: concern.split(","),
+        images: updatedImageUrls,
+        skin_type: typeof skin_type === "string" ? skin_type.split(",") : [],
+        concern: typeof concern === "string" ? concern.split(",") : [],
         product_form,
-        ingredients: ingredients.split(","),
-        tags: tags.split(","),
+        ingredients:
+          typeof ingredients === "string" ? ingredients.split(",") : [],
+        tags: typeof tags === "string" ? tags.split(",") : [],
       },
     });
 
     res.status(200).json(product);
   } catch (e) {
     console.error(e);
-    res.status(500).json({ success: false, message: "Some error occured!" });
+    res.status(500).json({ success: false, message: "Some error occurred!" });
   }
 };
 

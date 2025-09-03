@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import banner from "../../../../public/images/banner2.jpg";
-import logo from "../../../../public/images/logo1.png";
+import logo from "../../../../public/images/Logo/tiamara-logo.png";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";

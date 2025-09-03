@@ -44,6 +44,8 @@ function SuperAdminProductListingPage() {
 
   if (isLoading) return null;
 
+  console.log(products);
+
   return (
     <div className="p-6">
       <div className="flex flex-col gap-6">
