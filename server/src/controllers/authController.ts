@@ -2,112 +2,145 @@ import { prisma } from "../server";
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
-import { v4 as uuidv4 } from "uuid";
+import { generateAndSaveOtp, verifyOtp } from "../utils/otpUtils";
 
-async function generateToken(userId: string, email: string, role: string) {
+async function generateToken(userId: string, phone: string, role: string) {
   const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
-  const accessToken = await new SignJWT({ userId, email, role })
+  const accessToken = await new SignJWT({ userId, phone, role })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("60m")
     .sign(secret);
-
-  const refreshToken = uuidv4();
-  return { accessToken, refreshToken };
+  return { accessToken };
 }
 
-async function setTokens(
-  res: Response,
-  accessToken: string,
-  refreshToken: string
-) {
+async function setTokens(res: Response, accessToken: string) {
   res.cookie("accessToken", accessToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
     maxAge: 60 * 60 * 1000,
   });
-  res.cookie("refreshToken", refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
 }
 
-export const register = async (req: Request, res: Response): Promise<void> => {
+export const checkPhoneAndSendOtpController = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
-    const { name, email, password } = req.body;
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
-      res.status(400).json({
-        success: false,
-        error: "User with this email exists!",
-      });
+    const { phone } = req.body;
+    if (!phone) {
+      res
+        .status(400)
+        .json({ success: false, message: "Phone number is required" });
       return;
     }
 
-    const hashedPassword = await bcrypt.hash(password, 12);
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-        role: "USER",
-      },
-    });
+    const user = await prisma.user.findUnique({ where: { phone } });
+    const otp = await generateAndSaveOtp(phone);
 
-    res.status(201).json({
-      message: "User registered successfully",
+    console.log(`\n\n✅ test OTP for ${phone}: ${otp}\n\n`);
+
+    res.status(200).json({
       success: true,
-      userId: user.id,
+      message: "OTP sent successfully.",
+      userExists: !!user,
+      hasPassword: !!user?.password,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Registration failed" });
+    console.error("Error in checkPhoneAndSendOtpController:", error);
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to process request" });
   }
 };
 
-export const login = async (req: Request, res: Response): Promise<void> => {
+export const loginWithOtpController = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
-    const { email, password } = req.body;
-    const extractCurrentUser = await prisma.user.findUnique({
-      where: { email },
-    });
-
-    if (
-      !extractCurrentUser ||
-      !(await bcrypt.compare(password, extractCurrentUser.password))
-    ) {
-      res.status(401).json({
-        success: false,
-        error: "Invalied credentials",
-      });
-
+    const { phone, otp } = req.body;
+    if (!phone || !otp) {
+      res
+        .status(400)
+        .json({ success: false, error: "Phone and OTP are required" });
       return;
     }
-    //create our access and refreshtoken
-    const { accessToken, refreshToken } = await generateToken(
-      extractCurrentUser.id,
-      extractCurrentUser.email,
-      extractCurrentUser.role
-    );
 
-    await prisma.user.update({
-      where: { id: extractCurrentUser.id },
-      data: { refreshToken: refreshToken },
+    const isOtpValid = await verifyOtp(phone, otp);
+    if (!isOtpValid) {
+      res.status(401).json({ success: false, error: "Invalid or expired OTP" });
+      return;
+    }
+
+    let user = await prisma.user.findUnique({ where: { phone } });
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: { phone, role: "USER" },
+      });
+    }
+
+    const { accessToken } = await generateToken(
+      user.id,
+      user.phone!,
+      user.role
+    );
+    await setTokens(res, accessToken);
+
+    res.status(200).json({
+      success: true,
+      message: "Login successful",
+      user: {
+        id: user.id,
+        name: user.name,
+        phone: user.phone,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Login with OTP failed" });
+  }
+};
+
+export const loginWithPasswordController = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { phone, password } = req.body;
+    const user = await prisma.user.findUnique({
+      where: { phone },
     });
 
-    //set out tokens
-    await setTokens(res, accessToken, refreshToken);
+    if (!user || !user.password) {
+      res.status(401).json({ success: false, error: "Invalid credentials" });
+      return;
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      res.status(401).json({ success: false, error: "Invalid credentials" });
+      return;
+    }
+
+    const { accessToken } = await generateToken(
+      user.id,
+      user.phone!,
+      user.role
+    );
+    await setTokens(res, accessToken);
+
     res.status(200).json({
       success: true,
       message: "Login successfully",
       user: {
-        id: extractCurrentUser.id,
-        name: extractCurrentUser.name,
-        email: extractCurrentUser.email,
-        role: extractCurrentUser.role,
+        id: user.id,
+        name: user.name,
+        phone: user.phone,
+        role: user.role,
       },
     });
   } catch (error) {
@@ -116,67 +149,11 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-export const refreshAccessToken = async (
+export const logoutController = async (
   req: Request,
   res: Response
 ): Promise<void> => {
-  const refreshToken = req.cookies.refreshToken;
-  if (!refreshToken) {
-    res.status(401).json({
-      success: false,
-      error: "Refresh token not provided",
-    });
-    return;
-  }
-
-  try {
-    const user = await prisma.user.findFirst({
-      where: {
-        refreshToken: refreshToken,
-      },
-    });
-
-    if (!user) {
-      res.status(401).json({
-        success: false,
-        error: "Invalid refresh token or user not found",
-      });
-      return;
-    }
-
-    const { accessToken, refreshToken: newRefreshToken } = await generateToken(
-      user.id,
-      user.email,
-      user.role
-    );
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { refreshToken: newRefreshToken },
-    });
-
-    //set out tokens
-    await setTokens(res, accessToken, newRefreshToken);
-    res.status(200).json({
-      success: true,
-      message: "Access token refreshed successfully",
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Refresh token error" });
-  }
-};
-
-export const logout = async (req: Request, res: Response): Promise<void> => {
-  const { refreshToken } = req.cookies;
-  if (refreshToken) {
-    await prisma.user.updateMany({
-      where: { refreshToken: refreshToken },
-      data: { refreshToken: null },
-    });
-  }
   res.clearCookie("accessToken");
-  res.clearCookie("refreshToken");
   res.json({
     success: true,
     message: "User logged out successfully",

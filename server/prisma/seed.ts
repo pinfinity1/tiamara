@@ -4,29 +4,37 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  const email = "admin@gmail.com";
-  const password = "123456";
-  const name = "Super Admin";
+  // اطلاعات ورود ادمین اصلی
+  const adminPhone = "09000000000"; // شماره موبایل ادمین - می‌توانید تغییر دهید
+  const adminPassword = "123456"; // رمز عبور ادمین
+  const adminName = "Super Admin";
 
-  const existingSuperAdmin = await prisma.user.findFirst({
-    where: { role: "SUPER_ADMIN" },
+  // ابتدا چک می‌کنیم که آیا ادمینی با این شماره وجود دارد یا نه
+  const existingSuperAdmin = await prisma.user.findUnique({
+    where: { phone: adminPhone },
   });
 
   if (existingSuperAdmin) {
+    console.log("Super admin already exists.");
     return;
   }
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+  // اگر وجود نداشت، یک ادمین جدید با شماره و رمز عبور ایجاد می‌کنیم
+  const hashedPassword = await bcrypt.hash(adminPassword, 10);
+
   const superAdminUser = await prisma.user.create({
     data: {
-      email,
-      name,
+      phone: adminPhone,
+      name: adminName,
       password: hashedPassword,
       role: "SUPER_ADMIN",
     },
   });
 
-  console.log("Super admin created successfully", superAdminUser.email);
+  console.log(
+    "Super admin created successfully with phone:",
+    superAdminUser.phone
+  );
 }
 
 main()

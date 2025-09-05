@@ -1,9 +1,9 @@
-import { prisma } from "./prisma";
+import { prisma } from "../server";
 import bcrypt from "bcryptjs";
 
 const OTP_EXPIRATION_MINUTES = 2;
 
-export async function generateAndSaveOtp(identifier: string) {
+export async function generateAndSaveOtp(identifier: string): Promise<string> {
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   const hashedOtp = await bcrypt.hash(otp, 10);
   const expires = new Date(Date.now() + OTP_EXPIRATION_MINUTES * 60 * 1000);
@@ -17,20 +17,10 @@ export async function generateAndSaveOtp(identifier: string) {
   return otp;
 }
 
-export async function sendOtp(phone: string) {
-  try {
-    const otp = await generateAndSaveOtp(phone);
-
-    console.log(`\n\n✅ کد یکبار مصرف برای ${phone}: ${otp}\n\n`);
-
-    return { success: true, message: "کد یکبار مصرف (تستی) ایجاد شد." };
-  } catch (error) {
-    console.error("Error sending OTP:", error);
-    return { success: false, message: "خطای سرور در ارسال پیامک." };
-  }
-}
-
-export async function verifyOtp(identifier: string, token: string) {
+export async function verifyOtp(
+  identifier: string,
+  token: string
+): Promise<boolean> {
   const verificationToken = await prisma.verificationToken.findFirst({
     where: { identifier },
   });
@@ -40,9 +30,13 @@ export async function verifyOtp(identifier: string, token: string) {
   }
 
   const isTokenValid = await bcrypt.compare(token, verificationToken.token);
+
   if (isTokenValid) {
-    await prisma.verificationToken.delete({
-      where: { token: verificationToken.token },
+    // در Prisma، مدل VerificationToken کلید منحصر به فرد روی identifier و token دارد
+    // برای حذف، بهتر است از ترکیب آن‌ها یا یک id منحصر به فرد استفاده کنیم.
+    // اگر مدل شما id ندارد، این روش کار می‌کند.
+    await prisma.verificationToken.deleteMany({
+      where: { identifier: identifier, token: verificationToken.token },
     });
   }
 
