@@ -78,7 +78,7 @@ function HomeBannerCarousel() {
               </div>
             </div>
 
-            <div className="embla__dots absolute left-1/2 bottom-2 w-fit bg-black/15 backdrop-blur-xl px-1 py-0.5 rounded">
+            <div className="embla__dots absolute left-1/2 -translate-x-1/2 bottom-2 w-fit bg-black/15 backdrop-blur-xl px-1 py-0.5 rounded">
               {banners?.map((_, index) => (
                 <button
                   key={index}
