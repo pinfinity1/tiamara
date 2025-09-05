@@ -78,7 +78,7 @@ function HomeBannerCarousel() {
               </div>
             </div>
 
-            <div className="embla__dots flex items-center justify-center absolute right-[50%] bottom-2 left-[50%] gap-[5px]">
+            <div className="embla__dots absolute left-1/2 bottom-2 w-fit bg-black/15 backdrop-blur-xl px-1 py-0.5 rounded">
               {banners?.map((_, index) => (
                 <button
                   key={index}
