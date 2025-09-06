@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import CommonLayout from "@/components/common/layout";
+import { NextAuthProvider } from "@/components/common/NextAuthProvider";
 
 export const metadata: Metadata = {
   title: "تیامارا",
@@ -16,8 +17,10 @@ export default function RootLayout({
   return (
     <html lang="fa" dir="rtl">
       <body className={`antialiased`}>
-        <CommonLayout>{children}</CommonLayout>
-        <Toaster />
+        <NextAuthProvider>
+          <CommonLayout>{children}</CommonLayout>
+          <Toaster />
+        </NextAuthProvider>
       </body>
     </html>
   );

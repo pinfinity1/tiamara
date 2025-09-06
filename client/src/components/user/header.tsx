@@ -22,6 +22,7 @@ import { useEffect, useState } from "react";
 import { useCartStore } from "@/store/useCartStore";
 import logo from "../../../public/images/Logo/tiamara-logo.png";
 import Image from "next/image";
+import { signOut, useSession } from "next-auth/react";
 
 const navItems = [
   {
@@ -35,12 +36,17 @@ const navItems = [
 ];
 
 function Header() {
-  const { isAuthenticated, logout } = useAuthStore();
-  const router = useRouter();
+  // const { isAuthenticated, logout } = useAuthStore();
+  const { data: session, status } = useSession();
+  const isAuthenticated = status === "authenticated";
+  const isLoading = status === "loading";
+
   const [mobileView, setMobileView] = useState<"menu" | "account">("menu");
   const [showSheetDialog, setShowSheetDialog] = useState(false);
   const [showCategories, setShowCategories] = useState(true);
   const { fetchCart, items } = useCartStore();
+
+  const router = useRouter();
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -49,7 +55,7 @@ function Header() {
   }, [fetchCart, isAuthenticated]);
 
   async function handleLogout() {
-    await logout();
+    await signOut({ redirect: true, callbackUrl: "/" });
   }
 
   const renderMobileMenuItems = () => {
@@ -189,91 +195,105 @@ function Header() {
   }, []);
 
   return (
-    <header className="w-full fixed top-0 z-50">
+    <header className={`w-full fixed top-0 z-50  }`}>
       <div
-        className={`flex items-center justify-between w-full h-[80px] px-[20px] md:px-[40px] lg:px-[80px] bg-white ${
+        className={`w-full h-20 bg-white ${
           !showCategories ? "shadow-lg" : "shadow-none"
         }`}
       >
-        <Link className="text-2xl font-bold" href="/">
-          <div className="overflow-hidden w-[100px] h-[60px] relative">
-            <Image
-              src={logo}
-              fill
-              priority
-              alt="Logo"
-              className="object-cover"
-            />
+        <div
+          className={`container mx-auto flex items-center justify-between w-full h-[80px] `}
+        >
+          <div>
+            <Link className="text-2xl font-bold" href="/">
+              <div className="overflow-hidden w-[100px] h-[60px] relative">
+                <Image
+                  src={logo}
+                  fill
+                  priority
+                  alt="Logo"
+                  className="object-cover"
+                />
+              </div>
+            </Link>
           </div>
-        </Link>
-        <div className="hidden lg:flex items-center gap-4">
-          {isAuthenticated ? (
-            <>
-              <Button
-                size="icon"
-                variant={"ghost"}
-                className="relative group"
-                onClick={() => router.push("/cart")}
-              >
-                <ShoppingCart className="size-5" />
-                <span className="absolute top-0 right-0 size-4 bg-black/20 backdrop-blur-lg text-black text-xs rounded-full flex items-center justify-center pt-0.5 group-hover:-top-1 group-hover:-right-1 group-hover:bg-black/30 transition-all duration-200 ">
-                  {items?.length}
-                </span>
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="icon" variant={"ghost"}>
-                    <User className="size-5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="text-right">
-                  <DropdownMenuItem onClick={() => router.push("/account")}>
-                    پروفایل
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleLogout}>
-                    خروج
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </>
-          ) : (
-            <Button onClick={() => router.push("/auth/login")}>
-              ورود / ثبت‌نام
-            </Button>
-          )}
-        </div>
-        <div className="lg:hidden">
-          <Sheet
-            open={showSheetDialog}
-            onOpenChange={() => {
-              setShowSheetDialog(false);
-              setMobileView("menu");
-            }}
-          >
-            <Button
-              onClick={() => setShowSheetDialog(!showSheetDialog)}
-              size="icon"
-              variant="ghost"
+          <div className="hidden lg:flex items-center gap-4">
+            {isAuthenticated ? (
+              <>
+                <Button
+                  size="icon"
+                  variant={"ghost"}
+                  className="relative group"
+                  onClick={() => router.push("/cart")}
+                >
+                  <ShoppingCart className="size-5" />
+                  <span className="absolute top-0 right-0 size-4 bg-black/20 backdrop-blur-lg text-black text-xs rounded-full flex items-center justify-center pt-0.5 group-hover:-top-1 group-hover:-right-1 group-hover:bg-black/30 transition-all duration-200 ">
+                    {items?.length}
+                  </span>
+                </Button>
+                <DropdownMenu modal={false}>
+                  <DropdownMenuTrigger
+                    asChild
+                    className="data-[state=open]:bg-accent"
+                  >
+                    <Button size="icon" variant={"ghost"}>
+                      <User className="size-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="text-right">
+                    <DropdownMenuItem onClick={() => router.push("/account")}>
+                      پروفایل
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={handleLogout}
+                      className="hover:!bg-red-50"
+                    >
+                      خروج
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            ) : (
+              !isLoading && (
+                <Button onClick={() => router.push("/auth/login")}>
+                  ورود / ثبت‌نام
+                </Button>
+              )
+            )}
+          </div>
+          <div className="lg:hidden">
+            <Sheet
+              open={showSheetDialog}
+              onOpenChange={() => {
+                setShowSheetDialog(false);
+                setMobileView("menu");
+              }}
             >
-              <Menu className="h-6 w-6" />
-            </Button>
-            <SheetContent side="left">
-              <SheetHeader>
-                <SheetTitle className="pt-3 flex justify-center">
-                  <div className="w-[100px] h-[60px] relative">
-                    <Image
-                      src={logo}
-                      fill
-                      priority
-                      alt="Logo"
-                      className="object-cover object-center"
-                    />
-                  </div>
-                </SheetTitle>
-              </SheetHeader>
-              {renderMobileMenuItems()}
-            </SheetContent>
-          </Sheet>
+              <Button
+                onClick={() => setShowSheetDialog(!showSheetDialog)}
+                size="icon"
+                variant="ghost"
+              >
+                <Menu className="h-6 w-6" />
+              </Button>
+              <SheetContent side="left">
+                <SheetHeader>
+                  <SheetTitle className="pt-3 flex justify-center">
+                    <div className="w-[100px] h-[60px] relative">
+                      <Image
+                        src={logo}
+                        fill
+                        priority
+                        alt="Logo"
+                        className="object-cover object-center"
+                      />
+                    </div>
+                  </SheetTitle>
+                </SheetHeader>
+                {renderMobileMenuItems()}
+              </SheetContent>
+            </Sheet>
+          </div>
         </div>
       </div>
       <div

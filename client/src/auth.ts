@@ -1,12 +1,9 @@
 import NextAuth, { User } from "next-auth";
-import { PrismaAdapter } from "@auth/prisma-adapter";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { prisma } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
-import { verifyOtp } from "@/lib/otp";
+import { API_ROUTES } from "@/utils/api";
+import axios from "axios";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(prisma),
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -17,49 +14,52 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         loginType: { label: "Login Type", type: "text" }, // 'otp' or 'password'
       },
       async authorize(credentials): Promise<User | null> {
-        const { phone, password, otp, loginType } = credentials ?? {};
+        const { phone, password, otp, loginType } = credentials;
 
-        if (typeof phone !== "string" || !phone) {
+        if (!phone) {
           throw new Error("Phone number is required.");
         }
 
-        // Scenario 1: Login with Password
-        if (loginType === "password") {
-          if (typeof password !== "string" || !password) {
-            throw new Error("Password is required.");
-          }
-
-          const user = await prisma.user.findUnique({ where: { phone } });
-          if (!user || !user.password) throw new Error("Invalid credentials.");
-
-          const isPasswordValid = await bcrypt.compare(password, user.password);
-          if (!isPasswordValid) throw new Error("Invalid credentials.");
-
-          return user;
-        }
-
-        // Scenario 2: Login or Register with OTP
-        if (loginType === "otp") {
-          if (typeof otp !== "string" || !otp) {
-            throw new Error("OTP is required.");
-          }
-
-          const isOtpValid = await verifyOtp(phone, otp);
-          if (!isOtpValid) throw new Error("Invalid or expired OTP.");
-
-          let user = await prisma.user.findUnique({ where: { phone } });
-
-          // If user does not exist, create a new one (auto-registration)
-          if (!user) {
-            user = await prisma.user.create({
-              data: { phone, role: "USER" },
+        try {
+          let response;
+          //Scenario 1 : login with password
+          if (loginType === "password") {
+            if (!password) throw new Error("Password is required.");
+            response = await axios.post(`${API_ROUTES.AUTH}/login-password`, {
+              phone,
+              password,
             });
           }
+          //Scenario 2 : login with otp
+          else if (loginType === "otp") {
+            if (!otp) throw new Error("OTP is required.");
+            response = await axios.post(`${API_ROUTES.AUTH}/login-otp`, {
+              phone,
+              otp,
+            });
+          } else {
+            return null;
+          }
 
-          return user;
+          if (response.data && response.data.success) {
+            const user = response.data.user;
+            return {
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              role: user.role,
+              phone: user.phone,
+            } as User;
+          } else {
+            throw new Error(response.data.error || "Authentication failed.");
+          }
+        } catch (error: any) {
+          const errorMessage =
+            error.response?.data?.error ||
+            error.message ||
+            "An unexpected error occurred.";
+          throw new Error(errorMessage);
         }
-
-        return null;
       },
     }),
   ],
