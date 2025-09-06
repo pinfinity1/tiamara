@@ -101,8 +101,8 @@ export const loginWithOtpController = async (
         role: user.role,
         isNewUser: isNewUser,
         requiresPasswordSetup: !user.password,
-        accessToken,
       },
+      accessToken,
     });
   } catch (error) {
     console.error(error);

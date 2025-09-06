@@ -1,3 +1,4 @@
+import { axiosPublic } from "@/lib/axios";
 import { API_ROUTES } from "@/utils/api";
 import axios from "axios";
 import { create } from "zustand";
@@ -33,9 +34,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   fetchBanners: async () => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axios.get(`${API_ROUTES.SETTINGS}/get-banners`, {
-        withCredentials: true,
-      });
+      const response = await axiosPublic.get(`/settings/get-banners`);
       set({ banners: response.data.banners, isLoading: false });
     } catch (e) {
       console.error(e);
@@ -45,11 +44,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   fetchFeaturedProducts: async () => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axios.get(
-        `${API_ROUTES.SETTINGS}/fetch-feature-products`,
-        {
-          withCredentials: true,
-        }
+      const response = await axiosPublic.get(
+        `/settings/fetch-feature-products`
       );
       set({
         featuredProducts: response.data.featuredProducts,

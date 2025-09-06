@@ -4,11 +4,13 @@ import { axiosPublic } from "./lib/axios";
 
 declare module "next-auth" {
   interface User {
+    role?: string;
     requiresPasswordSetup?: boolean;
   }
   interface Session {
     accessToken?: string;
     user?: {
+      role?: string;
       requiresPasswordSetup?: boolean;
     } & DefaultSession["user"];
   }

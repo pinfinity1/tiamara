@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { API_ROUTES } from "@/utils/api";
 import axios from "axios";
-import axiosAuth from "@/lib/axios";
+import axiosAuth, { axiosPublic } from "@/lib/axios";
 
 type AuthStep = "phone" | "password" | "otp" | "set-password";
 
@@ -33,7 +33,7 @@ function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const response = await axiosAuth.post(`/auth/check-phone`, {
+      const response = await axiosPublic.post(`/auth/check-phone`, {
         phone,
       });
       if (response.data.success) {
