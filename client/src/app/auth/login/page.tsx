@@ -13,13 +13,15 @@ import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { API_ROUTES } from "@/utils/api";
 import axios from "axios";
+import axiosAuth from "@/lib/axios";
 
-type AuthStep = "phone" | "password" | "otp";
+type AuthStep = "phone" | "password" | "otp" | "set-password";
 
 function LoginPage() {
   const [step, setStep] = useState<AuthStep>("phone");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [userExists, setUserExists] = useState(false);
@@ -27,19 +29,17 @@ function LoginPage() {
   const { toast } = useToast();
   const router = useRouter();
 
-  // مرحله ۱: ارسال شماره همراه برای بررسی وضعیت کاربر و ارسال OTP
   const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const response = await axios.post(`${API_ROUTES.AUTH}/check-phone`, {
+      const response = await axiosAuth.post(`/auth/check-phone`, {
         phone,
       });
       if (response.data.success) {
         setUserExists(response.data.userExists);
         setHasPassword(response.data.hasPassword);
 
-        // اگر کاربر رمز عبور داشت به مرحله رمز عبور، در غیر این صورت به مرحله OTP می‌رود
         setStep(response.data.hasPassword ? "password" : "otp");
         toast({ title: "کد یکبار مصرف با موفقیت ارسال شد." });
       }
@@ -55,7 +55,6 @@ function LoginPage() {
     }
   };
 
-  // مرحله نهایی: ارسال اطلاعات به NextAuth برای ورود
   const handleFinalLogin = async (loginType: "password" | "otp") => {
     setIsLoading(true);
     const result = await signIn("credentials", {
@@ -65,7 +64,6 @@ function LoginPage() {
       otp: loginType === "otp" ? otp : undefined,
       loginType,
     });
-
     setIsLoading(false);
 
     if (result?.error) {
@@ -75,13 +73,50 @@ function LoginPage() {
         variant: "destructive",
       });
     } else if (result?.ok) {
-      toast({ title: "خوش آمدید!" });
-      router.push("/"); // هدایت به صفحه اصلی پس از ورود موفق
-      router.refresh(); // برای به‌روزرسانی session
+      // بعد از ورود موفق، کاربر را بررسی می‌کنیم
+      const sessionResponse = await fetch("/api/auth/session");
+      const session = await sessionResponse.json();
+
+      // @ts-ignore
+      if (session?.user?.requiresPasswordSetup) {
+        setStep("set-password"); // کاربر جدید است، به مرحله تنظیم رمز می‌رود
+      } else {
+        toast({ title: "خوش آمدید!" });
+        router.push("/");
+        router.refresh();
+      }
     }
   };
 
-  // رندر کردن فرم بر اساس مرحله فعلی
+  // 3. اضافه کردن کنترلر برای تنظیم رمز عبور
+  const handleSetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password !== confirmPassword) {
+      toast({
+        title: "خطا",
+        description: "رمزهای عبور با هم مطابقت ندارند.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await axiosAuth.post("/auth/set-password", { password });
+
+      toast({ title: "رمز عبور با موفقیت تنظیم شد." });
+      router.push("/");
+      router.refresh();
+    } catch (error: any) {
+      toast({
+        title: "خطا در تنظیم رمز عبور",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const renderStep = () => {
     switch (step) {
       case "phone":
@@ -203,6 +238,40 @@ function LoginPage() {
               }}
             >
               تغییر شماره همراه
+            </Button>
+          </form>
+        );
+      case "set-password":
+        return (
+          <form onSubmit={handleSetPassword} className="space-y-4">
+            <h2 className="text-center text-xl font-semibold">
+              تنظیم رمز عبور
+            </h2>
+            <p className="text-center text-sm text-gray-600">
+              برای تکمیل ثبت‌نام، یک رمز عبور برای حساب خود تعیین کنید.
+            </p>
+            <div className="space-y-1">
+              <Label htmlFor="password">رمز عبور جدید</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="confirmPassword">تکرار رمز عبور</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+              />
+            </div>
+            <Button type="submit" disabled={isLoading} className="w-full">
+              {isLoading ? "در حال ذخیره..." : "ذخیره و ادامه"}
             </Button>
           </form>
         );

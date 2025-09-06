@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import { generateAndSaveOtp, verifyOtp } from "../utils/otpUtils";
+import { AuthenticatedRequest } from "../middleware/authMiddleware";
 
 async function generateToken(userId: string, phone: string, role: string) {
   const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
@@ -75,11 +76,13 @@ export const loginWithOtpController = async (
     }
 
     let user = await prisma.user.findUnique({ where: { phone } });
+    let isNewUser = false;
 
     if (!user) {
       user = await prisma.user.create({
         data: { phone, role: "USER" },
       });
+      isNewUser = true;
     }
 
     const { accessToken } = await generateToken(
@@ -87,7 +90,6 @@ export const loginWithOtpController = async (
       user.phone!,
       user.role
     );
-    await setTokens(res, accessToken);
 
     res.status(200).json({
       success: true,
@@ -97,11 +99,47 @@ export const loginWithOtpController = async (
         name: user.name,
         phone: user.phone,
         role: user.role,
+        isNewUser: isNewUser,
+        requiresPasswordSetup: !user.password,
+        accessToken,
       },
     });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Login with OTP failed" });
+  }
+};
+
+export const setPasswordController = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { password } = req.body;
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      res.status(401).json({ success: false, error: "Unauthorized" });
+      return;
+    }
+    if (!password) {
+      res.status(400).json({ success: false, error: "Password is required" });
+      return;
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword },
+    });
+
+    res
+      .status(200)
+      .json({ success: true, message: "Password set successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to set password" });
   }
 };
 
@@ -131,7 +169,6 @@ export const loginWithPasswordController = async (
       user.phone!,
       user.role
     );
-    await setTokens(res, accessToken);
 
     res.status(200).json({
       success: true,
@@ -142,6 +179,7 @@ export const loginWithPasswordController = async (
         phone: user.phone,
         role: user.role,
       },
+      accessToken,
     });
   } catch (error) {
     console.error(error);

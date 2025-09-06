@@ -14,7 +14,9 @@ export const authenticateJwt = (
   res: Response,
   next: NextFunction
 ) => {
-  const accessToken = req.cookies.accessToken;
+  const authHeader = req.headers.authorization;
+  const accessToken = authHeader && authHeader.split(" ")[1];
+
   if (!accessToken) {
     res
       .status(401)
@@ -23,8 +25,8 @@ export const authenticateJwt = (
   }
 
   jwtVerify(accessToken, new TextEncoder().encode(process.env.JWT_SECRET))
-    .then((res) => {
-      const payload = res.payload as JWTPayload & {
+    .then((result) => {
+      const payload = result.payload as JWTPayload & {
         userId: string;
         email: string;
         role: string;
@@ -41,7 +43,7 @@ export const authenticateJwt = (
       console.error(e);
       res
         .status(401)
-        .json({ success: false, error: "Access token is not present" });
+        .json({ success: false, error: "Invalid or expired access token" });
     });
 };
 
@@ -53,11 +55,9 @@ export const isSuperAdmin = (
   if (req.user && req.user.role === "SUPER_ADMIN") {
     next();
   } else {
-    res
-      .status(403)
-      .json({
-        success: false,
-        error: "Access denied! Super admin access required",
-      });
+    res.status(403).json({
+      success: false,
+      error: "Access denied! Super admin access required",
+    });
   }
 };

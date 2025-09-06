@@ -4,12 +4,10 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  // اطلاعات ورود ادمین اصلی
-  const adminPhone = "09000000000"; // شماره موبایل ادمین - می‌توانید تغییر دهید
-  const adminPassword = "123456"; // رمز عبور ادمین
+  const adminPhone = "09397155826";
+  const adminPassword = "123456";
   const adminName = "Super Admin";
 
-  // ابتدا چک می‌کنیم که آیا ادمینی با این شماره وجود دارد یا نه
   const existingSuperAdmin = await prisma.user.findUnique({
     where: { phone: adminPhone },
   });
@@ -19,7 +17,6 @@ async function main() {
     return;
   }
 
-  // اگر وجود نداشت، یک ادمین جدید با شماره و رمز عبور ایجاد می‌کنیم
   const hashedPassword = await bcrypt.hash(adminPassword, 10);
 
   const superAdminUser = await prisma.user.create({

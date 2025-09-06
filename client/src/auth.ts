@@ -1,7 +1,18 @@
-import NextAuth, { User } from "next-auth";
+import NextAuth, { DefaultSession, User } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { API_ROUTES } from "@/utils/api";
-import axios from "axios";
+import { axiosPublic } from "./lib/axios";
+
+declare module "next-auth" {
+  interface User {
+    requiresPasswordSetup?: boolean;
+  }
+  interface Session {
+    accessToken?: string;
+    user?: {
+      requiresPasswordSetup?: boolean;
+    } & DefaultSession["user"];
+  }
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
@@ -11,7 +22,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         phone: { label: "Phone", type: "text" },
         password: { label: "Password", type: "password" },
         otp: { label: "OTP", type: "text" },
-        loginType: { label: "Login Type", type: "text" }, // 'otp' or 'password'
+        loginType: { label: "Login Type", type: "text" },
       },
       async authorize(credentials): Promise<User | null> {
         const { phone, password, otp, loginType } = credentials;
@@ -25,7 +36,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           //Scenario 1 : login with password
           if (loginType === "password") {
             if (!password) throw new Error("Password is required.");
-            response = await axios.post(`${API_ROUTES.AUTH}/login-password`, {
+            response = await axiosPublic.post(`/auth/login-password`, {
               phone,
               password,
             });
@@ -33,7 +44,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           //Scenario 2 : login with otp
           else if (loginType === "otp") {
             if (!otp) throw new Error("OTP is required.");
-            response = await axios.post(`${API_ROUTES.AUTH}/login-otp`, {
+            response = await axiosPublic.post(`/auth/login-otp`, {
               phone,
               otp,
             });
@@ -49,6 +60,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               email: user.email,
               role: user.role,
               phone: user.phone,
+              requiresPasswordSetup: user.requiresPasswordSetup,
+              accessToken: response.data.accessToken,
             } as User;
           } else {
             throw new Error(response.data.error || "Authentication failed.");
@@ -74,6 +87,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.role = user.role;
         // @ts-ignore
         token.phone = user.phone;
+
+        if (user.requiresPasswordSetup !== undefined) {
+          token.requiresPasswordSetup = user.requiresPasswordSetup;
+        }
+        // @ts-ignore
+        token.accessToken = user.accessToken;
       }
       return token;
     },
@@ -85,6 +104,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.role = token.role;
         // @ts-ignore
         session.user.phone = token.phone;
+
+        if (token.requiresPasswordSetup !== undefined) {
+          session.user.requiresPasswordSetup =
+            token.requiresPasswordSetup as boolean;
+        }
+        // @ts-ignore
+        session.accessToken = token.accessToken;
       }
       return session;
     },
