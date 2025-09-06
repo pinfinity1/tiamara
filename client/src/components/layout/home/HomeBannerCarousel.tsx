@@ -2,32 +2,20 @@ import { useCallback, useEffect, useState } from "react";
 import useEmblaCarousel from "embla-carousel-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { useSettingsStore } from "@/store/useSettingsStore";
+import { useHomepageStore } from "@/store/useHomepageStore";
 import Autoplay from "embla-carousel-autoplay";
+import Link from "next/link";
 
 function HomeBannerCarousel() {
-  const [currentSlide, setCurrentSlide] = useState(0);
-
-  const { banners, featuredProducts, fetchFeaturedProducts, fetchBanners } =
-    useSettingsStore();
+  const { banners, fetchBanners } = useHomepageStore();
 
   useEffect(() => {
     fetchBanners();
-    fetchFeaturedProducts();
-  }, [fetchBanners, fetchFeaturedProducts]);
-
-  useEffect(() => {
-    const bannerTimer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % banners.length);
-    }, 5000);
-
-    return () => clearInterval(bannerTimer);
-  }, [banners.length]);
-  // console.log(banners, featuredProducts);
+  }, [fetchBanners]);
 
   const [emblaRef, emblaApi] = useEmblaCarousel(
     {
-      loop: false,
+      loop: true,
       direction: "rtl",
     },
     [Autoplay({ delay: 5000, stopOnInteraction: false })]
@@ -39,7 +27,6 @@ function HomeBannerCarousel() {
     (index: number) => {
       if (!emblaApi) return;
       emblaApi.scrollTo(index);
-      setSelectedIndex(index);
     },
     [emblaApi]
   );
@@ -53,41 +40,66 @@ function HomeBannerCarousel() {
 
     onSelect(emblaApi);
     emblaApi.on("select", onSelect);
+    emblaApi.on("reInit", onSelect);
   }, [emblaApi, onSelect]);
 
   return (
     <>
-      {banners && (
-        <section className="home-banner-carousel h-[280px] lg:h-[360px] w-full overflow-hidden ">
+      {banners && banners.length > 0 && (
+        <section className="home-banner-carousel h-[280px] lg:h-[420px] w-full overflow-hidden ">
           <div className="embla w-full h-full">
             <div className="embla__viewport" ref={emblaRef}>
               <div className="embla__container">
-                {banners.map((banner) => (
-                  <div className="embla__slide" key={banner.id}>
-                    <div className="h-full w-full">
-                      <Image
-                        src={banner.imageUrl}
-                        alt={"banner"}
-                        fill
-                        className="w-full h-full object-cover"
-                        priority={banner.id === "1"}
-                      />
+                {banners
+                  .filter((b) => b.isActive)
+                  .map((banner) => (
+                    <div className="embla__slide" key={banner.id}>
+                      <Link
+                        href={banner.linkUrl || "#"}
+                        className="h-full w-full block relative"
+                      >
+                        <Image
+                          src={banner.imageUrl}
+                          alt={banner.altText || "Tiamara Banner"}
+                          fill
+                          className="w-full h-full object-cover"
+                          priority={banner.order === 0}
+                        />
+                        <div className="absolute inset-0 bg-black/25 flex flex-col items-center justify-center text-center text-white p-4">
+                          {banner.title && (
+                            <h2 className="text-2xl md:text-4xl font-bold">
+                              {banner.title}
+                            </h2>
+                          )}
+                          {banner.subtitle && (
+                            <p className="mt-2 text-sm md:text-lg max-w-xl">
+                              {banner.subtitle}
+                            </p>
+                          )}
+                          {banner.buttonText && (
+                            <Button className="mt-4 bg-white text-black hover:bg-gray-200">
+                              {banner.buttonText}
+                            </Button>
+                          )}
+                        </div>
+                      </Link>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             </div>
 
-            <div className="embla__dots absolute left-1/2 -translate-x-1/2 bottom-2 w-fit bg-black/15 backdrop-blur-xl px-1 py-0.5 rounded">
-              {banners?.map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => onDotButtonClick(index)}
-                  className={`embla__dot ${
-                    index === selectedIndex ? "embla__dot--selected" : ""
-                  } `}
-                />
-              ))}
+            <div className="embla__dots absolute left-1/2 -translate-x-1/2 bottom-2 w-fit bg-black/15 backdrop-blur-xl px-2 py-1 rounded-full">
+              {banners
+                .filter((b) => b.isActive)
+                .map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => onDotButtonClick(index)}
+                    className={`embla__dot ${
+                      index === selectedIndex ? "embla__dot--selected" : ""
+                    } `}
+                  />
+                ))}
             </div>
           </div>
         </section>

@@ -9,11 +9,6 @@ function SuperAdminLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background">
-      <SuperAdminSidebar
-        isOpen={isSidebarOpen}
-        toggle={() => setIsSidebarOpen(!isSidebarOpen)}
-      />
-
       <div
         className={cn(
           "transition-all duration-300",
@@ -23,6 +18,10 @@ function SuperAdminLayout({ children }: { children: React.ReactNode }) {
       >
         {children}
       </div>
+      <SuperAdminSidebar
+        isOpen={isSidebarOpen}
+        toggle={() => setIsSidebarOpen(!isSidebarOpen)}
+      />
     </div>
   );
 }

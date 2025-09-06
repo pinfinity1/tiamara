@@ -1,7 +1,11 @@
-import SuperAdminProductListingPage from "./products/list/page";
-
 function SuperAdmin() {
-  return <SuperAdminProductListingPage />;
+  return (
+    <>
+      <div className="flex items-center justify-center mt-20">
+        super admin dashboard
+      </div>
+    </>
+  );
 }
 
 export default SuperAdmin;

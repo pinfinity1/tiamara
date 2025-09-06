@@ -1,12 +1,32 @@
 import { API_ROUTES } from "@/utils/api";
-import axios from "axios";
+import { axiosPublic } from "@/lib/axios";
+import axiosAuth from "@/lib/axios";
 import { create } from "zustand";
 
+// --- Supporting Types ---
+// These types should match your prisma schema for relations
+
+interface Image {
+  id: string;
+  url: string;
+  altText?: string | null;
+}
+
+interface Brand {
+  id: string;
+  name: string;
+}
+
+interface Category {
+  id: string;
+  name: string;
+}
+
+// --- Main Product Interface (Updated to match the new schema) ---
 export interface Product {
   id: string;
   name: string;
-  brand: string;
-  category: string;
+  slug: string; // Added for SEO
   description?: string | null;
   how_to_use?: string | null;
   caution?: string | null;
@@ -17,10 +37,10 @@ export interface Product {
   barcode?: string | null;
   volume?: number | null;
   unit?: string | null;
-  expiry_date?: string | null;
+  expiry_date?: string | null; // Dates are often strings in JSON
   manufacture_date?: string | null;
   country_of_origin?: string | null;
-  images: string[];
+  images: Image[]; // Updated to use the Image interface
   attributes?: any | null;
   skin_type: string[];
   concern: string[];
@@ -30,7 +50,16 @@ export interface Product {
   average_rating?: number | null;
   review_count?: number | null;
   soldCount: number;
-  isFeatured: boolean;
+
+  // SEO fields
+  metaTitle?: string | null;
+  metaDescription?: string | null;
+
+  // Relational fields
+  brandId?: string | null;
+  brand?: Brand | null;
+  categoryId?: string | null;
+  category?: Category | null;
 }
 
 interface ProductState {
@@ -62,7 +91,7 @@ interface ProductState {
 
 export const useProductStore = create<ProductState>((set, get) => ({
   products: [],
-  isLoading: true,
+  isLoading: false,
   error: null,
   currentPage: 1,
   totalPages: 1,
@@ -70,12 +99,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
   fetchAllProductsForAdmin: async () => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axios.get(
-        `${API_ROUTES.PRODUCTS}/fetch-admin-products`,
-        {
-          withCredentials: true,
-        }
-      );
+      const response = await axiosAuth.get(`/products/fetch-admin-products`);
       set({ products: response.data, isLoading: false });
     } catch (e) {
       set({ error: "Failed to fetch product", isLoading: false });
@@ -84,17 +108,19 @@ export const useProductStore = create<ProductState>((set, get) => ({
   createProduct: async (productData: FormData) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axios.post(
-        `${API_ROUTES.PRODUCTS}/create-new-product`,
+      const response = await axiosAuth.post(
+        `/products/create-new-product`,
         productData,
         {
-          withCredentials: true,
           headers: {
             "Content-Type": "multipart/form-data",
           },
         }
       );
-      set({ isLoading: false });
+      set((state) => ({
+        products: [response.data, ...state.products],
+        isLoading: false,
+      }));
       return response.data;
     } catch (e) {
       set({ error: "Failed to create product", isLoading: false });
@@ -104,15 +130,15 @@ export const useProductStore = create<ProductState>((set, get) => ({
   updateProduct: async (id: string, productData: FormData) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axios.put(
-        `${API_ROUTES.PRODUCTS}/${id}`,
-        productData,
-        {
-          withCredentials: true,
-          // FormData handles its own Content-Type header
-        }
-      );
-      set({ isLoading: false });
+      const response = await axiosAuth.put(`/products/${id}`, productData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      set((state) => ({
+        products: state.products.map((p) => (p.id === id ? response.data : p)),
+        isLoading: false,
+      }));
       return response.data;
     } catch (e) {
       set({ error: "Failed to update product", isLoading: false });
@@ -122,10 +148,11 @@ export const useProductStore = create<ProductState>((set, get) => ({
   deleteProduct: async (id: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axios.delete(`${API_ROUTES.PRODUCTS}/${id}`, {
-        withCredentials: true,
-      });
-      set({ isLoading: false });
+      const response = await axiosAuth.delete(`/products/${id}`);
+      set((state) => ({
+        products: state.products.filter((p) => p.id !== id),
+        isLoading: false,
+      }));
       return response.data.success;
     } catch (e) {
       set({ error: "Failed to delete product", isLoading: false });
@@ -135,9 +162,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
   getProductById: async (id: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axios.get(`${API_ROUTES.PRODUCTS}/${id}`, {
-        withCredentials: true,
-      });
+      const response = await axiosAuth.get(`/products/${id}`);
       set({ isLoading: false });
       return response.data;
     } catch (e) {
@@ -156,11 +181,10 @@ export const useProductStore = create<ProductState>((set, get) => ({
         concerns: params.concerns?.join(","),
       };
 
-      const response = await axios.get(
-        `${API_ROUTES.PRODUCTS}/fetch-client-products`,
+      const response = await axiosPublic.get(
+        `/products/fetch-client-products`,
         {
           params: queryParams,
-          withCredentials: true,
         }
       );
 

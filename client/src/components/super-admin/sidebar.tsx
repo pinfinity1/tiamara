@@ -6,119 +6,182 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
-  LayoutGrid,
-  ListOrdered,
+  Home,
+  LayoutDashboard,
   LogOut,
   Package,
-  Printer,
-  SendToBack,
-  Settings,
-  Tags,
+  Tag,
+  Ticket,
+  LucideProps,
+  LayoutGrid,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
+import { ForwardRefExoticComponent, RefAttributes } from "react";
 
-interface SidebarProps {
-  isOpen: Boolean;
-  toggle: () => void;
-}
+// Define a unified type for all menu items
+type MenuItem = {
+  name: string;
+  icon: ForwardRefExoticComponent<
+    Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>
+  >;
+  href?: string;
+  action?: () => void;
+  group: string;
+};
 
-const menuItems = [
+// Menu items are grouped for better organization
+const menuItems: MenuItem[] = [
   {
-    name: "Products",
+    name: "داشبورد",
+    icon: LayoutDashboard,
+    href: "/super-admin",
+    group: "اصلی",
+  },
+  {
+    name: "سفارشات",
+    icon: FileText,
+    href: "/super-admin/orders",
+    group: "اصلی",
+  },
+  {
+    name: "محصولات",
     icon: Package,
-    href: "/super-admin/products/list",
+    href: "/super-admin/products",
+    group: "کاتالوگ",
   },
   {
-    name: "Add New Product",
-    icon: Printer,
-    href: "/super-admin/products/add",
-  },
-  {
-    name: "Brands",
-    icon: Tags,
+    name: "برندها",
+    icon: Tag,
     href: "/super-admin/brands",
+    group: "کاتالوگ",
   },
   {
     name: "دسته‌بندی‌ها",
     icon: LayoutGrid,
     href: "/super-admin/categories",
+    group: "کاتالوگ",
   },
   {
-    name: "Orders",
-    icon: SendToBack,
-    href: "/super-admin/orders",
-  },
-  {
-    name: "Coupons",
-    icon: FileText,
+    name: "کوپن‌ها",
+    icon: Ticket,
     href: "/super-admin/coupons/list",
+    group: "بازاریابی",
   },
   {
-    name: "Create Coupon",
-    icon: ListOrdered,
-    href: "/super-admin/coupons/add",
-  },
-  {
-    name: "Settings",
-    icon: Settings,
-    href: "/super-admin/settings",
-  },
-  {
-    name: "logout",
-    icon: LogOut,
-    href: "",
+    name: "مدیریت صفحه اصلی",
+    icon: Home,
+    href: "/super-admin/homepage",
+    group: "ظاهر فروشگاه",
   },
 ];
 
-function SuperAdminSidebar({ isOpen, toggle }: SidebarProps) {
+// Bottom menu items like logout
+const bottomMenuItems: MenuItem[] = [
+  {
+    name: "خروج",
+    icon: LogOut,
+    action: async () => {
+      await signOut({ redirect: true, callbackUrl: "/" });
+    },
+    group: "System", // Added group for consistency
+  },
+];
+
+/**
+ * The main sidebar component for the super admin panel.
+ * @param {boolean} isOpen - Controls whether the sidebar is expanded or collapsed.
+ * @param {function} toggle - Function to toggle the sidebar state.
+ */
+function SuperAdminSidebar({
+  isOpen,
+  toggle,
+}: {
+  isOpen: boolean;
+  toggle: () => void;
+}) {
   const router = useRouter();
 
-  async function handleLogout() {
-    await signOut({ redirect: true, callbackUrl: "/" });
-  }
+  const handleNavigation = (href?: string, action?: () => void) => {
+    if (href) {
+      router.push(href);
+    } else if (action) {
+      action();
+    }
+  };
+
+  // Group menu items by their 'group' property for structured rendering
+  const menuGroups = menuItems.reduce((acc, item) => {
+    (acc[item.group] = acc[item.group] || []).push(item);
+    return acc;
+  }, {} as Record<string, typeof menuItems>);
 
   return (
     <div
       className={cn(
-        "fixed left-0 top-0 z-40 h-screen bg-background transition-all duration-300",
-        isOpen ? "w-64" : "w-16",
+        "fixed left-0 top-0 z-40 h-screen bg-gray-50 flex flex-col transition-all duration-300",
+        isOpen ? "w-64" : "w-18",
         "border-r"
       )}
     >
-      <div className="flex h-16 items-center justify-between px-4">
-        <h1 className={cn("font-semibold", !isOpen && "hidden")}>
-          Admin Panel
-        </h1>
+      <div className="flex h-16 items-center justify-start px-2 sm:px-4 border-b">
         <Button
           variant={"ghost"}
           size={"icon"}
-          className="ml-auto"
+          className={`${isOpen ? "w-fit px-2" : "mx-auto"}`}
           onClick={toggle}
         >
+          <h1 className={cn("font-semibold text-lg", !isOpen && "hidden")}>
+            پنل مدیریت
+          </h1>
           {isOpen ? (
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-5 w-5" />
           ) : (
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-5 w-5" />
           )}
         </Button>
       </div>
-      <div className="space-y-1 py-4">
-        {menuItems.map((item) => (
+
+      <nav className="flex-1 space-y-2 py-4 overflow-y-auto">
+        {Object.entries(menuGroups).map(([groupName, items]) => (
+          <div key={groupName} className="px-4">
+            <h2
+              className={cn(
+                "mt-3 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider",
+                !isOpen && "text-center"
+              )}
+            >
+              {isOpen ? groupName : "•"}
+            </h2>
+            {items.map((item) => (
+              <div
+                onClick={() => handleNavigation(item.href, item.action)}
+                key={item.name}
+                className={cn(
+                  "flex items-center gap-3 cursor-pointer rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200",
+                  !isOpen && "justify-center"
+                )}
+              >
+                <item.icon className="h-5 w-5" />
+                <span className={cn(!isOpen && "hidden")}>{item.name}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </nav>
+
+      <div className="mt-auto border-t p-4">
+        {bottomMenuItems.map((item) => (
           <div
-            onClick={
-              item.name === "logout"
-                ? handleLogout
-                : () => router.push(item.href)
-            }
+            onClick={() => handleNavigation(item.href, item.action)}
             key={item.name}
             className={cn(
-              "flex cursor-pointer items-center gap-3 px-4 py-2 text-sm hover:bg-accent hover:text-accent-foreground ",
+              "flex items-center gap-3 cursor-pointer rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200",
               !isOpen && "justify-center"
             )}
           >
-            <item.icon className="h-4 w-4" />
-            <span className={cn("ml-3", !isOpen && "hidden")}>{item.name}</span>
+            <item.icon className="h-5 w-5" />
+            <span className={cn(!isOpen && "hidden")}>{item.name}</span>
           </div>
         ))}
       </div>
