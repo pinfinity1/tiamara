@@ -5,7 +5,17 @@ import { prisma } from "../server";
 import fs from "fs";
 import { Prisma } from "@prisma/client";
 
-//create a product
+const generateSlug = (name: string) => {
+  return name
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-") // Replace spaces with -
+    .replace(/[^\w\-]+/g, "") // Remove all non-word chars
+    .replace(/\-\-+/g, "-"); // Replace multiple - with single -
+};
+
+// Create a new product
 export const createProduct = async (
   req: AuthenticatedRequest,
   res: Response
@@ -13,8 +23,8 @@ export const createProduct = async (
   try {
     const {
       name,
-      brand,
-      category,
+      brandId, // Changed from 'brand' to 'brandId'
+      categoryId, // Changed from 'category' to 'categoryId'
       description,
       how_to_use,
       caution,
@@ -33,25 +43,33 @@ export const createProduct = async (
       product_form,
       ingredients,
       tags,
+      metaTitle,
+      metaDescription,
     } = req.body;
 
     const files = req.files as Express.Multer.File[];
 
-    //upload all images to cloudinary
+    // Upload all images to cloudinary
     const uploadPromises = files.map((file) =>
       cloudinary.uploader.upload(file.path, {
-        folder: "tiamara",
+        folder: "tiamara", // Your Cloudinary folder
       })
     );
 
-    const uploadresults = await Promise.all(uploadPromises);
-    const imageUrls = uploadresults.map((result) => result.secure_url);
+    const uploadResults = await Promise.all(uploadPromises);
+
+    // Prepare image data for Prisma, including altText derived from product name
+    const imageCreateData = uploadResults.map((result, index) => ({
+      url: result.secure_url,
+      altText: `${name} image ${index + 1}`, // Generate a default alt text
+    }));
 
     const newlyCreatedProduct = await prisma.product.create({
       data: {
         name,
-        brand,
-        category,
+        slug: generateSlug(name), // Generate slug from product name
+        brandId,
+        categoryId,
         description,
         how_to_use,
         caution,
@@ -65,7 +83,6 @@ export const createProduct = async (
         expiry_date: expiry_date ? new Date(expiry_date) : null,
         manufacture_date: manufacture_date ? new Date(manufacture_date) : null,
         country_of_origin,
-        images: imageUrls,
         skin_type: typeof skin_type === "string" ? skin_type.split(",") : [],
         concern: typeof concern === "string" ? concern.split(",") : [],
         product_form,
@@ -75,33 +92,46 @@ export const createProduct = async (
         soldCount: 0,
         average_rating: 0,
         review_count: 0,
+        metaTitle: metaTitle || name, // Default metaTitle to product name
+        metaDescription: metaDescription,
+        // CORRECT WAY: Create related images using the new relation
+        images: {
+          create: imageCreateData,
+        },
       },
     });
 
-    //clean the uploaded files
+    // Clean up uploaded files from the server's temporary storage
     files.forEach((file) => fs.unlinkSync(file.path));
     res.status(201).json(newlyCreatedProduct);
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: "Some error occured!" });
+    console.error("Error creating product:", e);
+    res.status(500).json({ success: false, message: "Some error occurred!" });
   }
 };
 
-//fetch all products (admin side)
+// Fetch all products (for admin panel)
 export const fetchAllProductsForAdmin = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
-    const fetchAllProducts = await prisma.product.findMany();
+    const fetchAllProducts = await prisma.product.findMany({
+      // CORRECT WAY: Include related data
+      include: {
+        images: true,
+        brand: true,
+        category: true,
+      },
+    });
     res.status(200).json(fetchAllProducts);
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: "Some error occured!" });
+    console.error("Error fetching admin products:", e);
+    res.status(500).json({ success: false, message: "Some error occurred!" });
   }
 };
 
-//get a single product
+// Get a single product by ID
 export const getProductByID = async (
   req: AuthenticatedRequest,
   res: Response
@@ -110,6 +140,12 @@ export const getProductByID = async (
     const { id } = req.params;
     const product = await prisma.product.findUnique({
       where: { id },
+      // CORRECT WAY: Include related data
+      include: {
+        images: true,
+        brand: true,
+        category: true,
+      },
     });
 
     if (!product) {
@@ -122,12 +158,12 @@ export const getProductByID = async (
 
     res.status(200).json(product);
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: "Some error occured!" });
+    console.error("Error fetching product by ID:", e);
+    res.status(500).json({ success: false, message: "Some error occurred!" });
   }
 };
 
-//update  a product (admin)
+// Update a product
 export const updateProduct = async (
   req: AuthenticatedRequest,
   res: Response
@@ -136,8 +172,9 @@ export const updateProduct = async (
     const { id } = req.params;
     const {
       name,
-      brand,
-      category,
+      slug,
+      brandId, // Changed from 'brand'
+      categoryId, // Changed from 'category'
       description,
       how_to_use,
       caution,
@@ -156,11 +193,14 @@ export const updateProduct = async (
       product_form,
       ingredients,
       tags,
-      imagesToDelete,
+      metaTitle,
+      metaDescription,
+      imagesToDelete, // Expecting a comma-separated string of image IDs to delete
     } = req.body;
 
     const existingProduct = await prisma.product.findUnique({
       where: { id },
+      include: { images: true }, // We need the existing images to manage them
     });
 
     if (!existingProduct) {
@@ -168,32 +208,43 @@ export const updateProduct = async (
       return;
     }
 
-    let updatedImageUrls = [...existingProduct.images];
+    // A container for all image update operations (delete, create)
+    const imageUpdateOperations: any = {};
 
+    // Handle image deletion
     if (imagesToDelete) {
       const idsToDelete = (imagesToDelete as string).split(",").filter(Boolean);
-
       if (idsToDelete.length > 0) {
-        const publicIdsForCloudinary = idsToDelete.map((id) => `tiamara/${id}`);
+        imageUpdateOperations.deleteMany = {
+          id: { in: idsToDelete },
+        };
 
-        await cloudinary.api.delete_resources(publicIdsForCloudinary);
-
-        updatedImageUrls = updatedImageUrls.filter((url) => {
-          const idFromUrl = url.split("/").pop()?.split(".")[0];
-          return !idsToDelete.includes(idFromUrl!);
-        });
+        // Optionally, delete from Cloudinary as well
+        const imagesToDeleteFromCloud = existingProduct.images.filter((img) =>
+          idsToDelete.includes(img.id)
+        );
+        if (imagesToDeleteFromCloud.length > 0) {
+          const publicIdsForCloudinary = imagesToDeleteFromCloud.map(
+            (img) => `tiamara/${img.url.split("/").pop()?.split(".")[0]}`
+          );
+          await cloudinary.api.delete_resources(publicIdsForCloudinary);
+        }
       }
     }
 
+    // Handle new image uploads
     const files = req.files as Express.Multer.File[];
     if (files && files.length > 0) {
       const uploadPromises = files.map((file) =>
         cloudinary.uploader.upload(file.path, { folder: "tiamara" })
       );
       const uploadResults = await Promise.all(uploadPromises);
-      const newImageUrls = uploadResults.map((result) => result.secure_url);
+      const newImagesData = uploadResults.map((result, index) => ({
+        url: result.secure_url,
+        altText: `${name} image ${existingProduct.images.length + index + 1}`,
+      }));
 
-      updatedImageUrls.push(...newImageUrls);
+      imageUpdateOperations.create = newImagesData;
 
       files.forEach((file) => fs.unlinkSync(file.path));
     }
@@ -202,8 +253,9 @@ export const updateProduct = async (
       where: { id },
       data: {
         name,
-        brand,
-        category,
+        slug: slug || generateSlug(name),
+        brandId,
+        categoryId,
         description,
         how_to_use,
         caution,
@@ -217,42 +269,49 @@ export const updateProduct = async (
         expiry_date: expiry_date ? new Date(expiry_date) : null,
         manufacture_date: manufacture_date ? new Date(manufacture_date) : null,
         country_of_origin,
-        images: updatedImageUrls,
         skin_type: typeof skin_type === "string" ? skin_type.split(",") : [],
         concern: typeof concern === "string" ? concern.split(",") : [],
         product_form,
         ingredients:
           typeof ingredients === "string" ? ingredients.split(",") : [],
         tags: typeof tags === "string" ? tags.split(",") : [],
+        metaTitle: metaTitle || name,
+        metaDescription,
+        images: imageUpdateOperations, // Apply all create/delete operations
       },
     });
 
     res.status(200).json(product);
   } catch (e) {
-    console.error(e);
+    console.error("Error updating product:", e);
     res.status(500).json({ success: false, message: "Some error occurred!" });
   }
 };
 
-//delete a product (admin)
+// Delete a product
 export const deleteProduct = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
     const { id } = req.params;
+
+    // First, delete related images from the Image table to maintain data integrity
+    await prisma.image.deleteMany({ where: { productId: id } });
+
+    // Then, delete the product itself
     await prisma.product.delete({ where: { id } });
 
     res
       .status(200)
       .json({ success: true, message: "Product deleted successfully" });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: "Some error occured!" });
+    console.error("Error deleting product:", e);
+    res.status(500).json({ success: false, message: "Some error occurred!" });
   }
 };
-//fetch products with filter (client)
 
+// Fetch products with filters (for client side)
 export const getProductsForClient = async (
   req: AuthenticatedRequest,
   res: Response
@@ -272,6 +331,10 @@ export const getProductsForClient = async (
     const concerns = ((req.query.concerns as string) || "")
       .split(",")
       .filter(Boolean);
+    const product_forms = ((req.query.product_forms as string) || "")
+      .split(",")
+      .filter(Boolean);
+    const tags = ((req.query.tags as string) || "").split(",").filter(Boolean);
 
     const minPrice = parseFloat(req.query.minPrice as string) || 0;
     const maxPrice =
@@ -286,16 +349,20 @@ export const getProductsForClient = async (
         categories.length > 0
           ? {
               category: {
-                in: categories,
-                mode: "insensitive",
+                name: {
+                  in: categories,
+                  mode: "insensitive",
+                },
               },
             }
           : {},
         brands.length > 0
           ? {
               brand: {
-                in: brands,
-                mode: "insensitive",
+                name: {
+                  in: brands,
+                  mode: "insensitive",
+                },
               },
             }
           : {},
@@ -313,6 +380,21 @@ export const getProductsForClient = async (
               },
             }
           : {},
+        product_forms.length > 0
+          ? {
+              product_form: {
+                in: product_forms,
+                mode: "insensitive",
+              },
+            }
+          : {},
+        tags.length > 0
+          ? {
+              tags: {
+                hasSome: tags,
+              },
+            }
+          : {},
         {
           price: { gte: minPrice, lte: maxPrice },
         },
@@ -327,6 +409,13 @@ export const getProductsForClient = async (
         orderBy: {
           [sortBy]: sortOrder,
         },
+        include: {
+          images: {
+            take: 1,
+          },
+          brand: true,
+          category: true,
+        },
       }),
       prisma.product.count({ where }),
     ]);
@@ -339,7 +428,7 @@ export const getProductsForClient = async (
       totalProducts: total,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: "Some error occured!" });
+    console.error("Error fetching client products:", error);
+    res.status(500).json({ success: false, message: "Some error occurred!" });
   }
 };

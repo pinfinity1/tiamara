@@ -10,7 +10,6 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import { Button } from "../ui/button";
-import { useAuthStore } from "@/store/useAuthStore";
 import {
   Sheet,
   SheetContent,
@@ -23,6 +22,7 @@ import { useCartStore } from "@/store/useCartStore";
 import logo from "../../../public/images/Logo/tiamara-logo.png";
 import Image from "next/image";
 import { signOut, useSession } from "next-auth/react";
+import GlobalSearch from "../common/GlobalSearch";
 
 const navItems = [
   {
@@ -36,7 +36,6 @@ const navItems = [
 ];
 
 function Header() {
-  // const { isAuthenticated, logout } = useAuthStore();
   const { data: session, status } = useSession();
   const isAuthenticated = status === "authenticated";
   const isLoading = status === "loading";
@@ -99,6 +98,9 @@ function Header() {
         default:
           return (
             <div className="space-y-6 py-6">
+              <div className="px-4">
+                <GlobalSearch />
+              </div>
               <div className="space-y-3">
                 {navItems.map((navItem) => (
                   <p
@@ -138,6 +140,9 @@ function Header() {
     } else {
       return (
         <div className="space-y-6 py-6">
+          <div className="px-4">
+            <GlobalSearch />
+          </div>
           <div className="space-y-3">
             {navItems.map((navItem) => (
               <p
@@ -217,6 +222,11 @@ function Header() {
               </div>
             </Link>
           </div>
+
+          <div className="hidden lg:flex flex-1 justify-center">
+            <GlobalSearch />
+          </div>
+
           <div className="hidden lg:flex items-center gap-4">
             {isAuthenticated ? (
               <>

@@ -1,9 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,45 +10,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id            String    @id @default(cuid())
-  name          String?
-  phone         String?   @unique 
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?   
-  role          Role      @default(USER)
-  sessions      Session[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  cart          Cart?
-addresses     Address[]
-  orders        Order[]
-}
-
-
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model VerificationToken {
-  identifier String 
-  token      String   @unique 
-  expires    DateTime
-
-  @@unique([identifier, token])
-}
-
 model product {
   id                String    @id @default(cuid())
   name              String
-  brand             String
-  category          String
+  slug              String   
   description       String?
   how_to_use        String?
   caution           String?
@@ -65,7 +27,6 @@ model product {
   expiry_date       DateTime?
   manufacture_date  DateTime?
   country_of_origin String?
-  images            String[]
   attributes        Json?
   skin_type         String[]
   concern           String[]
@@ -74,10 +35,111 @@ model product {
   tags              String[]
   average_rating    Float?    @default(0)
   review_count      Int?      @default(0)
-  soldCount         Int
-  isFeatured        Boolean   @default(false)
+  soldCount         Int       @default(0)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+
+  metaTitle         String?
+  metaDescription   String?
+
+  images            Image[]   
+  brandId           String?
+  brand             Brand?    @relation(fields: [brandId], references: [id])
+  categoryId        String?
+  category          Category? @relation(fields: [categoryId], references: [id])
+  homepageSections  HomepageSection[] 
+}
+
+model Image {
+  id        String   @id @default(cuid())
+  url       String   
+  altText   String?  
+  title     String?  
+  productId String?
+  product   product? @relation(fields: [productId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model Brand {
+  id              String    @id @default(cuid())
+  name            String    @unique
+  slug            String    @unique
+  logoUrl         String?
+  metaTitle       String?
+  metaDescription String?
+  products        product[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Category {
+  id              String    @id @default(cuid())
+  name            String    @unique
+  slug            String    @unique
+  imageUrl        String?
+  metaTitle       String?
+  metaDescription String?
+  products        product[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model FeatureBanner {
+  id          String   @id @default(cuid())
+  imageUrl    String
+  altText     String? 
+  title       String?
+  subtitle    String?
+  linkUrl     String?  @default("/")
+  buttonText  String?
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model HomepageSection {
+  id        String    @id @default(cuid())
+  title     String
+  order     Int       @default(0)
+  products  product[] 
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  phone         String?   @unique
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          Role      @default(USER)
+  sessions      Session[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  cart          Cart?
+  addresses     Address[]
+  orders        Order[]
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
 
 model Cart {
@@ -103,13 +165,6 @@ model CartItem {
   @@unique([cartId, productId, size, color])
 }
 
-model FeatureBanner {
-  id        String   @id @default(cuid())
-  imageUrl  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
 model Coupon {
   id              String   @id @default(cuid())
   code            String   @unique
@@ -117,7 +172,7 @@ model Coupon {
   startDate       DateTime
   endDate         DateTime
   usageLimit      Int
-  usageCount      Int
+  usageCount      Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   orders          Order[]

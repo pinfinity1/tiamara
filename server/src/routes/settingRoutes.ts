@@ -2,29 +2,49 @@ import express from "express";
 import { authenticateJwt, isSuperAdmin } from "../middleware/authMiddleware";
 import { upload } from "../middleware/uploadMiddleware";
 import {
-  addFeatureBanners,
+  addFeatureBanner,
+  createHomepageSection,
+  deleteHomepageSection,
   fetchFeatureBanners,
-  getFeaturedProducts,
-  updateFeaturedProducts,
+  getHomepageSections,
+  updateHomepageSection,
 } from "../controllers/settingsController";
 
 const router = express.Router();
 
+// This is a public route for clients to fetch active banners
+router.get("/banners", fetchFeatureBanners);
+// This is a protected admin route to add a new banner
 router.post(
-  "/banners",
+  "/banners/add",
   authenticateJwt,
   isSuperAdmin,
-  upload.array("images", 5),
-  addFeatureBanners
+  upload.single("image"),
+  addFeatureBanner
 );
 
-router.get("/get-banners", fetchFeatureBanners);
+// Public route for clients to fetch all homepage sections
+router.get("/homepage-sections", getHomepageSections);
+// Protected admin route to create a new section
 router.post(
-  "/update-feature-products",
+  "/homepage-sections/create",
   authenticateJwt,
   isSuperAdmin,
-  updateFeaturedProducts
+  createHomepageSection
 );
-router.get("/fetch-feature-products", getFeaturedProducts);
+// Protected admin route to update an existing section
+router.put(
+  "/homepage-sections/update/:id",
+  authenticateJwt,
+  isSuperAdmin,
+  updateHomepageSection
+);
+// Protected admin route to delete a section
+router.delete(
+  "/homepage-sections/delete/:id",
+  authenticateJwt,
+  isSuperAdmin,
+  deleteHomepageSection
+);
 
 export default router;

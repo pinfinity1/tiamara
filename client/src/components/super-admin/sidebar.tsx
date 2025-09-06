@@ -6,15 +6,17 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
+  LayoutGrid,
   ListOrdered,
   LogOut,
   Package,
   Printer,
   SendToBack,
   Settings,
+  Tags,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useAuthStore } from "@/store/useAuthStore";
+import { signOut } from "next-auth/react";
 
 interface SidebarProps {
   isOpen: Boolean;
@@ -31,6 +33,16 @@ const menuItems = [
     name: "Add New Product",
     icon: Printer,
     href: "/super-admin/products/add",
+  },
+  {
+    name: "Brands",
+    icon: Tags,
+    href: "/super-admin/brands",
+  },
+  {
+    name: "دسته‌بندی‌ها",
+    icon: LayoutGrid,
+    href: "/super-admin/categories",
   },
   {
     name: "Orders",
@@ -61,11 +73,9 @@ const menuItems = [
 
 function SuperAdminSidebar({ isOpen, toggle }: SidebarProps) {
   const router = useRouter();
-  const { logout } = useAuthStore();
 
   async function handleLogout() {
-    await logout();
-    router.push("/auth/login");
+    await signOut({ redirect: true, callbackUrl: "/" });
   }
 
   return (
@@ -103,7 +113,8 @@ function SuperAdminSidebar({ isOpen, toggle }: SidebarProps) {
             }
             key={item.name}
             className={cn(
-              "flex cursor-pointer items-center px-4 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
+              "flex cursor-pointer items-center gap-3 px-4 py-2 text-sm hover:bg-accent hover:text-accent-foreground ",
+              !isOpen && "justify-center"
             )}
           >
             <item.icon className="h-4 w-4" />
