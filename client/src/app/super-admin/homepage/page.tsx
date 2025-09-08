@@ -67,9 +67,6 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-/**
- * کامپوننت جدید برای رندر کردن هر بنر به صورت قابل جابجایی
- */
 function SortableBanner({
   banner,
   handleEditBanner,
@@ -152,15 +149,13 @@ function SortableBanner({
   );
 }
 
-/**
- * صفحه جامع برای مدیریت محتوای صفحه اصلی، شامل بنرها و سکشن‌های محصولات
- */
 function ManageHomepagePage() {
   const { toast } = useToast();
 
   const {
     banners,
     sections,
+    isLoading,
     fetchBanners,
     fetchSections,
     addBanner,
