@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAuthStore } from "@/store/useAuthStore";
+// import { useAuthStore } from "@/store/useAuthStore";
 import { useCartStore } from "@/store/useCartStore";
 import { Minus, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -16,7 +16,7 @@ function UserCartPage() {
     updateCartItemQuantity,
     removeFromCart,
   } = useCartStore();
-  const { user } = useAuthStore();
+  // const { user } = useAuthStore();
   const [isUpdating, setIsUpdating] = useState(false);
   const router = useRouter();
 

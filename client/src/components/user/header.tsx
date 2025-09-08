@@ -207,7 +207,7 @@ function Header() {
         }`}
       >
         <div
-          className={`container mx-auto flex items-center justify-between w-full h-[80px] `}
+          className={`container mx-auto flex items-center justify-between w-full h-[80px] px-4`}
         >
           <div>
             <Link className="text-2xl font-bold" href="/">
