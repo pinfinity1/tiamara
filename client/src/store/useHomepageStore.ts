@@ -7,8 +7,6 @@ export interface FeatureBanner {
   id: string;
   imageUrl: string;
   altText?: string | null;
-  title?: string | null;
-  subtitle?: string | null;
   linkUrl?: string | null;
   buttonText?: string | null;
   order: number;
@@ -32,6 +30,7 @@ interface HomepageState {
   addBanner: (data: FormData) => Promise<FeatureBanner | null>;
   updateBanner: (id: string, data: FormData) => Promise<FeatureBanner | null>;
   deleteBanner: (id: string) => Promise<boolean>;
+  reorderBanners: (reorderedBanners: FeatureBanner[]) => Promise<void>;
   // Section Actions
   fetchSections: () => Promise<void>;
   createSection: (data: {
@@ -46,7 +45,7 @@ interface HomepageState {
   deleteSection: (id: string) => Promise<boolean>;
 }
 
-export const useHomepageStore = create<HomepageState>((set) => ({
+export const useHomepageStore = create<HomepageState>((set, get) => ({
   banners: [],
   sections: [],
   isLoading: false,
@@ -56,7 +55,7 @@ export const useHomepageStore = create<HomepageState>((set) => ({
   fetchBanners: async () => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axiosPublic.get(`/settings/banners`);
+      const response = await axiosPublic.get(`/homepage/banners`);
       set({ banners: response.data.banners, isLoading: false });
     } catch (e) {
       console.error(e);
@@ -66,7 +65,7 @@ export const useHomepageStore = create<HomepageState>((set) => ({
   addBanner: async (data) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axiosAuth.post(`/settings/banners/add`, data, {
+      const response = await axiosAuth.post(`/homepage/banners/add`, data, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       set((state) => ({
@@ -86,19 +85,23 @@ export const useHomepageStore = create<HomepageState>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await axiosAuth.put(
-        `/settings/banners/update/${id}`,
+        `/homepage/banners/update/${id}`,
         data,
         {
           headers: { "Content-Type": "multipart/form-data" },
         }
       );
-      set((state) => ({
-        banners: state.banners
-          .map((b) => (b.id === id ? response.data.banner : b))
-          .sort((a, b) => a.order - b.order),
-        isLoading: false,
-      }));
-      return response.data.banner;
+      if (response.data && Array.isArray(response.data.banners)) {
+        set({
+          banners: response.data.banners,
+          isLoading: false,
+        });
+        return response.data.banners;
+      } else {
+        console.warn("پاسخ نامعتبر از سرور، در حال واکشی مجدد لیست بنرها...");
+        await get().fetchBanners();
+        return get().banners;
+      }
     } catch (e) {
       console.error(e);
       set({ error: "Failed to update banner", isLoading: false });
@@ -108,7 +111,8 @@ export const useHomepageStore = create<HomepageState>((set) => ({
   deleteBanner: async (id) => {
     set({ isLoading: true, error: null });
     try {
-      await axiosAuth.delete(`/settings/banners/delete/${id}`);
+      await axiosAuth.delete(`/homepage/banners/delete/${id}`);
+      get().fetchBanners();
       set((state) => ({
         banners: state.banners.filter((b) => b.id !== id),
         isLoading: false,
@@ -120,12 +124,28 @@ export const useHomepageStore = create<HomepageState>((set) => ({
       return false;
     }
   },
+  reorderBanners: async (reorderedBanners) => {
+    // Optimistic UI update
+    set({ banners: reorderedBanners });
+
+    try {
+      const bannerIds = reorderedBanners.map((banner) => banner.id);
+      await axiosAuth.post(`/homepage/banners/reorder`, { bannerIds });
+      // Fetch fresh data to ensure consistency after successful reorder
+      await get().fetchBanners();
+    } catch (e) {
+      console.error(e);
+      // Rollback on error
+      get().fetchBanners();
+      set({ error: "Failed to reorder banners" });
+    }
+  },
 
   // --- Homepage Section Actions Implementation ---
   fetchSections: async () => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axiosPublic.get(`/settings/homepage-sections`);
+      const response = await axiosPublic.get(`/homepage/homepage-sections`);
       set({ sections: response.data.sections, isLoading: false });
     } catch (e) {
       console.error(e);
@@ -136,7 +156,7 @@ export const useHomepageStore = create<HomepageState>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await axiosAuth.post(
-        `/settings/homepage-sections/create`,
+        `/homepage/homepage-sections/create`,
         data
       );
       set((state) => ({
@@ -156,7 +176,7 @@ export const useHomepageStore = create<HomepageState>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await axiosAuth.put(
-        `/settings/homepage-sections/update/${id}`,
+        `/homepage/homepage-sections/update/${id}`,
         data
       );
       set((state) => ({
@@ -175,7 +195,7 @@ export const useHomepageStore = create<HomepageState>((set) => ({
   deleteSection: async (id) => {
     set({ isLoading: true, error: null });
     try {
-      await axiosAuth.delete(`/settings/homepage-sections/delete/${id}`);
+      await axiosAuth.delete(`/homepage/homepage-sections/delete/${id}`);
       set((state) => ({
         sections: state.sections.filter((s) => s.id !== id),
         isLoading: false,

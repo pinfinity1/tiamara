@@ -65,18 +65,6 @@ function HomeBannerCarousel() {
                           className="w-full h-full object-cover"
                           priority={banner.order === 0}
                         />
-                        <div className="absolute inset-0 bg-black/25 flex flex-col items-center justify-center text-center text-white p-4">
-                          {banner.title && (
-                            <h2 className="text-2xl md:text-4xl font-bold">
-                              {banner.title}
-                            </h2>
-                          )}
-                          {banner.subtitle && (
-                            <p className="mt-2 text-sm md:text-lg max-w-xl">
-                              {banner.subtitle}
-                            </p>
-                          )}
-                        </div>
                       </Link>
                     </div>
                   ))}

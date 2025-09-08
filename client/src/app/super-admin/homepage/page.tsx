@@ -30,7 +30,13 @@ import {
   useHomepageStore,
 } from "@/store/useHomepageStore";
 import { Product, useProductStore } from "@/store/useProductStore";
-import { Pencil, PlusCircle, Trash2, UploadCloud } from "lucide-react";
+import {
+  Pencil,
+  PlusCircle,
+  Trash2,
+  UploadCloud,
+  GripVertical,
+} from "lucide-react";
 import Image from "next/image";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
@@ -46,14 +52,112 @@ import {
 import { useCategoryStore } from "@/store/useCategoryStore";
 import { useBrandStore } from "@/store/useBrandStore";
 import { Badge } from "@/components/ui/badge";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 /**
- * A comprehensive page for managing homepage content, including banners and product sections.
+ * کامپوننت جدید برای رندر کردن هر بنر به صورت قابل جابجایی
+ */
+function SortableBanner({
+  banner,
+  handleEditBanner,
+  handleDeleteBanner,
+}: {
+  banner: FeatureBanner;
+  handleEditBanner: (b: FeatureBanner) => void;
+  handleDeleteBanner: (id: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition } =
+    useSortable({ id: banner.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="relative group border rounded-lg overflow-hidden touch-none"
+    >
+      <div
+        className="absolute top-1/2 -translate-y-1/2 left-2 z-10 p-2 cursor-grab"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-5 w-5 text-white drop-shadow-lg" />
+      </div>
+      <Image
+        src={banner.imageUrl}
+        alt={banner.altText || "Banner"}
+        width={400}
+        height={200}
+        className="w-full h-48 object-cover"
+      />
+      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Button
+          variant="secondary"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => handleEditBanner(banner)}
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="destructive" size="icon" className="h-8 w-8">
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>آیا مطمئن هستید؟</AlertDialogTitle>
+              <AlertDialogDescription>
+                این عمل بنر را برای همیشه حذف خواهد کرد.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>انصراف</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => handleDeleteBanner(banner.id)}
+                className={buttonVariants({ variant: "destructive" })}
+              >
+                حذف
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+      <Badge variant="secondary" className="absolute top-2 left-12">
+        ترتیب: {banner.order}
+      </Badge>
+      <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/60 to-transparent text-white">
+        <h3 className="font-bold text-sm">متن جایگزین</h3>
+        <p>{banner.altText}</p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * صفحه جامع برای مدیریت محتوای صفحه اصلی، شامل بنرها و سکشن‌های محصولات
  */
 function ManageHomepagePage() {
   const { toast } = useToast();
 
-  // Zustand Stores are now correctly referenced
   const {
     banners,
     sections,
@@ -65,12 +169,12 @@ function ManageHomepagePage() {
     deleteSection,
     createSection,
     updateSection,
+    reorderBanners,
   } = useHomepageStore();
   const { products, fetchAllProductsForAdmin } = useProductStore();
   const { categories, fetchCategories } = useCategoryStore();
   const { brands, fetchBrands } = useBrandStore();
 
-  // UI State for Banners
   const [isBannerDialogOpen, setIsBannerDialogOpen] = useState(false);
   const [editingBanner, setEditingBanner] = useState<FeatureBanner | null>(
     null
@@ -78,15 +182,12 @@ function ManageHomepagePage() {
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
   const [bannerFormData, setBannerFormData] = useState({
-    title: "",
-    subtitle: "",
     linkUrl: "/",
     altText: "",
     order: 0,
     isActive: true,
   });
 
-  // UI State for Sections
   const [isSectionDialogOpen, setIsSectionDialogOpen] = useState(false);
   const [editingSection, setEditingSection] = useState<HomepageSection | null>(
     null
@@ -101,16 +202,35 @@ function ManageHomepagePage() {
     fetchBanners();
     fetchSections();
     fetchAllProductsForAdmin();
-  }, [fetchBanners, fetchSections, fetchAllProductsForAdmin]);
+    fetchCategories();
+    fetchBrands();
+  }, [
+    fetchBanners,
+    fetchSections,
+    fetchAllProductsForAdmin,
+    fetchCategories,
+    fetchBrands,
+  ]);
 
-  // --- Banner Management ---
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
+  const handleDragEnd = (event: any) => {
+    const { active, over } = event;
+    if (active && over && active.id !== over.id) {
+      const oldIndex = banners.findIndex((b) => b.id === active.id);
+      const newIndex = banners.findIndex((b) => b.id === over.id);
+      const reordered = arrayMove(banners, oldIndex, newIndex);
+      reorderBanners(reordered);
+    }
+  };
+
   const resetBannerForm = () => {
     setEditingBanner(null);
     setBannerFile(null);
     setBannerPreview(null);
     setBannerFormData({
-      title: "",
-      subtitle: "",
       linkUrl: "/",
       altText: "",
       order: 0,
@@ -135,8 +255,6 @@ function ManageHomepagePage() {
     resetBannerForm();
     setEditingBanner(banner);
     setBannerFormData({
-      title: banner.title || "",
-      subtitle: banner.subtitle || "",
       linkUrl: banner.linkUrl || "/",
       altText: banner.altText || "",
       order: banner.order,
@@ -192,7 +310,6 @@ function ManageHomepagePage() {
     }
   };
 
-  // --- Section Management ---
   const resetSectionForm = () => {
     setEditingSection(null);
     setSectionFormData({ title: "", order: 0 });
@@ -258,69 +375,28 @@ function ManageHomepagePage() {
             <PlusCircle className="ml-2" /> افزودن بنر جدید
           </Button>
         </div>
-        <div className="border rounded-lg p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {banners.map((banner) => (
-            <div
-              key={banner.id}
-              className="relative group border rounded-lg overflow-hidden"
-            >
-              <Image
-                src={banner.imageUrl}
-                alt={banner.altText || "Banner"}
-                width={400}
-                height={200}
-                className="w-full h-48 object-cover"
-              />
-              <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button
-                  variant="secondary"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => handleEditBanner(banner)}
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="destructive"
-                      size="icon"
-                      className="h-8 w-8"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>آیا مطمئن هستید؟</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        این عمل بنر را برای همیشه حذف خواهد کرد.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>انصراف</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => handleDeleteBanner(banner.id)}
-                        className={buttonVariants({ variant: "destructive" })}
-                      >
-                        حذف
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-
-              {/* نمایش شماره ترتیب */}
-              <Badge variant="secondary" className="absolute top-2 left-2">
-                ترتیب: {banner.order}
-              </Badge>
-              <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/60 to-transparent text-white">
-                <h3 className="font-bold text-sm">{banner.title}</h3>
-                <p className="text-xs">{banner.subtitle}</p>
-              </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={banners}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="border rounded-lg p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {banners &&
+                banners.map((banner) => (
+                  <SortableBanner
+                    key={banner.id}
+                    banner={banner}
+                    handleEditBanner={handleEditBanner}
+                    handleDeleteBanner={handleDeleteBanner}
+                  />
+                ))}
             </div>
-          ))}
-        </div>
+          </SortableContext>
+        </DndContext>
       </div>
 
       {/* Sections Management Section */}
@@ -407,7 +483,6 @@ function ManageHomepagePage() {
             </DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
-            {/* Form fields... */}
             <div className="col-span-1 md:col-span-2">
               <Label>تصویر بنر</Label>
               <div
@@ -443,39 +518,6 @@ function ManageHomepagePage() {
                 </div>
               </div>
             </div>
-            <div>
-              <Label>عنوان</Label>
-              <Input
-                name="title"
-                value={bannerFormData.title}
-                onChange={(e) =>
-                  setBannerFormData((p) => ({ ...p, title: e.target.value }))
-                }
-              />
-            </div>
-            <div>
-              <Label>زیرعنوان</Label>
-              <Input
-                name="subtitle"
-                value={bannerFormData.subtitle}
-                onChange={(e) =>
-                  setBannerFormData((p) => ({
-                    ...p,
-                    subtitle: e.target.value,
-                  }))
-                }
-              />
-            </div>
-            {/* <div>
-              <Label>لینک مقصد</Label>
-              <Input
-                name="linkUrl"
-                value={bannerFormData.linkUrl}
-                onChange={(e) =>
-                  setBannerFormData((p) => ({ ...p, linkUrl: e.target.value }))
-                }
-              />
-            </div> */}
             <div className="col-span-1 md:col-span-2">
               <Label>لینک مقصد</Label>
               <Select
@@ -540,21 +582,22 @@ function ManageHomepagePage() {
                 }
               />
             </div>
-            <div>
-              <Label>ترتیب نمایش</Label>
-              <Input
-                type="number"
-                name="order"
-                value={bannerFormData.order}
-                onChange={(e) =>
-                  setBannerFormData((p) => ({
-                    ...p,
-                    // FIX: Handle empty input to prevent NaN
-                    order: parseInt(e.target.value) || 0,
-                  }))
-                }
-              />
-            </div>
+            {editingBanner && (
+              <div>
+                <Label>ترتیب نمایش</Label>
+                <Input
+                  type="number"
+                  name="order"
+                  value={bannerFormData.order}
+                  onChange={(e) =>
+                    setBannerFormData((p) => ({
+                      ...p,
+                      order: Math.max(1, parseInt(e.target.value) || 1),
+                    }))
+                  }
+                />
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <Label htmlFor="isActive">فعال باشد؟</Label>
               <Switch

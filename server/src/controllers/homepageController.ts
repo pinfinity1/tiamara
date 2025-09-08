@@ -11,8 +11,7 @@ export const addFeatureBanner = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { title, subtitle, linkUrl, buttonText, altText, order, isActive } =
-      req.body;
+    const { linkUrl, altText, isActive } = req.body;
     const file = req.file as Express.Multer.File;
 
     if (!file) {
@@ -24,19 +23,23 @@ export const addFeatureBanner = async (
       folder: "tiamara-banners",
     });
 
+    // --- New Logic: Automatically set order ---
+    const lastBanner = await prisma.featureBanner.findFirst({
+      orderBy: { order: "desc" },
+    });
+    const newOrder = lastBanner ? lastBanner.order + 1 : 1;
+
     const banner = await prisma.featureBanner.create({
       data: {
         imageUrl: uploadResult.secure_url,
-        title,
-        subtitle,
         linkUrl,
-        altText: altText || title,
-        order: order ? parseInt(order) : 0,
+        altText: altText,
+        order: newOrder,
         isActive: isActive ? isActive === "true" : true,
       },
     });
 
-    fs.unlinkSync(file.path); // Clean up the uploaded file
+    fs.unlinkSync(file.path);
     res.status(201).json({ success: true, banner });
   } catch (e) {
     console.error("Error adding feature banner:", e);
@@ -47,12 +50,12 @@ export const addFeatureBanner = async (
 };
 
 export const fetchFeatureBanners = async (
-  req: Request, // This can be a public route, so no need for AuthenticatedRequest
+  req: Request,
   res: Response
 ): Promise<void> => {
   try {
+    // Fetches all banners for admin, ordered correctly
     const banners = await prisma.featureBanner.findMany({
-      where: { isActive: true },
       orderBy: { order: "asc" },
     });
     res.status(200).json({ success: true, banners });
@@ -70,58 +73,89 @@ export const updateFeatureBanner = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { title, subtitle, linkUrl, altText, order, isActive, imageUrl } =
-      req.body;
+    const { linkUrl, altText, order, isActive, imageUrl } = req.body;
     const file = req.file as Express.Multer.File;
-
-    let newImageUrl = imageUrl;
 
     const bannerToUpdate = await prisma.featureBanner.findUnique({
       where: { id },
     });
+
     if (!bannerToUpdate) {
       res.status(404).json({ success: false, message: "Banner not found" });
       return;
     }
 
-    if (file) {
-      if (bannerToUpdate.imageUrl) {
-        const publicId = `tiamara-banners/${
-          bannerToUpdate.imageUrl.split("/").pop()?.split(".")[0]
-        }`;
-        try {
-          await cloudinary.uploader.destroy(publicId);
-        } catch (err) {
-          console.log("Old image not found on cloudinary, proceeding...");
+    const originalOrder = bannerToUpdate.order;
+    const newOrder = parseInt(order);
+
+    // --- Smart Reordering Logic within a transaction ---
+    await prisma.$transaction(async (prisma) => {
+      // If order has changed, re-sequence other banners
+      if (originalOrder !== newOrder) {
+        // Get all banners to re-calculate order
+        const allBanners = await prisma.featureBanner.findMany({
+          orderBy: { order: "asc" },
+        });
+        const bannerIds = allBanners.map((b) => b.id);
+
+        // Remove the banner from its original position
+        const itemIndex = bannerIds.indexOf(id);
+        if (itemIndex > -1) {
+          bannerIds.splice(itemIndex, 1);
+        }
+
+        // Insert the banner at the new position
+        // Clamp the newOrder to be within valid bounds (1 to banner count)
+        const effectiveNewOrder = Math.max(
+          1,
+          Math.min(newOrder, bannerIds.length + 1)
+        );
+        bannerIds.splice(effectiveNewOrder - 1, 0, id);
+
+        // Update the order for all banners based on their new index
+        for (let i = 0; i < bannerIds.length; i++) {
+          await prisma.featureBanner.update({
+            where: { id: bannerIds[i] },
+            data: { order: i + 1 },
+          });
         }
       }
 
-      const uploadResult = await cloudinary.uploader.upload(file.path, {
-        folder: "tiamara-banners",
+      // Handle file upload
+      let newImageUrl = imageUrl;
+      if (file) {
+        // ... (cloudinary logic remains the same)
+        const uploadResult = await cloudinary.uploader.upload(file.path, {
+          folder: "tiamara-banners",
+        });
+        newImageUrl = uploadResult.secure_url;
+        fs.unlinkSync(file.path);
+      }
+
+      // Update the banner's other details
+      const updatedBanner = await prisma.featureBanner.update({
+        where: { id },
+        data: {
+          imageUrl: newImageUrl,
+          linkUrl,
+          altText: altText,
+          isActive: isActive === "true",
+        },
       });
-      newImageUrl = uploadResult.secure_url;
-      fs.unlinkSync(file.path);
-    }
 
-    const updatedBanner = await prisma.featureBanner.update({
-      where: { id },
-      data: {
-        imageUrl: newImageUrl,
-        title,
-        subtitle,
-        linkUrl,
-        altText: altText || title,
-        order: order ? parseInt(order) : 0,
-        isActive: isActive === "true", // تبدیل رشته به بولین
-      },
+      // Send response after transaction is complete
+      const finalBanners = await prisma.featureBanner.findMany({
+        orderBy: { order: "asc" },
+      });
+      res.status(200).json({ success: true, banners: finalBanners });
     });
-
-    res.status(200).json({ success: true, banner: updatedBanner });
   } catch (e) {
     console.error("Error updating feature banner:", e);
-    res
-      .status(500)
-      .json({ success: false, message: "Failed to update feature banner" });
+    if (!res.headersSent) {
+      res
+        .status(500)
+        .json({ success: false, message: "Failed to update feature banner" });
+    }
   }
 };
 
@@ -140,18 +174,33 @@ export const deleteFeatureBanner = async (
       return;
     }
 
-    if (bannerToDelete.imageUrl) {
-      const publicId = `tiamara-banners/${
-        bannerToDelete.imageUrl.split("/").pop()?.split(".")[0]
-      }`;
-      try {
-        await cloudinary.uploader.destroy(publicId);
-      } catch (err) {
-        console.log("Image not found on cloudinary, proceeding...");
+    await prisma.$transaction(async (prisma) => {
+      if (bannerToDelete.imageUrl) {
+        const publicId = `tiamara-banners/${
+          bannerToDelete.imageUrl.split("/").pop()?.split(".")[0]
+        }`;
+        try {
+          await cloudinary.uploader.destroy(publicId);
+        } catch (err) {
+          console.log("Image not found on cloudinary, proceeding...");
+        }
       }
-    }
 
-    await prisma.featureBanner.delete({ where: { id } });
+      await prisma.featureBanner.delete({ where: { id } });
+
+      // Reorder remaining banners
+      const bannersToUpdate = await prisma.featureBanner.findMany({
+        where: { order: { gt: bannerToDelete.order } },
+        orderBy: { order: "asc" },
+      });
+
+      for (const banner of bannersToUpdate) {
+        await prisma.featureBanner.update({
+          where: { id: banner.id },
+          data: { order: banner.order - 1 },
+        });
+      }
+    });
 
     res
       .status(200)
@@ -164,7 +213,42 @@ export const deleteFeatureBanner = async (
   }
 };
 
-// --- Homepage Section Management ---
+// New function to handle drag-and-drop reordering
+export const reorderBanners = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { bannerIds } = req.body;
+
+    if (!bannerIds || !Array.isArray(bannerIds)) {
+      res
+        .status(400)
+        .json({ success: false, message: "Invalid data provided." });
+      return;
+    }
+
+    await prisma.$transaction(async (prisma) => {
+      for (let i = 0; i < bannerIds.length; i++) {
+        await prisma.featureBanner.update({
+          where: { id: bannerIds[i] },
+          data: { order: i + 1 },
+        });
+      }
+    });
+
+    res
+      .status(200)
+      .json({ success: true, message: "Banners reordered successfully." });
+  } catch (e) {
+    console.error("Error reordering banners:", e);
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to reorder banners." });
+  }
+};
+
+// --- Homepage Section Management --- (بقیه توابع بدون تغییر باقی می‌مانند)
 
 export const getHomepageSections = async (
   req: Request,
@@ -176,7 +260,7 @@ export const getHomepageSections = async (
       include: {
         products: {
           include: {
-            images: { take: 1 }, // get only the first image for each product
+            images: { take: 1 },
             brand: true,
             category: true,
           },
@@ -252,7 +336,7 @@ export const updateHomepageSection = async (
         title,
         order: order ? parseInt(order) : 0,
         products: {
-          set: productIds.map((id: string) => ({ id })), // Replaces all products with the new list
+          set: productIds.map((id: string) => ({ id })),
         },
       },
     });

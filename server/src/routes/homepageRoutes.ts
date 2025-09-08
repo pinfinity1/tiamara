@@ -1,6 +1,7 @@
 import express from "express";
 import { authenticateJwt, isSuperAdmin } from "../middleware/authMiddleware";
 import { upload } from "../middleware/uploadMiddleware";
+
 import {
   addFeatureBanner,
   createHomepageSection,
@@ -10,12 +11,14 @@ import {
   updateHomepageSection,
   updateFeatureBanner,
   deleteFeatureBanner,
-} from "../controllers/settingsController";
+  reorderBanners,
+} from "../controllers/homepageController";
 
 const router = express.Router();
 
 // This is a public route for clients to fetch active banners
 router.get("/banners", fetchFeatureBanners);
+
 // This is a protected admin route to add a new banner
 router.post(
   "/banners/add",
@@ -24,19 +27,24 @@ router.post(
   upload.single("image"),
   addFeatureBanner
 );
-router.post(
+
+router.put(
   "/banners/update/:id",
   authenticateJwt,
   isSuperAdmin,
   upload.single("image"),
   updateFeatureBanner
 );
-router.post(
+
+router.delete(
   "/banners/delete/:id",
   authenticateJwt,
   isSuperAdmin,
   deleteFeatureBanner
 );
+
+// This is a protected admin route to reorder banners
+router.post("/banners/reorder", authenticateJwt, isSuperAdmin, reorderBanners);
 
 // Public route for clients to fetch all homepage sections
 router.get("/homepage-sections", getHomepageSections);
