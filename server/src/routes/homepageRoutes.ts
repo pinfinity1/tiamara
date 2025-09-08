@@ -1,6 +1,6 @@
 import express from "express";
 import { authenticateJwt, isSuperAdmin } from "../middleware/authMiddleware";
-import { upload } from "../middleware/uploadMiddleware";
+import { uploadImage } from "../middleware/uploadMiddleware";
 
 import {
   addFeatureBanner,
@@ -24,7 +24,7 @@ router.post(
   "/banners/add",
   authenticateJwt,
   isSuperAdmin,
-  upload.single("image"),
+  uploadImage.single("image"),
   addFeatureBanner
 );
 
@@ -32,7 +32,7 @@ router.put(
   "/banners/update/:id",
   authenticateJwt,
   isSuperAdmin,
-  upload.single("image"),
+  uploadImage.single("image"),
   updateFeatureBanner
 );
 

@@ -1,6 +1,6 @@
 import express from "express";
 import { authenticateJwt, isSuperAdmin } from "../middleware/authMiddleware";
-import { upload } from "../middleware/uploadMiddleware";
+import { uploadImage } from "../middleware/uploadMiddleware";
 import {
   createCategory,
   deleteCategory,
@@ -18,7 +18,7 @@ router.post(
   "/create",
   authenticateJwt,
   isSuperAdmin,
-  upload.single("image"),
+  uploadImage.single("image"),
   createCategory
 );
 
@@ -26,7 +26,7 @@ router.put(
   "/update/:id",
   authenticateJwt,
   isSuperAdmin,
-  upload.single("image"),
+  uploadImage.single("image"),
   updateCategory
 );
 

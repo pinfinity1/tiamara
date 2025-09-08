@@ -2,110 +2,76 @@
 
 import HomeBannerCarousel from "@/components/layout/home/HomeBannerCarousel";
 import { Button } from "@/components/ui/button";
+import { useHomepageStore } from "@/store/useHomepageStore";
+import { Product } from "@/store/useProductStore";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
-const gridItems = [
-  {
-    title: "WOMEN",
-    subtitle: "From world's top designer",
-    image:
-      "https://images.unsplash.com/photo-1614251056216-f748f76cd228?q=80&w=1974&auto=format&fit=crop",
-  },
-  {
-    title: "FALL LEGENDS",
-    subtitle: "Timeless cool weather",
-    image:
-      "https://avon-demo.myshopify.com/cdn/shop/files/demo1-winter1_600x.png?v=1733380268",
-  },
-  {
-    title: "ACCESSORIES",
-    subtitle: "Everything you need",
-    image:
-      "https://avon-demo.myshopify.com/cdn/shop/files/demo1-winter4_600x.png?v=1733380275",
-  },
-  {
-    title: "HOLIDAY SPARKLE EDIT",
-    subtitle: "Party season ready",
-    image:
-      "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1974&auto=format&fit=crop",
-  },
-];
+function ProductCard({ product }: { product: Product }) {
+  const router = useRouter();
+
+  const imageUrl =
+    product.images && product.images.length > 0
+      ? product.images[0].url
+      : "/placeholder.png";
+
+  return (
+    <div
+      onClick={() => router.push(`/listing/${product.slug}`)}
+      className="group cursor-pointer"
+    >
+      <div className="relative aspect-[3/4] mb-3 bg-gray-100 overflow-hidden rounded-lg">
+        <Image
+          src={imageUrl}
+          alt={product.name}
+          fill
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+        />
+        <div className="absolute inset-0 bg-black bg-opacity-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+          <Button className="bg-white text-black hover:bg-gray-100">
+            مشاهده محصول
+          </Button>
+        </div>
+      </div>
+      <h3 className="font-semibold text-sm text-gray-800">{product.name}</h3>
+      <p className="text-xs text-gray-500">{product.brand?.name}</p>
+      <p className="font-bold mt-1 text-gray-900">
+        {product.price.toLocaleString("fa-IR")} تومان
+      </p>
+    </div>
+  );
+}
 
 function HomePage() {
+  const { sections, fetchSections } = useHomepageStore();
+
+  useEffect(() => {
+    fetchSections();
+  }, [fetchSections]);
+
   return (
     <div className="min-h-screen bg-white">
       <HomeBannerCarousel />
 
-      {/* grid section */}
-      {/* <section className="py-16">
-        <div className="container mx-auto px-4">
-          <h2 className="text-center text-3xl font-semibold mb-2">
-            THE WINTER EDIT
-          </h2>
-          <p className="text-center text-gray-500 mb-8">
-            Designed to keep your satisfaction and warmth
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {gridItems.map((gridItem, index) => (
-              <div key={index} className="relative group overflow-hidden">
-                <div className="aspect-[3/4]">
-                  <img
-                    src={gridItem.image}
-                    alt={gridItem.title}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                  />
-                </div>
-                <div className="absolute inset-0 bg-black bg-opacity-25 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                  <div className="text-center text-white p-4">
-                    <h3 className="text-xl font-semibold mb-2">
-                      {gridItem.title}
-                    </h3>
-                    <p className="text-sm">{gridItem.subtitle}</p>
-                    <Button className="mt-4 bg-white text-black hover:bg-gray-100">
-                      SHOP NOW
-                    </Button>
-                  </div>
-                </div>
+      <div className="py-12 lg:py-16 space-y-12 lg:space-y-16">
+        {sections &&
+          sections.map((section) => (
+            <section key={section.id} className="container mx-auto px-4">
+              <h2 className="text-center text-2xl lg:text-3xl font-bold mb-2 text-gray-900">
+                {section.title}
+              </h2>
+              <p className="text-center text-gray-500 mb-8">
+                جدیدترین محصولات در این بخش
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8">
+                {section.products.map((product) => (
+                  <ProductCard key={product.id} product={product} />
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
-      </section> */}
-
-      {/* Feature products section */}
-      {/* <section className="py-16">
-        <div className="container mx-auto px-4">
-          <h2 className="text-center text-3xl font-semibold mb-2">
-            NEW ARRIVALS
-          </h2>
-          <p className="text-center text-gray-500 mb-8">
-            Shop our new arrivals from established brands
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* {featuredProducts.map((productItem, index) => (
-              <div key={index} className="relative group overflow-hidden">
-                <div className="aspect-[3/4]">
-                  <img
-                    src={productItem.images[0]}
-                    alt={productItem.name}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                  />
-                </div>
-                <div className="absolute inset-0 bg-black bg-opacity-25 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                  <div className="text-center text-white p-4">
-                    <h3 className="text-xl font-semibold mb-2">
-                      {productItem.name}
-                    </h3>
-                    <p className="text-sm">{productItem.price}</p>
-                    <Button className="mt-4 bg-white text-black hover:bg-gray-100">
-                      QUICK ViEW
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ))} 
-          </div>
-        </div>
-      </section> */}
+            </section>
+          ))}
+      </div>
     </div>
   );
 }

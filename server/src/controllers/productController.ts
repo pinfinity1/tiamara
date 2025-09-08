@@ -4,6 +4,7 @@ import cloudinary from "../config/cloudinary";
 import { prisma } from "../server";
 import fs from "fs";
 import { Prisma } from "@prisma/client";
+import * as xlsx from "xlsx";
 
 const generateSlug = (name: string) => {
   return name
@@ -430,5 +431,131 @@ export const getProductsForClient = async (
   } catch (error) {
     console.error("Error fetching client products:", error);
     res.status(500).json({ success: false, message: "Some error occurred!" });
+  }
+};
+
+export const bulkCreateProductsFromExcel = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  if (!req.file) {
+    res
+      .status(400)
+      .json({ success: false, message: "No Excel file provided." });
+    return;
+  }
+
+  try {
+    const workbook = xlsx.readFile(req.file.path);
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const productsData: any[] = xlsx.utils.sheet_to_json(sheet);
+
+    const report = {
+      createdCount: 0,
+      updatedCount: 0,
+      failedCount: 0,
+      errors: [] as { row: number; name: string; error: string }[],
+    };
+
+    const existingBrands = await prisma.brand.findMany({
+      select: { id: true, name: true },
+    });
+    const existingCategories = await prisma.category.findMany({
+      select: { id: true, name: true },
+    });
+
+    for (let i = 0; i < productsData.length; i++) {
+      const row = productsData[i];
+      const rowIndex = i + 2;
+
+      try {
+        if (
+          !row.name ||
+          !row.brandName ||
+          !row.categoryName ||
+          !row.price ||
+          !row.stock ||
+          !row.sku
+        ) {
+          throw new Error(
+            "تمام فیلدهای SKU، نام، برند، دسته‌بندی، قیمت و موجودی اجباری هستند."
+          );
+        }
+        if (isNaN(parseFloat(row.price)) || isNaN(parseInt(row.stock))) {
+          throw new Error("فرمت قیمت یا موجودی نامعتبر است.");
+        }
+
+        const brand = existingBrands.find(
+          (b) =>
+            b.name.trim().toLowerCase() ===
+            (row.brandName as string).trim().toLowerCase()
+        );
+        if (!brand) {
+          throw new Error(
+            `برند "${row.brandName}" یافت نشد. لطفاً ابتدا آن را در پنل مدیریت ایجاد کنید.`
+          );
+        }
+
+        const category = existingCategories.find(
+          (c) =>
+            c.name.trim().toLowerCase() ===
+            (row.categoryName as string).trim().toLowerCase()
+        );
+        if (!category) {
+          throw new Error(
+            `دسته‌بندی "${row.categoryName}" یافت نشد. لطفاً ابتدا آن را در پنل مدیریت ایجاد کنید.`
+          );
+        }
+
+        const productPayload = {
+          name: row.name,
+          slug: generateSlug(row.name),
+          brandId: brand.id,
+          categoryId: category.id,
+          price: parseFloat(row.price),
+          stock: parseInt(row.stock),
+          sku: row.sku,
+          description: row.description || null,
+        };
+
+        const existingProduct = await prisma.product.findUnique({
+          where: { sku: productPayload.sku },
+        });
+
+        if (existingProduct) {
+          await prisma.product.update({
+            where: { sku: productPayload.sku },
+            data: productPayload,
+          });
+          report.updatedCount++;
+        } else {
+          await prisma.product.create({ data: productPayload });
+          report.createdCount++;
+        }
+      } catch (e: any) {
+        report.failedCount++;
+        report.errors.push({
+          row: rowIndex,
+          name: row.name || "نام نامشخص",
+          error: e.message,
+        });
+      }
+    }
+
+    res.status(201).json({
+      success: true,
+      message: "پردازش فایل اکسل کامل شد.",
+      data: report,
+    });
+  } catch (e) {
+    console.error("Error in bulkCreateProductsFromExcel:", e);
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to process Excel file." });
+  } finally {
+    if (req.file) {
+      fs.unlinkSync(req.file.path);
+    }
   }
 };

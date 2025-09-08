@@ -1,6 +1,6 @@
 import expess from "express";
 import { authenticateJwt, isSuperAdmin } from "../middleware/authMiddleware";
-import { upload } from "../middleware/uploadMiddleware";
+import { uploadImage, uploadExcel } from "../middleware/uploadMiddleware";
 import {
   createProduct,
   deleteProduct,
@@ -8,6 +8,7 @@ import {
   getProductByID,
   updateProduct,
   getProductsForClient,
+  bulkCreateProductsFromExcel,
 } from "../controllers/productController";
 
 const router = expess.Router();
@@ -16,8 +17,16 @@ router.post(
   "/create-new-product",
   authenticateJwt,
   isSuperAdmin,
-  upload.array("images", 5),
+  uploadImage.array("images", 5),
   createProduct
+);
+
+router.post(
+  "/upload/excel",
+  authenticateJwt,
+  isSuperAdmin,
+  uploadExcel.single("file"),
+  bulkCreateProductsFromExcel
 );
 
 router.get(
@@ -27,14 +36,14 @@ router.get(
   fetchAllProductsForAdmin
 );
 
-router.get("/fetch-client-products", authenticateJwt, getProductsForClient);
-router.get("/:id", authenticateJwt, getProductByID);
-// router.put("/:id", authenticateJwt, isSuperAdmin, updateProduct);
+router.get("/fetch-client-products", getProductsForClient);
+router.get("/:id", getProductByID);
+
 router.put(
   "/:id",
   authenticateJwt,
   isSuperAdmin,
-  upload.array("images", 5),
+  uploadImage.array("images", 5),
   updateProduct
 );
 router.delete("/:id", authenticateJwt, isSuperAdmin, deleteProduct);

@@ -87,6 +87,9 @@ interface ProductState {
     sortOrder?: "asc" | "desc";
   }) => Promise<void>;
   setCurrentPage: (page: number) => void;
+  uploadProductsFromExcel: (
+    file: File
+  ) => Promise<{ success: boolean; data?: any; error?: string }>;
 }
 
 export const useProductStore = create<ProductState>((set, get) => ({
@@ -200,4 +203,29 @@ export const useProductStore = create<ProductState>((set, get) => ({
     }
   },
   setCurrentPage: (page: number) => set({ currentPage: page }),
+  uploadProductsFromExcel: async (file: File) => {
+    set({ isLoading: true, error: null });
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await axiosAuth.post(
+        "/products/upload/excel",
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+      set({ isLoading: false });
+      get().fetchAllProductsForAdmin(); // لیست محصولات را مجدداً بارگذاری می‌کند
+      return { success: true, data: response.data.data };
+    } catch (e: any) {
+      const errorMsg =
+        e.response?.data?.message || "Failed to upload products.";
+      set({ error: errorMsg, isLoading: false });
+      return { success: false, error: errorMsg };
+    }
+  },
 }));

@@ -7,7 +7,7 @@ import {
   getAllBrands,
   updateBrand,
 } from "../controllers/brandController";
-import { upload } from "../middleware/uploadMiddleware";
+import { uploadImage } from "../middleware/uploadMiddleware";
 
 const router = express.Router();
 
@@ -19,14 +19,14 @@ router.post(
   "/create",
   authenticateJwt,
   isSuperAdmin,
-  upload.single("logo"),
+  uploadImage.single("logo"),
   createBrand
 );
 router.put(
   "/update/:id",
   authenticateJwt,
   isSuperAdmin,
-  upload.single("logo"),
+  uploadImage.single("logo"),
   updateBrand
 );
 router.delete("/delete/:id", authenticateJwt, isSuperAdmin, deleteBrand);

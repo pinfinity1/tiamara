@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, ChangeEvent, FormEvent } from "react";
+import { useEffect, useState, ChangeEvent, FormEvent, useRef } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Table,
@@ -86,8 +86,12 @@ function ManageProductsPage() {
     createProduct,
     updateProduct,
     deleteProduct,
+    uploadProductsFromExcel,
     isLoading,
   } = useProductStore();
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const { brands, fetchBrands } = useBrandStore();
   const { categories, fetchCategories } = useCategoryStore();
 
@@ -259,13 +263,62 @@ function ManageProductsPage() {
     }
   };
 
+  const handleExcelUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const result = await uploadProductsFromExcel(file);
+
+      if (result.success && result.data) {
+        toast({
+          title: "آپلود با موفقیت انجام شد",
+          description: (
+            <div>
+              <p>{result.data.createdCount} محصول جدید ایجاد شد.</p>
+              <p>{result.data.updatedCount} محصول به‌روزرسانی شد.</p>
+              {result.data.failedCount > 0 && (
+                <p className="text-red-500">
+                  {result.data.failedCount} مورد با خطا مواجه شد.
+                </p>
+              )}
+            </div>
+          ),
+        });
+      } else {
+        toast({
+          title: "خطا در آپلود",
+          description: result.error,
+          variant: "destructive",
+        });
+      }
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">مدیریت محصولات</h1>
-        <Button onClick={handleAddNew}>
-          <PlusCircle className="ml-2" /> افزودن محصول جدید
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="ml-2 h-4 w-4" /> ایمپورت از اکسل
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              accept=".xlsx, .xls, .csv"
+              onChange={handleExcelUpload}
+            />
+          </Button>
+          <Button onClick={handleAddNew}>
+            <PlusCircle className="ml-2" /> افزودن محصول جدید
+          </Button>
+        </div>
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
