@@ -1,5 +1,3 @@
-// server/src/controllers/settingsController.ts
-
 import { Response, Request } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import cloudinary from "../config/cloudinary";
@@ -32,8 +30,7 @@ export const addFeatureBanner = async (
         title,
         subtitle,
         linkUrl,
-        buttonText,
-        altText: altText || title, // Use title as fallback for alt text
+        altText: altText || title,
         order: order ? parseInt(order) : 0,
         isActive: isActive ? isActive === "true" : true,
       },
@@ -64,6 +61,106 @@ export const fetchFeatureBanners = async (
     res
       .status(500)
       .json({ success: false, message: "Failed to fetch feature banners" });
+  }
+};
+
+export const updateFeatureBanner = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { title, subtitle, linkUrl, altText, order, isActive, imageUrl } =
+      req.body;
+    const file = req.file as Express.Multer.File;
+
+    let newImageUrl = imageUrl;
+
+    const bannerToUpdate = await prisma.featureBanner.findUnique({
+      where: { id },
+    });
+    if (!bannerToUpdate) {
+      res.status(404).json({ success: false, message: "Banner not found" });
+      return;
+    }
+
+    if (file) {
+      if (bannerToUpdate.imageUrl) {
+        const publicId = `tiamara-banners/${
+          bannerToUpdate.imageUrl.split("/").pop()?.split(".")[0]
+        }`;
+        try {
+          await cloudinary.uploader.destroy(publicId);
+        } catch (err) {
+          console.log("Old image not found on cloudinary, proceeding...");
+        }
+      }
+
+      const uploadResult = await cloudinary.uploader.upload(file.path, {
+        folder: "tiamara-banners",
+      });
+      newImageUrl = uploadResult.secure_url;
+      fs.unlinkSync(file.path);
+    }
+
+    const updatedBanner = await prisma.featureBanner.update({
+      where: { id },
+      data: {
+        imageUrl: newImageUrl,
+        title,
+        subtitle,
+        linkUrl,
+        altText: altText || title,
+        order: order ? parseInt(order) : 0,
+        isActive: isActive === "true", // تبدیل رشته به بولین
+      },
+    });
+
+    res.status(200).json({ success: true, banner: updatedBanner });
+  } catch (e) {
+    console.error("Error updating feature banner:", e);
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to update feature banner" });
+  }
+};
+
+export const deleteFeatureBanner = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const bannerToDelete = await prisma.featureBanner.findUnique({
+      where: { id },
+    });
+    if (!bannerToDelete) {
+      res.status(404).json({ success: false, message: "Banner not found" });
+      return;
+    }
+
+    if (bannerToDelete.imageUrl) {
+      const publicId = `tiamara-banners/${
+        bannerToDelete.imageUrl.split("/").pop()?.split(".")[0]
+      }`;
+      try {
+        await cloudinary.uploader.destroy(publicId);
+      } catch (err) {
+        console.log("Image not found on cloudinary, proceeding...");
+      }
+    }
+
+    await prisma.featureBanner.delete({ where: { id } });
+
+    res
+      .status(200)
+      .json({ success: true, message: "Banner deleted successfully" });
+  } catch (e) {
+    console.error("Error deleting feature banner:", e);
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to delete feature banner" });
   }
 };
 
@@ -103,12 +200,10 @@ export const createHomepageSection = async (
     const { title, order, productIds } = req.body;
 
     if (!title || !productIds || !Array.isArray(productIds)) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: "Title and productIds array are required.",
-        });
+      res.status(400).json({
+        success: false,
+        message: "Title and productIds array are required.",
+      });
       return;
     }
 
@@ -144,12 +239,10 @@ export const updateHomepageSection = async (
       productIds === undefined ||
       !Array.isArray(productIds)
     ) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: "Title and productIds array are required.",
-        });
+      res.status(400).json({
+        success: false,
+        message: "Title and productIds array are required.",
+      });
       return;
     }
 

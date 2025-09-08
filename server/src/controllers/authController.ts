@@ -10,7 +10,7 @@ async function generateToken(userId: string, phone: string, role: string) {
   const accessToken = await new SignJWT({ userId, phone, role })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("60m")
+    .setExpirationTime("24h")
     .sign(secret);
   return { accessToken };
 }

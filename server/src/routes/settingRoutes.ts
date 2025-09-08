@@ -8,6 +8,8 @@ import {
   fetchFeatureBanners,
   getHomepageSections,
   updateHomepageSection,
+  updateFeatureBanner,
+  deleteFeatureBanner,
 } from "../controllers/settingsController";
 
 const router = express.Router();
@@ -21,6 +23,19 @@ router.post(
   isSuperAdmin,
   upload.single("image"),
   addFeatureBanner
+);
+router.post(
+  "/banners/update/:id",
+  authenticateJwt,
+  isSuperAdmin,
+  upload.single("image"),
+  updateFeatureBanner
+);
+router.post(
+  "/banners/delete/:id",
+  authenticateJwt,
+  isSuperAdmin,
+  deleteFeatureBanner
 );
 
 // Public route for clients to fetch all homepage sections

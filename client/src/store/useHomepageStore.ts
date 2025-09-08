@@ -30,6 +30,8 @@ interface HomepageState {
   // Banner Actions
   fetchBanners: () => Promise<void>;
   addBanner: (data: FormData) => Promise<FeatureBanner | null>;
+  updateBanner: (id: string, data: FormData) => Promise<FeatureBanner | null>;
+  deleteBanner: (id: string) => Promise<boolean>;
   // Section Actions
   fetchSections: () => Promise<void>;
   createSection: (data: {
@@ -78,6 +80,44 @@ export const useHomepageStore = create<HomepageState>((set) => ({
       console.error(e);
       set({ error: "Failed to add banner", isLoading: false });
       return null;
+    }
+  },
+  updateBanner: async (id, data) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await axiosAuth.put(
+        `/settings/banners/update/${id}`,
+        data,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        }
+      );
+      set((state) => ({
+        banners: state.banners
+          .map((b) => (b.id === id ? response.data.banner : b))
+          .sort((a, b) => a.order - b.order),
+        isLoading: false,
+      }));
+      return response.data.banner;
+    } catch (e) {
+      console.error(e);
+      set({ error: "Failed to update banner", isLoading: false });
+      return null;
+    }
+  },
+  deleteBanner: async (id) => {
+    set({ isLoading: true, error: null });
+    try {
+      await axiosAuth.delete(`/settings/banners/delete/${id}`);
+      set((state) => ({
+        banners: state.banners.filter((b) => b.id !== id),
+        isLoading: false,
+      }));
+      return true;
+    } catch (e) {
+      console.error(e);
+      set({ error: "Failed to delete banner", isLoading: false });
+      return false;
     }
   },
 

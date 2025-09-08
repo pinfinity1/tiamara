@@ -1,5 +1,5 @@
 import axios from "axios";
-import { getSession } from "next-auth/react";
+import { getSession, signOut } from "next-auth/react";
 import { API_BASE_URL } from "@/utils/api";
 
 export const axiosPublic = axios.create({
@@ -23,6 +23,19 @@ axiosAuth.interceptors.request.use(
     return config;
   },
   (error) => {
+    return Promise.reject(error);
+  }
+);
+
+axiosAuth.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  async (error) => {
+    if (error.response && error.response.status === 401) {
+      await signOut({ callbackUrl: "/" });
+    }
+
     return Promise.reject(error);
   }
 );

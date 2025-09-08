@@ -24,7 +24,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-// CORRECTED: Import everything from the new homepage store
 import {
   FeatureBanner,
   HomepageSection,
@@ -35,6 +34,18 @@ import { Pencil, PlusCircle, Trash2, UploadCloud } from "lucide-react";
 import Image from "next/image";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useCategoryStore } from "@/store/useCategoryStore";
+import { useBrandStore } from "@/store/useBrandStore";
+import { Badge } from "@/components/ui/badge";
 
 /**
  * A comprehensive page for managing homepage content, including banners and product sections.
@@ -49,11 +60,15 @@ function ManageHomepagePage() {
     fetchBanners,
     fetchSections,
     addBanner,
+    updateBanner,
+    deleteBanner,
     deleteSection,
     createSection,
     updateSection,
   } = useHomepageStore();
   const { products, fetchAllProductsForAdmin } = useProductStore();
+  const { categories, fetchCategories } = useCategoryStore();
+  const { brands, fetchBrands } = useBrandStore();
 
   // UI State for Banners
   const [isBannerDialogOpen, setIsBannerDialogOpen] = useState(false);
@@ -66,7 +81,6 @@ function ManageHomepagePage() {
     title: "",
     subtitle: "",
     linkUrl: "/",
-    buttonText: "",
     altText: "",
     order: 0,
     isActive: true,
@@ -98,7 +112,6 @@ function ManageHomepagePage() {
       title: "",
       subtitle: "",
       linkUrl: "/",
-      buttonText: "",
       altText: "",
       order: 0,
       isActive: true,
@@ -118,31 +131,64 @@ function ManageHomepagePage() {
     }
   };
 
+  const handleEditBanner = (banner: FeatureBanner) => {
+    resetBannerForm();
+    setEditingBanner(banner);
+    setBannerFormData({
+      title: banner.title || "",
+      subtitle: banner.subtitle || "",
+      linkUrl: banner.linkUrl || "/",
+      altText: banner.altText || "",
+      order: banner.order,
+      isActive: banner.isActive,
+    });
+    setBannerPreview(banner.imageUrl);
+    setIsBannerDialogOpen(true);
+  };
+
+  const handleDeleteBanner = async (id: string) => {
+    const success = await deleteBanner(id);
+    if (success) {
+      toast({ title: "بنر با موفقیت حذف شد." });
+    } else {
+      toast({ title: "خطا در حذف بنر.", variant: "destructive" });
+    }
+  };
+
   const handleBannerSubmit = async () => {
-    if (!bannerFile && !editingBanner) {
+    if (!editingBanner && !bannerFile) {
       toast({
         title: "لطفا یک تصویر برای بنر انتخاب کنید.",
         variant: "destructive",
       });
       return;
     }
+
     const data = new FormData();
     Object.entries(bannerFormData).forEach(([key, value]) => {
       data.append(key, String(value));
     });
+
     if (bannerFile) {
       data.append("image", bannerFile);
+    } else if (editingBanner) {
+      data.append("imageUrl", editingBanner.imageUrl);
     }
 
-    // NOTE: Update banner functionality is not implemented in this example for brevity
-    // but would follow a similar pattern.
-    const result = await addBanner(data);
+    const result = editingBanner
+      ? await updateBanner(editingBanner.id, data)
+      : await addBanner(data);
 
     if (result) {
-      toast({ title: "بنر با موفقیت ایجاد شد." });
+      toast({
+        title: `بنر با موفقیت ${editingBanner ? "ویرایش" : "ایجاد"} شد.`,
+      });
       setIsBannerDialogOpen(false);
     } else {
-      toast({ title: "خطا در ایجاد بنر.", variant: "destructive" });
+      toast({
+        title: `خطا در ${editingBanner ? "ویرایش" : "ایجاد"} بنر.`,
+        variant: "destructive",
+      });
     }
   };
 
@@ -225,6 +271,49 @@ function ManageHomepagePage() {
                 height={200}
                 className="w-full h-48 object-cover"
               />
+              <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => handleEditBanner(banner)}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="h-8 w-8"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>آیا مطمئن هستید؟</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        این عمل بنر را برای همیشه حذف خواهد کرد.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>انصراف</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => handleDeleteBanner(banner.id)}
+                        className={buttonVariants({ variant: "destructive" })}
+                      >
+                        حذف
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+
+              {/* نمایش شماره ترتیب */}
+              <Badge variant="secondary" className="absolute top-2 left-2">
+                ترتیب: {banner.order}
+              </Badge>
               <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/60 to-transparent text-white">
                 <h3 className="font-bold text-sm">{banner.title}</h3>
                 <p className="text-xs">{banner.subtitle}</p>
@@ -377,7 +466,7 @@ function ManageHomepagePage() {
                 }
               />
             </div>
-            <div>
+            {/* <div>
               <Label>لینک مقصد</Label>
               <Input
                 name="linkUrl"
@@ -386,19 +475,60 @@ function ManageHomepagePage() {
                   setBannerFormData((p) => ({ ...p, linkUrl: e.target.value }))
                 }
               />
-            </div>
-            <div>
-              <Label>متن دکمه</Label>
-              <Input
-                name="buttonText"
-                value={bannerFormData.buttonText}
-                onChange={(e) =>
-                  setBannerFormData((p) => ({
-                    ...p,
-                    buttonText: e.target.value,
-                  }))
+            </div> */}
+            <div className="col-span-1 md:col-span-2">
+              <Label>لینک مقصد</Label>
+              <Select
+                dir="rtl"
+                value={bannerFormData.linkUrl}
+                onValueChange={(value) =>
+                  setBannerFormData((p) => ({ ...p, linkUrl: value }))
                 }
-              />
+              >
+                <SelectTrigger className="w-full mt-1">
+                  <SelectValue placeholder="یک مقصد برای بنر انتخاب کنید..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  <SelectGroup>
+                    <SelectLabel>صفحات اصلی</SelectLabel>
+                    <SelectItem value="/">صفحه اصلی</SelectItem>
+                    <SelectItem value="/listing">همه محصولات</SelectItem>
+                  </SelectGroup>
+                  <SelectGroup>
+                    <SelectLabel>دسته‌بندی‌ها</SelectLabel>
+                    {categories.map((category) => (
+                      <SelectItem
+                        key={category.id}
+                        value={`/listing?category=${category.slug}`}
+                      >
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                  <SelectGroup>
+                    <SelectLabel>برندها</SelectLabel>
+                    {brands.map((brand) => (
+                      <SelectItem
+                        key={brand.id}
+                        value={`/listing?brand=${brand.slug}`}
+                      >
+                        {brand.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                  <SelectGroup>
+                    <SelectLabel>محصولات</SelectLabel>
+                    {products.map((product) => (
+                      <SelectItem
+                        key={product.id}
+                        value={`/listing/${product.slug}`}
+                      >
+                        {product.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>متن جایگزین (Alt Text)</Label>

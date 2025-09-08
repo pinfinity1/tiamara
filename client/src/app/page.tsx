@@ -36,7 +36,7 @@ function HomePage() {
       <HomeBannerCarousel />
 
       {/* grid section */}
-      <section className="py-16">
+      {/* <section className="py-16">
         <div className="container mx-auto px-4">
           <h2 className="text-center text-3xl font-semibold mb-2">
             THE WINTER EDIT
@@ -69,7 +69,7 @@ function HomePage() {
             ))}
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* Feature products section */}
       {/* <section className="py-16">

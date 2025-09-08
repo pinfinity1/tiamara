@@ -76,11 +76,6 @@ function HomeBannerCarousel() {
                               {banner.subtitle}
                             </p>
                           )}
-                          {banner.buttonText && (
-                            <Button className="mt-4 bg-white text-black hover:bg-gray-200">
-                              {banner.buttonText}
-                            </Button>
-                          )}
                         </div>
                       </Link>
                     </div>
