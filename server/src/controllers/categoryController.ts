@@ -9,7 +9,7 @@ const generateSlug = (name: string) => {
   return name
     .toLowerCase()
     .replace(/\s+/g, "-")
-    .replace(/[^\w\-]+/g, "");
+    .replace(/[^\u0600-\u06FF\w\-]+/g, "");
 };
 
 // Create a new Category with an optional image upload
