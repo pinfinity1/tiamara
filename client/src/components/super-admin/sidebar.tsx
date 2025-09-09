@@ -14,6 +14,7 @@ import {
   Ticket,
   LucideProps,
   LayoutGrid,
+  ExternalLink,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -78,6 +79,12 @@ const menuItems: MenuItem[] = [
 
 // Bottom menu items like logout
 const bottomMenuItems: MenuItem[] = [
+  {
+    name: "مشاهده فروشگاه",
+    icon: ExternalLink,
+    href: "/",
+    group: "System",
+  },
   {
     name: "خروج",
     icon: LogOut,

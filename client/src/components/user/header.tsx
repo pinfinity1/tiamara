@@ -1,6 +1,13 @@
 "use client";
 
-import { ArrowLeft, Menu, ShoppingBag, ShoppingCart, User } from "lucide-react";
+import {
+  AmpersandIcon,
+  ArrowLeft,
+  Menu,
+  ShoppingBag,
+  ShoppingCart,
+  User,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -37,6 +44,7 @@ const navItems = [
 
 function Header() {
   const { data: session, status } = useSession();
+
   const isAuthenticated = status === "authenticated";
   const isLoading = status === "loading";
 
@@ -134,6 +142,16 @@ function Header() {
                   Cart ({items?.length || 0})
                 </Button>
               </div>
+              {session.user?.role === "SUPER_ADMIN" && (
+                <Button
+                  size="icon"
+                  variant={"ghost"}
+                  className="relative group w-fit px-2"
+                  onClick={() => router.push("/super-admin")}
+                >
+                  رفتن بخش مدیریت
+                </Button>
+              )}
             </div>
           );
       }
@@ -230,6 +248,16 @@ function Header() {
           <div className="hidden lg:flex items-center gap-4">
             {isAuthenticated ? (
               <>
+                {session.user?.role === "SUPER_ADMIN" && (
+                  <Button
+                    size="icon"
+                    variant={"ghost"}
+                    className="relative group w-fit px-2"
+                    onClick={() => router.push("/super-admin")}
+                  >
+                    بخش مدیریت
+                  </Button>
+                )}
                 <Button
                   size="icon"
                   variant={"ghost"}
