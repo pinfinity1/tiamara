@@ -17,7 +17,7 @@ router.post(
   "/create-new-product",
   authenticateJwt,
   isSuperAdmin,
-  uploadImage.array("images", 5),
+  uploadImage.array("images", 10),
   createProduct
 );
 
@@ -43,7 +43,7 @@ router.put(
   "/:id",
   authenticateJwt,
   isSuperAdmin,
-  uploadImage.array("images", 5),
+  uploadImage.array("images", 10),
   updateProduct
 );
 router.delete("/:id", authenticateJwt, isSuperAdmin, deleteProduct);

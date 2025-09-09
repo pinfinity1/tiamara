@@ -118,7 +118,9 @@ export const fetchAllProductsForAdmin = async (
 ): Promise<void> => {
   try {
     const fetchAllProducts = await prisma.product.findMany({
-      // CORRECT WAY: Include related data
+      orderBy: {
+        createdAt: "desc",
+      },
       include: {
         images: true,
         brand: true,
@@ -174,8 +176,8 @@ export const updateProduct = async (
     const {
       name,
       slug,
-      brandId, // Changed from 'brand'
-      categoryId, // Changed from 'category'
+      brandId,
+      categoryId,
       description,
       how_to_use,
       caution,
@@ -196,12 +198,12 @@ export const updateProduct = async (
       tags,
       metaTitle,
       metaDescription,
-      imagesToDelete, // Expecting a comma-separated string of image IDs to delete
+      imagesToDelete,
     } = req.body;
 
     const existingProduct = await prisma.product.findUnique({
       where: { id },
-      include: { images: true }, // We need the existing images to manage them
+      include: { images: true },
     });
 
     if (!existingProduct) {
@@ -263,8 +265,8 @@ export const updateProduct = async (
         price: parseFloat(price),
         discount_price: discount_price ? parseFloat(discount_price) : null,
         stock: parseInt(stock),
-        sku,
-        barcode,
+        sku: sku || null,
+        barcode: barcode || null,
         volume: volume ? parseFloat(volume) : null,
         unit,
         expiry_date: expiry_date ? new Date(expiry_date) : null,

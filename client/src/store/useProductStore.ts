@@ -138,10 +138,8 @@ export const useProductStore = create<ProductState>((set, get) => ({
           "Content-Type": "multipart/form-data",
         },
       });
-      set((state) => ({
-        products: state.products.map((p) => (p.id === id ? response.data : p)),
-        isLoading: false,
-      }));
+      await get().fetchAllProductsForAdmin();
+      set({ isLoading: false });
       return response.data;
     } catch (e) {
       set({ error: "Failed to update product", isLoading: false });

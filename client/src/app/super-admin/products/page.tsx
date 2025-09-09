@@ -48,7 +48,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { concerns, skinTypes } from "@/utils/config";
 
-// Initial state for the product form, matching the prisma schema
+// Initial state for the product form
 const initialFormState = {
   name: "",
   brandId: "",
@@ -73,9 +73,9 @@ const initialFormState = {
   metaDescription: "",
 };
 
-/**
- * A unified page for listing, creating, editing, and deleting products.
- */
+// Total number of steps in the form
+const TOTAL_STEPS = 6;
+
 function ManageProductsPage() {
   const { toast } = useToast();
 
@@ -91,13 +91,16 @@ function ManageProductsPage() {
   } = useProductStore();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const { brands, fetchBrands } = useBrandStore();
   const { categories, fetchCategories } = useCategoryStore();
 
   // UI State
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  // New state for multi-step form
+  const [currentStep, setCurrentStep] = useState(1);
 
   // Form State
   const [formState, setFormState] = useState(initialFormState);
@@ -124,6 +127,7 @@ function ManageProductsPage() {
     setSelectedFiles([]);
     setSelectedSkinTypes([]);
     setSelectedConcerns([]);
+    setCurrentStep(1); // Reset to the first step
   };
 
   const handleAddNew = () => {
@@ -297,6 +301,11 @@ function ManageProductsPage() {
     }
   };
 
+  // Functions to navigate between steps
+  const nextStep = () =>
+    setCurrentStep((prev) => Math.min(prev + 1, TOTAL_STEPS));
+  const prevStep = () => setCurrentStep((prev) => Math.max(prev - 1, 1));
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -325,420 +334,479 @@ function ManageProductsPage() {
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {editingProduct ? "ویرایش محصول" : "افزودن محصول جدید"}
+              {editingProduct ? "ویرایش محصول" : "افزودن محصول جدید"} - مرحله{" "}
+              {currentStep} از {TOTAL_STEPS}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-6 py-4">
-            {/* Image Section */}
-            <div className="p-4 border rounded-lg space-y-4">
-              <Label className="text-lg font-medium">تصاویر محصول</Label>
-              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 p-8">
-                <Label className="cursor-pointer text-center">
-                  <Upload className="mx-auto h-10 w-10 text-gray-400" />
-                  <span className="mt-2 block text-sm font-medium text-gray-700">
-                    برای آپلود کلیک کنید
-                  </span>
-                  <input
-                    type="file"
-                    className="sr-only"
-                    multiple
-                    onChange={handleFileChange}
-                    accept="image/*"
+            {/* Step 1: Basic Info */}
+            {currentStep === 1 && (
+              <div className="p-4 border rounded-lg grid grid-cols-1 md:grid-cols-2 gap-4">
+                <h3 className="col-span-1 md:col-span-2 text-lg font-medium">
+                  اطلاعات اصلی
+                </h3>
+                <div>
+                  <Label htmlFor="name">نام محصول</Label>
+                  <Input
+                    id="name"
+                    name="name"
+                    placeholder="نام محصول"
+                    className="mt-1"
+                    onChange={handleInputChange}
+                    value={formState.name}
+                    required
                   />
-                </Label>
+                </div>
+                <div>
+                  <Label htmlFor="brandId">برند</Label>
+                  <Select
+                    value={formState.brandId}
+                    onValueChange={(value) =>
+                      handleSelectChange("brandId", value)
+                    }
+                    name="brandId"
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="انتخاب برند" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {brands.map((brand) => (
+                        <SelectItem key={brand.id} value={brand.id}>
+                          {brand.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="categoryId">دسته‌بندی</Label>
+                  <Select
+                    value={formState.categoryId}
+                    onValueChange={(value) =>
+                      handleSelectChange("categoryId", value)
+                    }
+                    name="categoryId"
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="انتخاب دسته‌بندی" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="md:col-span-2">
+                  <Label htmlFor="description">توضیحات محصول</Label>
+                  <Textarea
+                    id="description"
+                    name="description"
+                    className="mt-1 min-h-[120px]"
+                    placeholder="توضیحات کامل محصول"
+                    onChange={handleInputChange}
+                    value={formState.description}
+                  />
+                </div>
               </div>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4">
-                {existingImages.map((image) => (
-                  <div key={image.id} className="relative group">
-                    <Image
-                      src={image.url}
-                      alt="Existing product image"
-                      width={100}
-                      height={100}
-                      className="h-24 w-24 object-cover rounded-md"
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="icon"
-                      className="absolute -top-2 -right-2 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100"
-                      onClick={() => handleRemoveExistingImage(image.id)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-                {selectedFiles.map((file, index) => (
-                  <div key={index} className="relative group">
-                    <Image
-                      src={URL.createObjectURL(file)}
-                      alt={`Preview ${index + 1}`}
-                      width={100}
-                      height={100}
-                      className="h-24 w-24 object-cover rounded-md"
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="icon"
-                      className="absolute -top-2 -right-2 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100"
-                      onClick={() => handleRemoveNewImage(index)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
+            )}
 
-            {/* Basic Info Section */}
-            <div className="p-4 border rounded-lg grid grid-cols-1 md:grid-cols-2 gap-4">
-              <h3 className="col-span-1 md:col-span-2 text-lg font-medium">
-                اطلاعات اصلی
-              </h3>
-              <div>
-                <Label htmlFor="name">نام محصول</Label>
-                <Input
-                  id="name"
-                  name="name"
-                  placeholder="نام محصول"
-                  className="mt-1"
-                  onChange={handleInputChange}
-                  value={formState.name}
-                  required
-                />
+            {/* Step 2: Price and Inventory */}
+            {currentStep === 2 && (
+              <div className="p-4 border rounded-lg grid grid-cols-1 md:grid-cols-2 gap-4">
+                <h3 className="col-span-1 md:col-span-2 text-lg font-medium">
+                  قیمت و موجودی
+                </h3>
+                <div>
+                  <Label htmlFor="price">قیمت (تومان)</Label>
+                  <Input
+                    id="price"
+                    name="price"
+                    type="number"
+                    className="mt-1"
+                    placeholder="قیمت اصلی"
+                    value={formState.price}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="discount_price">
+                    قیمت با تخفیف (اختیاری)
+                  </Label>
+                  <Input
+                    id="discount_price"
+                    name="discount_price"
+                    type="number"
+                    className="mt-1"
+                    placeholder="قیمت پس از تخفیف"
+                    value={formState.discount_price}
+                    onChange={handleInputChange}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="stock">موجودی انبار</Label>
+                  <Input
+                    id="stock"
+                    name="stock"
+                    type="number"
+                    className="mt-1"
+                    placeholder="تعداد موجود"
+                    value={formState.stock}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="sku">SKU</Label>
+                  <Input
+                    id="sku"
+                    name="sku"
+                    className="mt-1"
+                    placeholder="شناسه انبار"
+                    value={formState.sku}
+                    onChange={handleInputChange}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="barcode">بارکد</Label>
+                  <Input
+                    id="barcode"
+                    name="barcode"
+                    className="mt-1"
+                    placeholder="بارکد محصول"
+                    value={formState.barcode}
+                    onChange={handleInputChange}
+                  />
+                </div>
               </div>
-              <div>
-                <Label htmlFor="brandId">برند</Label>
-                <Select
-                  value={formState.brandId}
-                  onValueChange={(value) =>
-                    handleSelectChange("brandId", value)
-                  }
-                  name="brandId"
-                >
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="انتخاب برند" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {brands.map((brand) => (
-                      <SelectItem key={brand.id} value={brand.id}>
-                        {brand.name}
-                      </SelectItem>
+            )}
+
+            {/* Step 3: Content & Details */}
+            {currentStep === 3 && (
+              <div className="p-4 border rounded-lg grid grid-cols-1 md:grid-cols-2 gap-4">
+                <h3 className="col-span-1 md:col-span-2 text-lg font-medium">
+                  محتوا و جزئیات
+                </h3>
+                <div className="md:col-span-2">
+                  <Label htmlFor="how_to_use">نحوه استفاده</Label>
+                  <Textarea
+                    id="how_to_use"
+                    name="how_to_use"
+                    className="mt-1 min-h-[100px]"
+                    placeholder="روش مصرف محصول"
+                    onChange={handleInputChange}
+                    value={formState.how_to_use}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <Label htmlFor="caution">هشدارها</Label>
+                  <Textarea
+                    id="caution"
+                    name="caution"
+                    className="mt-1 min-h-[80px]"
+                    placeholder="نکات و هشدارهای مصرف"
+                    onChange={handleInputChange}
+                    value={formState.caution}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <Label htmlFor="ingredients">
+                    ترکیبات (با کاما جدا کنید)
+                  </Label>
+                  <Textarea
+                    id="ingredients"
+                    name="ingredients"
+                    className="mt-1"
+                    placeholder="مثال: آب، گلیسیرین، ..."
+                    onChange={handleInputChange}
+                    value={formState.ingredients}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="volume">حجم / وزن</Label>
+                  <Input
+                    id="volume"
+                    name="volume"
+                    type="number"
+                    className="mt-1"
+                    placeholder="عدد حجم یا وزن"
+                    value={formState.volume}
+                    onChange={handleInputChange}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="unit">واحد</Label>
+                  <Input
+                    id="unit"
+                    name="unit"
+                    className="mt-1"
+                    placeholder="مثال: ml, gr, oz"
+                    value={formState.unit}
+                    onChange={handleInputChange}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="product_form">شکل محصول</Label>
+                  <Input
+                    id="product_form"
+                    name="product_form"
+                    className="mt-1"
+                    placeholder="مثال: سرم، کرم، ژل"
+                    value={formState.product_form}
+                    onChange={handleInputChange}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="country_of_origin">کشور سازنده</Label>
+                  <Input
+                    id="country_of_origin"
+                    name="country_of_origin"
+                    className="mt-1"
+                    placeholder="مثال: کانادا"
+                    value={formState.country_of_origin}
+                    onChange={handleInputChange}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="manufacture_date">تاریخ تولید</Label>
+                  <Input
+                    id="manufacture_date"
+                    name="manufacture_date"
+                    type="date"
+                    className="mt-1"
+                    value={formState.manufacture_date}
+                    onChange={handleInputChange}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="expiry_date">تاریخ انقضا</Label>
+                  <Input
+                    id="expiry_date"
+                    name="expiry_date"
+                    type="date"
+                    className="mt-1"
+                    value={formState.expiry_date}
+                    onChange={handleInputChange}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Step 4: Classification */}
+            {currentStep === 4 && (
+              <div className="p-4 border rounded-lg space-y-4">
+                <h3 className="text-lg font-medium">دسته‌بندی‌های تخصصی</h3>
+                <div>
+                  <Label>نوع پوست</Label>
+                  <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-2 gap-y-4">
+                    {skinTypes.map((type) => (
+                      <div key={type} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`skin-${type}`}
+                          checked={selectedSkinTypes.includes(type)}
+                          onCheckedChange={() =>
+                            handleToggleFilter(setSelectedSkinTypes, type)
+                          }
+                        />
+                        <Label
+                          htmlFor={`skin-${type}`}
+                          className="font-normal cursor-pointer"
+                        >
+                          {type}
+                        </Label>
+                      </div>
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="categoryId">دسته‌بندی</Label>
-                <Select
-                  value={formState.categoryId}
-                  onValueChange={(value) =>
-                    handleSelectChange("categoryId", value)
-                  }
-                  name="categoryId"
-                >
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="انتخاب دسته‌بندی" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
-                        {category.name}
-                      </SelectItem>
+                  </div>
+                </div>
+                <div>
+                  <Label>نگرانی پوستی</Label>
+                  <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {concerns.map((concern) => (
+                      <div key={concern} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`concern-${concern}`}
+                          checked={selectedConcerns.includes(concern)}
+                          onCheckedChange={() =>
+                            handleToggleFilter(setSelectedConcerns, concern)
+                          }
+                        />
+                        <Label
+                          htmlFor={`concern-${concern}`}
+                          className="font-normal cursor-pointer"
+                        >
+                          {concern}
+                        </Label>
+                      </div>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </div>
+                </div>
               </div>
-              <div className="md:col-span-2">
-                <Label htmlFor="description">توضیحات محصول</Label>
-                <Textarea
-                  id="description"
-                  name="description"
-                  className="mt-1 min-h-[120px]"
-                  placeholder="توضیحات کامل محصول"
-                  onChange={handleInputChange}
-                  value={formState.description}
-                />
-              </div>
-              <div className="md:col-span-2">
-                <Label htmlFor="how_to_use">نحوه استفاده</Label>
-                <Textarea
-                  id="how_to_use"
-                  name="how_to_use"
-                  className="mt-1 min-h-[100px]"
-                  placeholder="روش مصرف محصول"
-                  onChange={handleInputChange}
-                  value={formState.how_to_use}
-                />
-              </div>
-              <div className="md:col-span-2">
-                <Label htmlFor="caution">هشدارها</Label>
-                <Textarea
-                  id="caution"
-                  name="caution"
-                  className="mt-1 min-h-[80px]"
-                  placeholder="نکات و هشدارهای مصرف"
-                  onChange={handleInputChange}
-                  value={formState.caution}
-                />
-              </div>
-              <div className="md:col-span-2">
-                <Label htmlFor="ingredients">ترکیبات (با کاما جدا کنید)</Label>
-                <Textarea
-                  id="ingredients"
-                  name="ingredients"
-                  className="mt-1"
-                  placeholder="مثال: آب، گلیسیرین، ..."
-                  onChange={handleInputChange}
-                  value={formState.ingredients}
-                />
-              </div>
-              <div className="md:col-span-2">
-                <Label htmlFor="tags">تگ‌ها (با کاما جدا کنید)</Label>
-                <Input
-                  id="tags"
-                  name="tags"
-                  className="mt-1"
-                  placeholder="مثال: وگان، ارگانیک، ..."
-                  value={formState.tags}
-                  onChange={handleInputChange}
-                />
-              </div>
-            </div>
+            )}
 
-            {/* Price and Inventory Section */}
-            <div className="p-4 border rounded-lg grid grid-cols-1 md:grid-cols-2 gap-4">
-              <h3 className="col-span-1 md:col-span-2 text-lg font-medium">
-                قیمت و موجودی
-              </h3>
-              <div>
-                <Label htmlFor="price">قیمت (تومان)</Label>
-                <Input
-                  id="price"
-                  name="price"
-                  type="number"
-                  className="mt-1"
-                  placeholder="قیمت اصلی"
-                  value={formState.price}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="discount_price">قیمت با تخفیف (اختیاری)</Label>
-                <Input
-                  id="discount_price"
-                  name="discount_price"
-                  type="number"
-                  className="mt-1"
-                  placeholder="قیمت پس از تخفیف"
-                  value={formState.discount_price}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div>
-                <Label htmlFor="stock">موجودی انبار</Label>
-                <Input
-                  id="stock"
-                  name="stock"
-                  type="number"
-                  className="mt-1"
-                  placeholder="تعداد موجود"
-                  value={formState.stock}
-                  onChange={handleInputChange}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="sku">SKU</Label>
-                <Input
-                  id="sku"
-                  name="sku"
-                  className="mt-1"
-                  placeholder="شناسه انبار"
-                  value={formState.sku}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div>
-                <Label htmlFor="barcode">بارکد</Label>
-                <Input
-                  id="barcode"
-                  name="barcode"
-                  className="mt-1"
-                  placeholder="بارکد محصول"
-                  value={formState.barcode}
-                  onChange={handleInputChange}
-                />
-              </div>
-            </div>
-
-            {/* Additional Details Section */}
-            <div className="p-4 border rounded-lg grid grid-cols-1 md:grid-cols-2 gap-4">
-              <h3 className="col-span-1 md:col-span-2 text-lg font-medium">
-                جزئیات بیشتر
-              </h3>
-              <div>
-                <Label htmlFor="volume">حجم / وزن</Label>
-                <Input
-                  id="volume"
-                  name="volume"
-                  type="number"
-                  className="mt-1"
-                  placeholder="عدد حجم یا وزن"
-                  value={formState.volume}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div>
-                <Label htmlFor="unit">واحد</Label>
-                <Input
-                  id="unit"
-                  name="unit"
-                  className="mt-1"
-                  placeholder="مثال: ml, gr, oz"
-                  value={formState.unit}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div>
-                <Label htmlFor="product_form">شکل محصول</Label>
-                <Input
-                  id="product_form"
-                  name="product_form"
-                  className="mt-1"
-                  placeholder="مثال: سرم، کرم، ژل"
-                  value={formState.product_form}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div>
-                <Label htmlFor="country_of_origin">کشور سازنده</Label>
-                <Input
-                  id="country_of_origin"
-                  name="country_of_origin"
-                  className="mt-1"
-                  placeholder="مثال: کانادا"
-                  value={formState.country_of_origin}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div>
-                <Label htmlFor="manufacture_date">تاریخ تولید</Label>
-                <Input
-                  id="manufacture_date"
-                  name="manufacture_date"
-                  type="date"
-                  className="mt-1"
-                  value={formState.manufacture_date}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div>
-                <Label htmlFor="expiry_date">تاریخ انقضا</Label>
-                <Input
-                  id="expiry_date"
-                  name="expiry_date"
-                  type="date"
-                  className="mt-1"
-                  value={formState.expiry_date}
-                  onChange={handleInputChange}
-                />
-              </div>
-            </div>
-
-            {/* Classification Section */}
-            <div className="p-4 border rounded-lg space-y-4">
-              <h3 className="text-lg font-medium">دسته‌بندی‌های تخصصی</h3>
-              <div>
-                <Label>نوع پوست</Label>
-                <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-2 gap-y-4">
-                  {skinTypes.map((type) => (
-                    <div key={type} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`skin-${type}`}
-                        checked={selectedSkinTypes.includes(type)}
-                        onCheckedChange={() =>
-                          handleToggleFilter(setSelectedSkinTypes, type)
-                        }
+            {/* Step 5: Images */}
+            {currentStep === 5 && (
+              <div className="p-4 border rounded-lg space-y-4">
+                <Label className="text-lg font-medium">تصاویر محصول</Label>
+                <div
+                  className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md cursor-pointer"
+                  onClick={() => imageInputRef.current?.click()}
+                >
+                  <div className="space-y-1 text-center">
+                    <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                    <div className="flex text-sm text-gray-600 justify-center">
+                      <span className="relative rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none">
+                        <span>آپلود فایل</span>
+                        <input
+                          ref={imageInputRef}
+                          id="images"
+                          name="images"
+                          type="file"
+                          className="sr-only"
+                          multiple
+                          onChange={handleFileChange}
+                          accept="image/*"
+                        />
+                      </span>
+                      <p className="pr-1">یا فایل را اینجا بکشید</p>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      PNG, JPG, WEBP - حداکثر ۵ مگابایت
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4">
+                  {existingImages.map((image) => (
+                    <div key={image.id} className="relative group">
+                      <Image
+                        src={image.url}
+                        alt="Existing product image"
+                        width={100}
+                        height={100}
+                        className="h-24 w-24 object-cover rounded-md"
                       />
-                      <Label
-                        htmlFor={`skin-${type}`}
-                        className="font-normal cursor-pointer"
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="absolute -top-2 -right-2 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100"
+                        onClick={() => handleRemoveExistingImage(image.id)}
                       >
-                        {type}
-                      </Label>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  {selectedFiles.map((file, index) => (
+                    <div key={index} className="relative group">
+                      <Image
+                        src={URL.createObjectURL(file)}
+                        alt={`Preview ${index + 1}`}
+                        width={100}
+                        height={100}
+                        className="h-24 w-24 object-cover rounded-md"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="absolute -top-2 -right-2 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100"
+                        onClick={() => handleRemoveNewImage(index)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
                     </div>
                   ))}
                 </div>
               </div>
-              <div>
-                <Label>نگرانی پوستی</Label>
-                <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {concerns.map((concern) => (
-                    <div key={concern} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`concern-${concern}`}
-                        checked={selectedConcerns.includes(concern)}
-                        onCheckedChange={() =>
-                          handleToggleFilter(setSelectedConcerns, concern)
-                        }
-                      />
-                      <Label
-                        htmlFor={`concern-${concern}`}
-                        className="font-normal cursor-pointer"
-                      >
-                        {concern}
-                      </Label>
-                    </div>
-                  ))}
+            )}
+
+            {/* Step 6: SEO */}
+            {currentStep === 6 && (
+              <div className="p-4 border rounded-lg grid grid-cols-1 md:grid-cols-2 gap-4">
+                <h3 className="col-span-1 md:col-span-2 text-lg font-medium">
+                  بهینه‌سازی برای موتورهای جستجو (SEO)
+                </h3>
+                <div>
+                  <Label htmlFor="metaTitle">عنوان متا</Label>
+                  <Input
+                    id="metaTitle"
+                    name="metaTitle"
+                    className="mt-1"
+                    placeholder="عنوان برای نمایش در گوگل"
+                    value={formState.metaTitle}
+                    onChange={handleInputChange}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="metaDescription">توضیحات متا</Label>
+                  <Input
+                    id="metaDescription"
+                    name="metaDescription"
+                    className="mt-1"
+                    placeholder="توضیحات برای نمایش در گوگل"
+                    value={formState.metaDescription}
+                    onChange={handleInputChange}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <Label htmlFor="tags">تگ‌ها (با کاما جدا کنید)</Label>
+                  <Input
+                    id="tags"
+                    name="tags"
+                    className="mt-1"
+                    placeholder="مثال: وگان، ارگانیک، ..."
+                    value={formState.tags}
+                    onChange={handleInputChange}
+                  />
                 </div>
               </div>
-            </div>
-
-            {/* SEO Section */}
-            <div className="p-4 border rounded-lg grid grid-cols-1 md:grid-cols-2 gap-4">
-              <h3 className="col-span-1 md:col-span-2 text-lg font-medium">
-                بهینه‌سازی برای موتورهای جستجو (SEO)
-              </h3>
-              <div>
-                <Label htmlFor="metaTitle">عنوان متا</Label>
-                <Input
-                  id="metaTitle"
-                  name="metaTitle"
-                  className="mt-1"
-                  placeholder="عنوان برای نمایش در گوگل"
-                  value={formState.metaTitle}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div>
-                <Label htmlFor="metaDescription">توضیحات متا</Label>
-                <Input
-                  id="metaDescription"
-                  name="metaDescription"
-                  className="mt-1"
-                  placeholder="توضیحات برای نمایش در گوگل"
-                  value={formState.metaDescription}
-                  onChange={handleInputChange}
-                />
-              </div>
-            </div>
+            )}
           </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="secondary">
-                انصراف
-              </Button>
-            </DialogClose>
-            <Button onClick={handleSubmit} disabled={isLoading}>
-              {isLoading ? "در حال ذخیره..." : "ذخیره تغییرات"}
-            </Button>
+          <DialogFooter className="flex justify-between w-full">
+            <div className="flex items-center gap-2">
+              {editingProduct && (
+                <Button
+                  onClick={handleSubmit}
+                  disabled={isLoading}
+                  variant="secondary"
+                >
+                  {isLoading ? "در حال به‌روزرسانی..." : "به‌روزرسانی سریع"}
+                </Button>
+              )}
+              <DialogClose asChild>
+                <Button type="button" variant="secondary">
+                  انصراف
+                </Button>
+              </DialogClose>
+            </div>
+            <div>
+              {currentStep > 1 && (
+                <Button type="button" variant="outline" onClick={prevStep}>
+                  قبلی
+                </Button>
+              )}
+              {currentStep < TOTAL_STEPS && (
+                <Button type="button" onClick={nextStep} className="mr-2">
+                  بعدی
+                </Button>
+              )}
+              {currentStep === TOTAL_STEPS && (
+                <Button
+                  onClick={handleSubmit}
+                  disabled={isLoading}
+                  className="mr-2"
+                >
+                  {isLoading ? "در حال ذخیره..." : "ذخیره تغییرات"}
+                </Button>
+              )}
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* Table to display products */}
       <div className="border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
@@ -746,9 +814,8 @@ function ManageProductsPage() {
               <TableHead>تصویر</TableHead>
               <TableHead>نام محصول</TableHead>
               <TableHead>برند</TableHead>
-              <TableHead>دسته‌بندی</TableHead>
-              <TableHead>قیمت</TableHead>
               <TableHead>موجودی</TableHead>
+              <TableHead>قیمت</TableHead>
               <TableHead className="text-left">عملیات</TableHead>
             </TableRow>
           </TableHeader>
@@ -757,7 +824,11 @@ function ManageProductsPage() {
               <TableRow key={product.id}>
                 <TableCell>
                   <Image
-                    src={product.images[0]?.url || "/placeholder.png"}
+                    src={
+                      product.images && product.images.length > 0
+                        ? product.images[0].url
+                        : "/placeholder.png"
+                    }
                     alt={product.name}
                     width={40}
                     height={40}
@@ -766,11 +837,22 @@ function ManageProductsPage() {
                 </TableCell>
                 <TableCell className="font-medium">{product.name}</TableCell>
                 <TableCell>{product.brand?.name}</TableCell>
-                <TableCell>{product.category?.name}</TableCell>
+                <TableCell>
+                  <span
+                    className={`px-2 py-1 rounded-full text-xs ${
+                      product.stock > 10
+                        ? "bg-green-100 text-green-800"
+                        : product.stock > 0
+                        ? "bg-yellow-100 text-yellow-800"
+                        : "bg-red-100 text-red-800"
+                    }`}
+                  >
+                    {product.stock > 0 ? `${product.stock} عدد` : "ناموجود"}
+                  </span>
+                </TableCell>
                 <TableCell>
                   {product.price.toLocaleString("fa-IR")} تومان
                 </TableCell>
-                <TableCell>{product.stock}</TableCell>
                 <TableCell className="text-left">
                   <Button
                     variant="ghost"
