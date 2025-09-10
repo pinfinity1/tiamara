@@ -28,6 +28,7 @@ import {
   FeatureBanner,
   HomepageSection,
   useHomepageStore,
+  SectionType,
 } from "@/store/useHomepageStore";
 import { Product, useProductStore } from "@/store/useProductStore";
 import {
@@ -58,6 +59,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  DragEndEvent,
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -170,6 +172,7 @@ function ManageHomepagePage() {
   const { categories, fetchCategories } = useCategoryStore();
   const { brands, fetchBrands } = useBrandStore();
 
+  // Banner State
   const [isBannerDialogOpen, setIsBannerDialogOpen] = useState(false);
   const [editingBanner, setEditingBanner] = useState<FeatureBanner | null>(
     null
@@ -183,6 +186,7 @@ function ManageHomepagePage() {
     isActive: true,
   });
 
+  // Section State
   const [isSectionDialogOpen, setIsSectionDialogOpen] = useState(false);
   const [editingSection, setEditingSection] = useState<HomepageSection | null>(
     null
@@ -191,6 +195,9 @@ function ManageHomepagePage() {
     title: "",
     order: 0,
   });
+  const [sectionType, setSectionType] = useState<SectionType>(
+    SectionType.MANUAL
+  );
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
 
   useEffect(() => {
@@ -211,7 +218,7 @@ function ManageHomepagePage() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
-  const handleDragEnd = (event: any) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (active && over && active.id !== over.id) {
       const oldIndex = banners.findIndex((b) => b.id === active.id);
@@ -308,6 +315,7 @@ function ManageHomepagePage() {
   const resetSectionForm = () => {
     setEditingSection(null);
     setSectionFormData({ title: "", order: 0 });
+    setSectionType(SectionType.MANUAL);
     setSelectedProductIds([]);
   };
 
@@ -320,6 +328,7 @@ function ManageHomepagePage() {
     resetSectionForm();
     setEditingSection(section);
     setSectionFormData({ title: section.title, order: section.order });
+    setSectionType(section.type);
     setSelectedProductIds(section.products.map((p) => p.id));
     setIsSectionDialogOpen(true);
   };
@@ -333,7 +342,12 @@ function ManageHomepagePage() {
   };
 
   const handleSectionSubmit = async () => {
-    const data = { ...sectionFormData, productIds: selectedProductIds };
+    const data = {
+      ...sectionFormData,
+      type: sectionType,
+      productIds: sectionType === SectionType.MANUAL ? selectedProductIds : [],
+    };
+
     const result = editingSection
       ? await updateSection(editingSection.id, data)
       : await createSection(data);
@@ -376,19 +390,18 @@ function ManageHomepagePage() {
           onDragEnd={handleDragEnd}
         >
           <SortableContext
-            items={banners}
+            items={banners.map((b) => b.id)}
             strategy={verticalListSortingStrategy}
           >
             <div className="border rounded-lg p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {banners &&
-                banners.map((banner) => (
-                  <SortableBanner
-                    key={banner.id}
-                    banner={banner}
-                    handleEditBanner={handleEditBanner}
-                    handleDeleteBanner={handleDeleteBanner}
-                  />
-                ))}
+              {banners.map((banner) => (
+                <SortableBanner
+                  key={banner.id}
+                  banner={banner}
+                  handleEditBanner={handleEditBanner}
+                  handleDeleteBanner={handleDeleteBanner}
+                />
+              ))}
             </div>
           </SortableContext>
         </DndContext>
@@ -405,10 +418,13 @@ function ManageHomepagePage() {
         <div className="space-y-4">
           {sections.map((section) => (
             <div key={section.id} className="border rounded-lg p-4">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="font-bold text-lg">
-                  {section.title} (ترتیب: {section.order})
-                </h3>
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="font-bold text-lg">{section.title}</h3>
+                  <Badge variant="outline">
+                    ترتیب: {section.order} | نوع: {section.type}
+                  </Badge>
+                </div>
                 <div>
                   <Button
                     variant="ghost"
@@ -448,21 +464,22 @@ function ManageHomepagePage() {
                 </div>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {section.products.map((product) => (
-                  <div
-                    key={product.id}
-                    className="border rounded-md p-2 text-center text-sm"
-                  >
-                    <Image
-                      src={product.images[0]?.url || "/placeholder.png"}
-                      alt={product.name}
-                      width={80}
-                      height={80}
-                      className="w-20 h-20 object-cover mx-auto rounded-md mb-2"
-                    />
-                    <p>{product.name}</p>
-                  </div>
-                ))}
+                {section.products &&
+                  section.products.map((product) => (
+                    <div
+                      key={product.id}
+                      className="border rounded-md p-2 text-center text-sm"
+                    >
+                      <Image
+                        src={product.images[0]?.url || "/placeholder.png"}
+                        alt={product.name}
+                        width={80}
+                        height={80}
+                        className="w-20 h-20 object-cover mx-auto rounded-md mb-2"
+                      />
+                      <p>{product.name}</p>
+                    </div>
+                  ))}
               </div>
             </div>
           ))}
@@ -648,37 +665,61 @@ function ManageHomepagePage() {
                   }
                 />
               </div>
-            </div>
-            <div className="md:col-span-2 border rounded-md p-4 max-h-[60vh] overflow-y-auto">
-              <Label className="font-bold">انتخاب محصولات</Label>
-              <div className="mt-4 grid grid-cols-2 lg:grid-cols-3 gap-4">
-                {products.map((product) => (
-                  <div
-                    key={product.id}
-                    className="flex items-start space-x-2 p-2 rounded-md hover:bg-gray-50"
-                  >
-                    <Checkbox
-                      id={`prod-${product.id}`}
-                      checked={selectedProductIds.includes(product.id)}
-                      onCheckedChange={() => handleProductSelection(product.id)}
-                    />
-                    <Label
-                      htmlFor={`prod-${product.id}`}
-                      className="flex items-center gap-2 cursor-pointer"
-                    >
-                      <Image
-                        src={product.images[0]?.url || "/placeholder.png"}
-                        alt={product.name}
-                        width={40}
-                        height={40}
-                        className="w-10 h-10 rounded-md object-cover"
-                      />
-                      <span className="text-xs">{product.name}</span>
-                    </Label>
-                  </div>
-                ))}
+              <div>
+                <Label>نوع سکشن</Label>
+                <Select
+                  value={sectionType}
+                  onValueChange={(value: SectionType) => setSectionType(value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="نوع را انتخاب کنید" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={SectionType.MANUAL}>دستی</SelectItem>
+                    <SelectItem value={SectionType.DISCOUNTED}>
+                      تخفیف‌دارها
+                    </SelectItem>
+                    <SelectItem value={SectionType.BEST_SELLING}>
+                      پرفروش‌ترین‌ها
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
+            {sectionType === SectionType.MANUAL && (
+              <div className="md:col-span-2 border rounded-md p-4 max-h-[60vh] overflow-y-auto">
+                <Label className="font-bold">انتخاب محصولات</Label>
+                <div className="mt-4 grid grid-cols-2 lg:grid-cols-3 gap-4">
+                  {products.map((product) => (
+                    <div
+                      key={product.id}
+                      className="flex items-start space-x-2 p-2 rounded-md hover:bg-gray-50"
+                    >
+                      <Checkbox
+                        id={`prod-${product.id}`}
+                        checked={selectedProductIds.includes(product.id)}
+                        onCheckedChange={() =>
+                          handleProductSelection(product.id)
+                        }
+                      />
+                      <Label
+                        htmlFor={`prod-${product.id}`}
+                        className="flex items-center gap-2 cursor-pointer"
+                      >
+                        <Image
+                          src={product.images[0]?.url || "/placeholder.png"}
+                          alt={product.name}
+                          width={40}
+                          height={40}
+                          className="w-10 h-10 rounded-md object-cover"
+                        />
+                        <span className="text-xs">{product.name}</span>
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <DialogClose asChild>

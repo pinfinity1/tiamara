@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import cloudinary from "../config/cloudinary";
 import { prisma } from "../server";
 import fs from "fs";
+import { SectionType } from "@prisma/client";
 
 // --- Banner Management ---
 
@@ -247,7 +248,7 @@ export const reorderBanners = async (
   }
 };
 
-// --- Homepage Section Management --- (بقیه توابع بدون تغییر باقی می‌مانند)
+// --- Homepage Section Management ---
 
 export const getHomepageSections = async (
   req: Request,
@@ -267,7 +268,6 @@ export const getHomepageSections = async (
       },
     });
 
-    // New logic to fetch dynamic products
     for (const section of sections) {
       if (section.type === "DISCOUNTED") {
         section.products = await prisma.product.findMany({
@@ -299,12 +299,24 @@ export const createHomepageSection = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { title, order, productIds } = req.body;
+    const { title, order, type, productIds } = req.body as {
+      title: string;
+      order: string;
+      type: SectionType;
+      productIds: string[];
+    };
 
-    if (!title || !productIds || !Array.isArray(productIds)) {
+    if (!title || !type) {
+      res
+        .status(400)
+        .json({ success: false, message: "Title and type are required." });
+      return;
+    }
+
+    if (type === "MANUAL" && (!productIds || !Array.isArray(productIds))) {
       res.status(400).json({
         success: false,
-        message: "Title and productIds array are required.",
+        message: "Product IDs are required for MANUAL sections.",
       });
       return;
     }
@@ -313,9 +325,11 @@ export const createHomepageSection = async (
       data: {
         title,
         order: order ? parseInt(order) : 0,
-        products: {
-          connect: productIds.map((id: string) => ({ id })),
-        },
+        type,
+        products:
+          type === "MANUAL"
+            ? { connect: productIds.map((id: string) => ({ id })) }
+            : {},
       },
     });
 
@@ -334,16 +348,24 @@ export const updateHomepageSection = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { title, order, productIds } = req.body;
+    const { title, order, type, productIds } = req.body as {
+      title: string;
+      order: string;
+      type: SectionType;
+      productIds: string[];
+    };
 
-    if (
-      title === undefined ||
-      productIds === undefined ||
-      !Array.isArray(productIds)
-    ) {
+    if (title === undefined || type === undefined) {
+      res
+        .status(400)
+        .json({ success: false, message: "Title and type are required." });
+      return;
+    }
+
+    if (type === "MANUAL" && !Array.isArray(productIds)) {
       res.status(400).json({
         success: false,
-        message: "Title and productIds array are required.",
+        message: "Product IDs are required for MANUAL sections.",
       });
       return;
     }
@@ -353,9 +375,11 @@ export const updateHomepageSection = async (
       data: {
         title,
         order: order ? parseInt(order) : 0,
-        products: {
-          set: productIds.map((id: string) => ({ id })),
-        },
+        type,
+        products:
+          type === "MANUAL"
+            ? { set: productIds.map((id: string) => ({ id })) }
+            : { set: [] },
       },
     });
 

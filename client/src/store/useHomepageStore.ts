@@ -138,17 +138,15 @@ export const useHomepageStore = create<HomepageState>((set, get) => ({
     }
   },
   reorderBanners: async (reorderedBanners) => {
-    // Optimistic UI update
     set({ banners: reorderedBanners });
 
     try {
       const bannerIds = reorderedBanners.map((banner) => banner.id);
       await axiosAuth.post(`/homepage/banners/reorder`, { bannerIds });
-      // Fetch fresh data to ensure consistency after successful reorder
+
       await get().fetchBanners();
     } catch (e) {
       console.error(e);
-      // Rollback on error
       get().fetchBanners();
       set({ error: "Failed to reorder banners" });
     }
@@ -172,12 +170,8 @@ export const useHomepageStore = create<HomepageState>((set, get) => ({
         `/homepage/homepage-sections/create`,
         data
       );
-      set((state) => ({
-        sections: [...state.sections, response.data.section].sort(
-          (a, b) => a.order - b.order
-        ),
-        isLoading: false,
-      }));
+      await get().fetchSections();
+      set({ isLoading: false });
       return response.data.section;
     } catch (e) {
       console.error(e);
@@ -192,12 +186,8 @@ export const useHomepageStore = create<HomepageState>((set, get) => ({
         `/homepage/homepage-sections/update/${id}`,
         data
       );
-      set((state) => ({
-        sections: state.sections
-          .map((s) => (s.id === id ? response.data.section : s))
-          .sort((a, b) => a.order - b.order),
-        isLoading: false,
-      }));
+      await get().fetchSections();
+      set({ isLoading: false });
       return response.data.section;
     } catch (e) {
       console.error(e);
@@ -209,10 +199,8 @@ export const useHomepageStore = create<HomepageState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       await axiosAuth.delete(`/homepage/homepage-sections/delete/${id}`);
-      set((state) => ({
-        sections: state.sections.filter((s) => s.id !== id),
-        isLoading: false,
-      }));
+      await get().fetchSections();
+      set({ isLoading: false });
       return true;
     } catch (e) {
       console.error(e);
