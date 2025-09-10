@@ -23,7 +23,6 @@ export const addFeatureBanner = async (
       folder: "tiamara-banners",
     });
 
-    // --- New Logic: Automatically set order ---
     const lastBanner = await prisma.featureBanner.findFirst({
       orderBy: { order: "desc" },
     });
@@ -267,6 +266,25 @@ export const getHomepageSections = async (
         },
       },
     });
+
+    // New logic to fetch dynamic products
+    for (const section of sections) {
+      if (section.type === "DISCOUNTED") {
+        section.products = await prisma.product.findMany({
+          where: { discount_price: { not: null } },
+          orderBy: { createdAt: "desc" },
+          take: 10,
+          include: { images: { take: 1 }, brand: true, category: true },
+        });
+      } else if (section.type === "BEST_SELLING") {
+        section.products = await prisma.product.findMany({
+          orderBy: { soldCount: "desc" },
+          take: 10,
+          include: { images: { take: 1 }, brand: true, category: true },
+        });
+      }
+    }
+
     res.status(200).json({ success: true, sections });
   } catch (error) {
     console.error("Error fetching homepage sections:", error);

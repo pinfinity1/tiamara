@@ -454,7 +454,7 @@ function ManageHomepagePage() {
                     className="border rounded-md p-2 text-center text-sm"
                   >
                     <Image
-                      src={product.images[0]?.url || ""}
+                      src={product.images[0]?.url || "/placeholder.png"}
                       alt={product.name}
                       width={80}
                       height={80}
@@ -667,7 +667,7 @@ function ManageHomepagePage() {
                       className="flex items-center gap-2 cursor-pointer"
                     >
                       <Image
-                        src={product.images[0]?.url || ""}
+                        src={product.images[0]?.url || "/placeholder.png"}
                         alt={product.name}
                         width={40}
                         height={40}

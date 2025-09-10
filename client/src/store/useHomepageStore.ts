@@ -3,6 +3,12 @@ import { axiosPublic } from "@/lib/axios";
 import { Product } from "./useProductStore";
 import { create } from "zustand";
 
+export enum SectionType {
+  MANUAL = "MANUAL",
+  DISCOUNTED = "DISCOUNTED",
+  BEST_SELLING = "BEST_SELLING",
+}
+
 export interface FeatureBanner {
   id: string;
   imageUrl: string;
@@ -17,6 +23,7 @@ export interface HomepageSection {
   id: string;
   title: string;
   order: number;
+  type: SectionType;
   products: Product[];
 }
 
@@ -37,10 +44,16 @@ interface HomepageState {
     title: string;
     order: number;
     productIds: string[];
+    type: SectionType;
   }) => Promise<HomepageSection | null>;
   updateSection: (
     id: string,
-    data: { title: string; order: number; productIds: string[] }
+    data: {
+      title: string;
+      order: number;
+      productIds: string[];
+      type: SectionType;
+    }
   ) => Promise<HomepageSection | null>;
   deleteSection: (id: string) => Promise<boolean>;
 }
