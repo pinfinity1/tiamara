@@ -160,6 +160,17 @@ export const useProductStore = create<ProductState>((set, get) => ({
       return false;
     }
   },
+  getProductBySlug: async (slug: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await axiosPublic.get(`/products/slug/${slug}`);
+      set({ isLoading: false });
+      return response.data;
+    } catch (e) {
+      set({ error: "Failed to fetch product by slug", isLoading: false });
+      return null;
+    }
+  },
   getProductById: async (id: string) => {
     set({ isLoading: true, error: null });
     try {
@@ -217,7 +228,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
         }
       );
       set({ isLoading: false });
-      get().fetchAllProductsForAdmin(); // لیست محصولات را مجدداً بارگذاری می‌کند
+      get().fetchAllProductsForAdmin();
       return { success: true, data: response.data.data };
     } catch (e: any) {
       const errorMsg =

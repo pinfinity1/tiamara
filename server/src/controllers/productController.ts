@@ -44,6 +44,7 @@ export const createProduct = async (
   res: Response
 ): Promise<void> => {
   try {
+    const userId = req.user?.userId;
     const {
       name,
       brandId,
@@ -87,6 +88,7 @@ export const createProduct = async (
       altText: `${name} image ${index + 1}`,
     }));
 
+    const stockAmount = parseInt(stock);
     const newlyCreatedProduct = await prisma.product.create({
       data: {
         name,
@@ -98,7 +100,7 @@ export const createProduct = async (
         caution,
         price: parseFloat(price),
         discount_price: discount_price ? parseFloat(discount_price) : null,
-        stock: parseInt(stock),
+        stock: stockAmount,
         sku,
         barcode,
         volume: volume ? parseFloat(volume) : null,
@@ -123,6 +125,18 @@ export const createProduct = async (
         },
       },
     });
+
+    // Log the initial stock
+    if (stockAmount > 0) {
+      await logStockChange(
+        newlyCreatedProduct.id,
+        stockAmount,
+        stockAmount,
+        "INITIAL",
+        userId || null,
+        "Initial stock set on product creation"
+      );
+    }
 
     // Clean up uploaded files from the server's temporary storage
     files.forEach((file) => fs.unlinkSync(file.path));
@@ -152,6 +166,37 @@ export const fetchAllProductsForAdmin = async (
     res.status(200).json(fetchAllProducts);
   } catch (e) {
     console.error("Error fetching admin products:", e);
+    res.status(500).json({ success: false, message: "Some error occurred!" });
+  }
+};
+
+// Get a single product by SLUG
+export const getProductBySlug = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { slug } = req.params;
+    const product = await prisma.product.findFirst({
+      where: { slug },
+      include: {
+        images: true,
+        brand: true,
+        category: true,
+      },
+    });
+
+    if (!product) {
+      res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+      return;
+    }
+
+    res.status(200).json(product);
+  } catch (e) {
+    console.error("Error fetching product by slug:", e);
     res.status(500).json({ success: false, message: "Some error occurred!" });
   }
 };
@@ -194,6 +239,7 @@ export const updateProduct = async (
   res: Response
 ): Promise<void> => {
   try {
+    const userId = req.user?.userId;
     const { id } = req.params;
     const {
       name,
@@ -274,6 +320,7 @@ export const updateProduct = async (
       files.forEach((file) => fs.unlinkSync(file.path));
     }
 
+    const newStockAmount = parseInt(stock);
     const product = await prisma.product.update({
       where: { id },
       data: {
@@ -286,7 +333,7 @@ export const updateProduct = async (
         caution,
         price: parseFloat(price),
         discount_price: discount_price ? parseFloat(discount_price) : null,
-        stock: parseInt(stock),
+        stock: newStockAmount,
         sku: sku || null,
         barcode: barcode || null,
         volume: volume ? parseFloat(volume) : null,
@@ -305,6 +352,19 @@ export const updateProduct = async (
         images: imageUpdateOperations, // Apply all create/delete operations
       },
     });
+
+    // Log stock adjustment if stock was changed
+    const stockChange = newStockAmount - existingProduct.stock;
+    if (stockChange !== 0) {
+      await logStockChange(
+        id,
+        stockChange,
+        newStockAmount,
+        "ADJUSTMENT",
+        userId || null,
+        "Stock manually adjusted in admin panel"
+      );
+    }
 
     res.status(200).json(product);
   } catch (e) {
@@ -470,6 +530,7 @@ export const bulkCreateProductsFromExcel = async (
   }
 
   try {
+    const userId = req.user?.userId;
     const workbook = xlsx.readFile(req.file.path);
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
@@ -532,13 +593,14 @@ export const bulkCreateProductsFromExcel = async (
           );
         }
 
+        const newStockAmount = parseInt(row.stock);
         const productPayload = {
           name: row.name,
           slug: generateSlug(row.name),
           brandId: brand.id,
           categoryId: category.id,
           price: parseFloat(row.price),
-          stock: parseInt(row.stock),
+          stock: newStockAmount,
           sku: row.sku,
           description: row.description || null,
         };
@@ -548,14 +610,35 @@ export const bulkCreateProductsFromExcel = async (
         });
 
         if (existingProduct) {
-          await prisma.product.update({
+          const updatedProduct = await prisma.product.update({
             where: { sku: productPayload.sku },
             data: productPayload,
           });
           report.updatedCount++;
+
+          const stockChange = newStockAmount - existingProduct.stock;
+          await logStockChange(
+            updatedProduct.id,
+            stockChange,
+            newStockAmount,
+            "ADJUSTMENT",
+            userId || null,
+            "Stock updated via Excel import"
+          );
         } else {
-          await prisma.product.create({ data: productPayload });
+          const newProduct = await prisma.product.create({
+            data: productPayload,
+          });
           report.createdCount++;
+
+          await logStockChange(
+            newProduct.id,
+            newStockAmount,
+            newStockAmount,
+            "INITIAL",
+            userId || null,
+            "Initial stock set via Excel import"
+          );
         }
       } catch (e: any) {
         report.failedCount++;

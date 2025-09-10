@@ -9,6 +9,7 @@ import {
   updateProduct,
   getProductsForClient,
   bulkCreateProductsFromExcel,
+  getProductBySlug,
 } from "../controllers/productController";
 
 const router = expess.Router();
@@ -37,6 +38,7 @@ router.get(
 );
 
 router.get("/fetch-client-products", getProductsForClient);
+router.get("/slug/:slug", getProductBySlug);
 router.get("/:id", getProductByID);
 
 router.put(
