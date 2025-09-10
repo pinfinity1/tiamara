@@ -140,7 +140,7 @@ function UserCartPage() {
               PROCEED TO CHECKOUT
             </Button>
             <Button
-              onClick={() => router.push("/listing")}
+              onClick={() => router.push("/products")}
               className="w-full mt-2"
               variant="outline"
             >

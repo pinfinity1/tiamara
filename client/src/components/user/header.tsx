@@ -38,7 +38,7 @@ const navItems = [
   },
   {
     title: "محصولات",
-    to: "/listing",
+    to: "/products",
   },
 ];
 

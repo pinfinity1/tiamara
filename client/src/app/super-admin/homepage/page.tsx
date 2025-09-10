@@ -546,14 +546,14 @@ function ManageHomepagePage() {
                   <SelectGroup>
                     <SelectLabel>صفحات اصلی</SelectLabel>
                     <SelectItem value="/">صفحه اصلی</SelectItem>
-                    <SelectItem value="/listing">همه محصولات</SelectItem>
+                    <SelectItem value="/products">همه محصولات</SelectItem>
                   </SelectGroup>
                   <SelectGroup>
                     <SelectLabel>دسته‌بندی‌ها</SelectLabel>
                     {categories.map((category) => (
                       <SelectItem
                         key={category.id}
-                        value={`/listing?category=${category.slug}`}
+                        value={`/products?category=${category.slug}`}
                       >
                         {category.name}
                       </SelectItem>
@@ -564,7 +564,7 @@ function ManageHomepagePage() {
                     {brands.map((brand) => (
                       <SelectItem
                         key={brand.id}
-                        value={`/listing?brand=${brand.slug}`}
+                        value={`/products?brand=${brand.slug}`}
                       >
                         {brand.name}
                       </SelectItem>
@@ -575,7 +575,7 @@ function ManageHomepagePage() {
                     {products.map((product) => (
                       <SelectItem
                         key={product.id}
-                        value={`/listing/${product.slug}`}
+                        value={`/products/${product.slug}`}
                       >
                         {product.name}
                       </SelectItem>

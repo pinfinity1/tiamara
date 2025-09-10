@@ -18,7 +18,7 @@ function ProductCard({ product }: { product: Product }) {
 
   return (
     <div
-      onClick={() => router.push(`/listing/${product.slug}`)}
+      onClick={() => router.push(`/products/${product.slug}`)}
       className="group cursor-pointer"
     >
       <div className="relative aspect-[3/4] mb-3 bg-gray-100 overflow-hidden rounded-lg">

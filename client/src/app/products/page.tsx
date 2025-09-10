@@ -24,17 +24,6 @@ import { ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-// const colors = [
-//   { name: "Navy", class: "bg-[#0F172A]" },
-//   { name: "Yellow", class: "bg-[#FCD34D]" },
-//   { name: "White", class: "bg-white border" },
-//   { name: "Orange", class: "bg-[#FB923C]" },
-//   { name: "Green", class: "bg-[#22C55E]" },
-//   { name: "Pink", class: "bg-[#EC4899]" },
-//   { name: "Cyan", class: "bg-[#06B6D4]" },
-//   { name: "Blue", class: "bg-[#3B82F6]" },
-// ];
-
 function ProductListingPage() {
   const [priceRange, setPriceRange] = useState([0, 100000]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -212,7 +201,7 @@ function ProductListingPage() {
       <div className="relative h-[300px] overflow-hidden">
         <img
           src="https://images.unsplash.com/photo-1469334031218-e382a71b716b?q=80&w=2070&auto=format&fit=crop"
-          alt="Listing Page Banner"
+          alt="products Page Banner"
           className="w-full object-cover h-full "
         />
         <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center">
@@ -274,7 +263,7 @@ function ProductListingPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {products.map((productItem) => (
                   <div
-                    onClick={() => router.push(`/listing/${productItem.id}`)}
+                    onClick={() => router.push(`/products/${productItem.id}`)}
                     key={productItem.id}
                     className="group"
                   >

@@ -107,7 +107,7 @@ export default function GlobalSearch() {
               {results.map((product) => (
                 <li key={product.id}>
                   <Link
-                    href={`/listing/${product.slug}`}
+                    href={`/products/${product.slug}`}
                     className="flex items-center gap-4 p-3 hover:bg-gray-50 transition-colors"
                     onClick={() => setIsDropdownVisible(false)}
                   >
