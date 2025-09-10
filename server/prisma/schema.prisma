@@ -52,6 +52,8 @@ model product {
   homepageSections  HomepageSection[]
   stockHistory      StockHistory[]
   purchaseOrderItems PurchaseOrderItem[]
+
+  @@map("Product")
 }
 
 model StockHistory {
