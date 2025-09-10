@@ -15,6 +15,7 @@ import {
   LucideProps,
   LayoutGrid,
   ExternalLink,
+  Warehouse,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -68,6 +69,12 @@ const menuItems: MenuItem[] = [
     icon: Ticket,
     href: "/super-admin/coupons/list",
     group: "بازاریابی",
+  },
+  {
+    name: "انبارداری",
+    icon: Warehouse,
+    href: "/super-admin/inventory",
+    group: "مدیریت",
   },
   {
     name: "مدیریت صفحه اصلی",

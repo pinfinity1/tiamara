@@ -28,19 +28,7 @@ export interface Order {
   updatedAt: string;
 }
 
-export interface AdminOrder {
-  id: string;
-  userId: string;
-  addressId: string;
-  items: OrderItem[];
-  couponId?: string;
-  total: number;
-  status: "PENDING" | "PROCESSING" | "SHIPPED" | "DELIVERED";
-  paymentMethod: "CREDIT_CARD";
-  paymentStatus: "PENDING" | "COMPLETED";
-  paymentId?: string;
-  createdAt: string;
-  updatedAt: string;
+export interface AdminOrder extends Order {
   user: {
     id: string;
     name: string;
@@ -48,15 +36,13 @@ export interface AdminOrder {
   };
 }
 
+// این اینترفیس دیگر نیازی به paymentId ندارد
 interface CreateOrderData {
   userId: string;
   addressId: string;
-  items: Omit<OrderItem, "id">[];
+  items: Omit<OrderItem, "id" | "productName" | "productCategory">[];
   couponId?: string;
   total: number;
-  paymentMethod: "CREDIT_CARD";
-  paymentStatus: "PENDING" | "COMPLETED";
-  paymentId?: string;
 }
 
 interface OrderStore {
@@ -66,15 +52,16 @@ interface OrderStore {
   userOrders: Order[];
   adminOrders: AdminOrder[];
   error: string | null;
-  createPayPalOrder: (items: any[], total: number) => Promise<string | null>;
-  capturePayPalOrder: (orderId: string) => Promise<any | null>;
-  createFinalOrder: (orderData: CreateOrderData) => Promise<Order | null>;
+  // توابع PayPal حذف شده‌اند
+  createFinalOrder: (
+    orderData: CreateOrderData
+  ) => Promise<{ success: boolean; paymentUrl?: string; order?: Order }>;
   getOrder: (orderId: string) => Promise<Order | null>;
   updateOrderStatus: (
     orderId: string,
     status: Order["status"]
   ) => Promise<boolean>;
-  getAllOrders: () => Promise<Order[] | null>;
+  getAllOrders: () => Promise<AdminOrder[] | null>;
   getOrdersByUserId: () => Promise<Order[] | null>;
   setCurrentOrder: (order: Order | null) => void;
 }
@@ -86,40 +73,7 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
   isPaymentProcessing: false,
   userOrders: [],
   adminOrders: [],
-  createPayPalOrder: async (items, total) => {
-    set({ isLoading: true, error: null });
-    try {
-      const response = await axios.post(
-        `${API_ROUTES.ORDER}/create-paypal-order`,
-        { items, total },
-        { withCredentials: true }
-      );
-      set({ isLoading: false });
-      return response.data.id;
-    } catch (error) {
-      set({ error: "Failed to create paypal order", isLoading: false });
-      return null;
-    }
-  },
-  capturePayPalOrder: async (orderId) => {
-    set({ isLoading: true, error: null, isPaymentProcessing: true });
-    try {
-      const response = await axios.post(
-        `${API_ROUTES.ORDER}/capture-paypal-order`,
-        { orderId },
-        { withCredentials: true }
-      );
-      set({ isLoading: false, isPaymentProcessing: false });
-      return response.data;
-    } catch (error) {
-      set({
-        error: "Failed to capture paypal order",
-        isLoading: false,
-        isPaymentProcessing: false,
-      });
-      return null;
-    }
-  },
+
   createFinalOrder: async (orderData) => {
     set({ isLoading: true, error: null, isPaymentProcessing: true });
     try {
@@ -130,19 +84,24 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
       );
       set({
         isLoading: false,
-        currentOrder: response.data,
         isPaymentProcessing: false,
+        currentOrder: response.data.order,
       });
-      return response.data;
+      return {
+        success: true,
+        paymentUrl: response.data.paymentUrl,
+        order: response.data.order,
+      };
     } catch (error) {
       set({
-        error: "Failed to capture paypal order",
+        error: "Failed to create final order",
         isLoading: false,
         isPaymentProcessing: false,
       });
-      return null;
+      return { success: false };
     }
   },
+
   updateOrderStatus: async (orderId, status) => {
     set({ isLoading: true, error: null });
     try {
@@ -152,13 +111,6 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
         { withCredentials: true }
       );
       set((state) => ({
-        currentOrder:
-          state.currentOrder && state.currentOrder.id === orderId
-            ? {
-                ...state.currentOrder,
-                status,
-              }
-            : state.currentOrder,
         isLoading: false,
         adminOrders: state.adminOrders.map((item) =>
           item.id === orderId
@@ -169,12 +121,14 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
             : item
         ),
       }));
+      get().getOrdersByUserId(); // برای آپدیت لیست سفارشات کاربر
       return true;
     } catch (error) {
-      set({ error: "Failed to capture paypal order", isLoading: false });
+      set({ error: "Failed to update order status", isLoading: false });
       return false;
     }
   },
+
   getAllOrders: async () => {
     set({ isLoading: true, error: null });
     try {
@@ -189,6 +143,7 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
       return null;
     }
   },
+
   getOrdersByUserId: async () => {
     set({ isLoading: true, error: null });
     try {
@@ -199,11 +154,13 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
       set({ isLoading: false, userOrders: response.data });
       return response.data;
     } catch (error) {
-      set({ error: "Failed to fetch all orders for admin", isLoading: false });
+      set({ error: "Failed to fetch orders for user", isLoading: false });
       return null;
     }
   },
+
   setCurrentOrder: (order) => set({ currentOrder: order }),
+
   getOrder: async (orderId) => {
     set({ isLoading: true, error: null });
     try {
@@ -214,7 +171,7 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
       set({ isLoading: false, currentOrder: response.data });
       return response.data;
     } catch (error) {
-      set({ error: "Failed to fetch all orders for admin", isLoading: false });
+      set({ error: "Failed to fetch order", isLoading: false });
       return null;
     }
   },

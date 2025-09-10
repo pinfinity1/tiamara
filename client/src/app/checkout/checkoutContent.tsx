@@ -1,6 +1,5 @@
 "use client";
 
-import { paymentAction } from "@/actions/payment";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -10,37 +9,34 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { useAddressStore } from "@/store/useAddressStore";
-import { useAuthStore } from "@/store/useAuthStore";
-import { CartItem, useCartStore } from "@/store/useCartStore";
+import { useCartStore, CartItem } from "@/store/useCartStore";
 import { Coupon, useCouponStore } from "@/store/useCouponStore";
 import { useOrderStore } from "@/store/useOrderStore";
-import { useProductStore } from "@/store/useProductStore";
-import { PayPalButtons } from "@paypal/react-paypal-js";
+import { useProductStore, Product } from "@/store/useProductStore";
+import { useSession } from "next-auth/react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+// یک نوع جدید برای ترکیب آیتم سبد خرید با جزئیات کامل محصول
+type CartItemWithProduct = CartItem & { product: Product };
+
 function CheckoutContent() {
+  const { data: session } = useSession();
   const { addresses, fetchAddresses } = useAddressStore();
+  const { items, fetchCart, clearCart } = useCartStore();
+  const { getProductById } = useProductStore();
+  const { fetchCoupons, couponList } = useCouponStore();
+  const { createFinalOrder, isPaymentProcessing } = useOrderStore();
+  const router = useRouter();
+
   const [selectedAddress, setSelectedAddress] = useState("");
-  const [showPaymentFlow, setShowPaymentFlow] = useState(false);
-  const [checkoutEmail, setCheckoutEmail] = useState("");
   const [cartItemsWithDetails, setCartItemsWithDetails] = useState<
-    (CartItem & { product: any })[]
+    CartItemWithProduct[]
   >([]);
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [couponAppliedError, setCouponAppliedError] = useState("");
-  const { items, fetchCart, clearCart } = useCartStore();
-  const { getProductById } = useProductStore();
-  const { fetchCoupons, couponList } = useCouponStore();
-  const {
-    createPayPalOrder,
-    capturePayPalOrder,
-    createFinalOrder,
-    isPaymentProcessing,
-  } = useOrderStore();
-  const { user } = useAuthStore();
-  const router = useRouter();
 
   useEffect(() => {
     fetchCoupons();
@@ -50,9 +46,10 @@ function CheckoutContent() {
 
   useEffect(() => {
     const findDefaultAddress = addresses.find((address) => address.isDefault);
-
     if (findDefaultAddress) {
       setSelectedAddress(findDefaultAddress.id);
+    } else if (addresses.length > 0) {
+      setSelectedAddress(addresses[0].id);
     }
   }, [addresses]);
 
@@ -61,41 +58,39 @@ function CheckoutContent() {
       const itemsWithDetails = await Promise.all(
         items.map(async (item) => {
           const product = await getProductById(item.productId);
-          return { ...item, product };
+          return { ...item, product: product! };
         })
       );
-
-      setCartItemsWithDetails(itemsWithDetails);
+      setCartItemsWithDetails(itemsWithDetails.filter((item) => item.product));
     };
 
-    fetchIndividualProductDetails();
+    if (items.length > 0) {
+      fetchIndividualProductDetails();
+    }
   }, [items, getProductById]);
 
   function handleApplyCoupon() {
     const getCurrentCoupon = couponList.find((c) => c.code === couponCode);
 
     if (!getCurrentCoupon) {
-      setCouponAppliedError("Invalied Coupon code");
+      setCouponAppliedError("کد تخفیف نامعتبر است.");
       setAppliedCoupon(null);
       return;
     }
 
     const now = new Date();
-
     if (
       now < new Date(getCurrentCoupon.startDate) ||
       now > new Date(getCurrentCoupon.endDate)
     ) {
-      setCouponAppliedError(
-        "Coupon is not valid in this time or expired coupon"
-      );
+      setCouponAppliedError("کد تخفیف در این بازه زمانی معتبر نیست.");
       setAppliedCoupon(null);
       return;
     }
 
     if (getCurrentCoupon.usageCount >= getCurrentCoupon.usageLimit) {
       setCouponAppliedError(
-        "Coupon has reached its usage limit! Please try a diff coupon"
+        "محدودیت استفاده از این کد تخفیف به پایان رسیده است."
       );
       setAppliedCoupon(null);
       return;
@@ -103,65 +98,52 @@ function CheckoutContent() {
 
     setAppliedCoupon(getCurrentCoupon);
     setCouponAppliedError("");
+    toast({ title: "کد تخفیف با موفقیت اعمال شد." });
   }
 
-  const handlePrePaymentFlow = async () => {
-    const result = await paymentAction(checkoutEmail);
-    if (!result.success) {
+  const handleProceedToPayment = async () => {
+    // @ts-ignore
+    const userId = session?.user?.id;
+
+    if (!userId) {
       toast({
-        title: result.error,
+        title: "لطفاً ابتدا وارد حساب کاربری خود شوید.",
         variant: "destructive",
       });
-
       return;
     }
 
-    setShowPaymentFlow(true);
-  };
-
-  const handleFinalOrderCreation = async (data: any) => {
-    if (!user) {
+    if (!selectedAddress) {
       toast({
-        title: "User not authenticated",
+        title: "لطفاً یک آدرس برای ارسال انتخاب کنید.",
+        variant: "destructive",
       });
-
       return;
     }
-    try {
-      const orderData = {
-        userId: user?.id,
-        addressId: selectedAddress,
-        items: cartItemsWithDetails.map((item) => ({
-          productId: item.productId,
-          productName: item.product.name,
-          productCategory: item.product.category,
-          quantity: item.quantity,
-          size: item.size,
-          color: item.color,
-          price: item.product.price,
-        })),
-        couponId: appliedCoupon?.id,
-        total,
-        paymentMethod: "CREDIT_CARD" as const,
-        paymentStatus: "COMPLETED" as const,
-        paymentId: data.id,
-      };
 
-      const createFinalOrderResponse = await createFinalOrder(orderData);
+    const orderData = {
+      userId,
+      addressId: selectedAddress,
+      items: cartItemsWithDetails.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        size: item.size,
+        color: item.color,
+        price: item.product.discount_price || item.product.price,
+      })),
+      couponId: appliedCoupon?.id,
+      total,
+    };
 
-      if (createFinalOrderResponse) {
-        await clearCart();
-        router.push("/account");
-      } else {
-        toast({
-          title: "There is some error while processing final order",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error(error);
+    const result = await createFinalOrder(orderData);
+
+    if (result.success && result.paymentUrl) {
+      toast({ title: "در حال انتقال به درگاه پرداخت..." });
+      // انتقال کاربر به صفحه پرداخت
+      window.location.href = result.paymentUrl;
+    } else {
       toast({
-        title: "There is some error while processing final order",
+        title: "خطا در ایجاد سفارش. لطفاً دوباره تلاش کنید.",
         variant: "destructive",
       });
     }
@@ -180,13 +162,11 @@ function CheckoutContent() {
 
   if (isPaymentProcessing) {
     return (
-      <Skeleton className="w-full h-[600px] rounded-xl">
-        <div className="h-full flex justify-center items-center">
-          <h1 className="text-3xl font-bold">
-            Processing payment...Please wait!
-          </h1>
-        </div>
-      </Skeleton>
+      <div className="flex justify-center items-center min-h-[60vh]">
+        <h1 className="text-2xl font-bold">
+          در حال پردازش... لطفاً منتظر بمانید!
+        </h1>
+      </div>
     );
   }
 
@@ -196,21 +176,27 @@ function CheckoutContent() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
             <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Delivery</h2>
+              <h2 className="text-xl font-semibold mb-4">آدرس ارسال</h2>
               <div className="space-y-4">
                 {addresses.map((address) => (
-                  <div key={address.id} className="flex items-start spce-x-2">
+                  <div
+                    key={address.id}
+                    className="flex items-start gap-3 p-3 border rounded-md"
+                  >
                     <Checkbox
                       id={address.id}
                       checked={selectedAddress === address.id}
                       onCheckedChange={() => setSelectedAddress(address.id)}
                     />
-                    <Label htmlFor={address.id} className="flex-grow ml-3">
+                    <Label
+                      htmlFor={address.id}
+                      className="flex-grow cursor-pointer"
+                    >
                       <div>
                         <span className="font-medium">{address.name}</span>
                         {address.isDefault && (
-                          <span className="ml-2 text-sm text-green-600">
-                            (Default)
+                          <span className="mr-2 text-xs text-white bg-green-600 px-2 py-0.5 rounded-full">
+                            (پیش‌فرض)
                           </span>
                         )}
                       </div>
@@ -221,111 +207,54 @@ function CheckoutContent() {
                         {address.city}, {address.country}, {address.postalCode}
                       </div>
                       <div className="text-sm text-gray-600">
-                        {address.phone}
+                        تلفن: {address.phone}
                       </div>
                     </Label>
                   </div>
                 ))}
-                <Button onClick={() => router.push("/account")}>
-                  Add a new Address
+                <Button onClick={() => router.push("/account?tab=addresses")}>
+                  افزودن یا مدیریت آدرس‌ها
                 </Button>
               </div>
-            </Card>
-            <Card className="p-6">
-              {showPaymentFlow ? (
-                <div>
-                  <h3 className="text-xl font-semibold mb-4">Payment</h3>
-                  <p className="mb-3">
-                    All transactions are secure and encrypted
-                  </p>
-                  <PayPalButtons
-                    style={{
-                      layout: "vertical",
-                      color: "black",
-                      shape: "rect",
-                      label: "pay",
-                    }}
-                    fundingSource="card"
-                    createOrder={async () => {
-                      const orderId = await createPayPalOrder(
-                        cartItemsWithDetails,
-                        total
-                      );
-
-                      if (orderId === null) {
-                        throw new Error("Failed to create paypal order");
-                      }
-
-                      return orderId;
-                    }}
-                    onApprove={async (data, actions) => {
-                      const captureData = await capturePayPalOrder(
-                        data.orderID
-                      );
-
-                      if (captureData) {
-                        await handleFinalOrderCreation(captureData);
-                      } else {
-                        alert("Failed to capture paypal order");
-                      }
-                    }}
-                  />
-                </div>
-              ) : (
-                <div>
-                  <h3 className="text-xl font-semibold mb-4">
-                    Enter Email to get started
-                  </h3>
-                  <div className="gap-2 flex items-center">
-                    <Input
-                      type="email"
-                      placeholder="Enter your email"
-                      className="w-full"
-                      value={checkoutEmail}
-                      onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
-                        setCheckoutEmail(event.target.value)
-                      }
-                    />
-                    <Button onClick={handlePrePaymentFlow}>
-                      Proceed to Buy
-                    </Button>
-                  </div>
-                </div>
-              )}
             </Card>
           </div>
           {/* order summary */}
           <div className="lg:col-span-1">
-            <Card className="p-6 sticky top-8">
-              <h2>Order summary</h2>
+            <Card className="p-6 sticky top-28">
+              <h2 className="text-xl font-semibold mb-4">خلاصه سفارش</h2>
               <div className="space-y-4">
                 {cartItemsWithDetails.map((item) => (
                   <div key={item.id} className="flex items-center space-x-4">
-                    <div className="relative h-2- w-20 rounded-md overflow-hidden">
-                      <img
-                        src={item?.product?.images[0]}
+                    <div className="relative h-16 w-16 rounded-md overflow-hidden flex-shrink-0">
+                      <Image
+                        src={
+                          item?.product?.images[0]?.url || "/placeholder.png"
+                        }
                         alt={item?.product?.name}
+                        fill
                         className="object-cover"
                       />
                     </div>
-                    <div className="flex-1">
-                      <h3 className="font-medium">{item?.product?.name}</h3>
-                      <p className="text-sm text-gray-600">
-                        {item.color} / {item.size}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Qty: {item.quantity}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-sm truncate">
+                        {item?.product?.name}
+                      </h3>
+                      <p className="text-xs text-gray-500">
+                        تعداد: {item.quantity}
                       </p>
                     </div>
-                    <p className="font-medium">
-                      ${(item?.product?.price * item.quantity).toFixed(2)}
+                    <p className="font-medium text-sm">
+                      {(item?.product?.price * item.quantity).toLocaleString(
+                        "fa-IR"
+                      )}{" "}
+                      تومان
                     </p>
                   </div>
                 ))}
                 <Separator />
                 <div className="space-y-2">
                   <Input
-                    placeholder="Enter a Discount code or Gift code"
+                    placeholder="کد تخفیف خود را وارد کنید"
                     onChange={(e) => setCouponCode(e.target.value)}
                     value={couponCode}
                   />
@@ -334,36 +263,41 @@ function CheckoutContent() {
                     className="w-full"
                     variant="outline"
                   >
-                    Apply
+                    اعمال کد
                   </Button>
                   {couponAppliedError && (
                     <p className="text-sm text-red-600">{couponAppliedError}</p>
-                  )}
-                  {appliedCoupon && (
-                    <p className="text-sm text-green-600">
-                      Coupon Applied Successfully!
-                    </p>
                   )}
                 </div>
                 <Separator />
                 <div className="space-y-2">
                   <div className="flex justify-between">
-                    <span>Subtotal</span>
-                    <span>${subTotal.toFixed(2)}</span>
+                    <span>جمع کل</span>
+                    <span>{subTotal.toLocaleString("fa-IR")} تومان</span>
                   </div>
                   {appliedCoupon && (
-                    <div className="flex justify-between text-green-500">
-                      <span>Discount ({appliedCoupon.discountPercent})%</span>
-                      <span>${discountAmount.toFixed(2)}</span>
+                    <div className="flex justify-between text-green-600">
+                      <span>تخفیف ({appliedCoupon.discountPercent}٪)</span>
+                      <span>
+                        - {discountAmount.toLocaleString("fa-IR")} تومان
+                      </span>
                     </div>
                   )}
                 </div>
                 <Separator />
-
-                <div className="flex justify-between font-medium">
-                  <span>Total</span>
-                  <span>${total.toFixed(2)}</span>
+                <div className="flex justify-between font-bold text-lg">
+                  <span>مبلغ قابل پرداخت</span>
+                  <span>{total.toLocaleString("fa-IR")} تومان</span>
                 </div>
+                <Button
+                  onClick={handleProceedToPayment}
+                  className="w-full"
+                  disabled={isPaymentProcessing}
+                >
+                  {isPaymentProcessing
+                    ? "در حال ایجاد سفارش..."
+                    : "نهایی کردن خرید و پرداخت"}
+                </Button>
               </div>
             </Card>
           </div>

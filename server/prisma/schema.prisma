@@ -13,7 +13,7 @@ datasource db {
 model product {
   id                String    @id @default(cuid())
   name              String
-  slug              String   
+  slug              String
   description       String?
   how_to_use        String?
   caution           String?
@@ -42,19 +42,91 @@ model product {
   metaTitle         String?
   metaDescription   String?
 
-  images            Image[]   
+  lowStockThreshold Int?      @default(5)
+
+  images            Image[]
   brandId           String?
   brand             Brand?    @relation(fields: [brandId], references: [id])
   categoryId        String?
   category          Category? @relation(fields: [categoryId], references: [id])
-  homepageSections  HomepageSection[] 
+  homepageSections  HomepageSection[]
+  stockHistory      StockHistory[]
+  purchaseOrderItems PurchaseOrderItem[]
+}
+
+model StockHistory {
+  id        String   @id @default(cuid())
+  productId String
+  product   product  @relation(fields: [productId], references: [id])
+  change    Int
+  newStock  Int
+  type      StockChangeType
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    String?
+  user      User?     @relation(fields: [userId], references: [id])
+}
+
+enum StockChangeType {
+  INITIAL
+  SALE
+  RETURN
+  PURCHASE
+  ADJUSTMENT
+  DAMAGE
+}
+
+model Supplier {
+  id              String    @id @default(cuid())
+  name            String    @unique
+  contactPerson   String?
+  phone           String?
+  email           String?   @unique
+  address         String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  purchaseOrders  PurchaseOrder[]
+}
+
+model PurchaseOrder {
+  id              String   @id @default(cuid())
+  supplierId      String
+  supplier        Supplier @relation(fields: [supplierId], references: [id])
+  orderDate       DateTime @default(now())
+  expectedDate    DateTime?
+  status          PurchaseOrderStatus @default(PENDING)
+  totalAmount     Float
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  items           PurchaseOrderItem[]
+}
+
+model PurchaseOrderItem {
+  id              String   @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  productId       String
+  product         product  @relation(fields: [productId], references: [id])
+  quantity        Int
+  unitPrice       Float
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+enum PurchaseOrderStatus {
+  PENDING
+  ORDERED
+  RECEIVED
+  CANCELLED
 }
 
 model Image {
   id        String   @id @default(cuid())
-  url       String   
-  altText   String?  
-  title     String?  
+  url       String
+  altText   String?
+  title     String?
   productId String?
   product   product? @relation(fields: [productId], references: [id])
   createdAt DateTime @default(now())
@@ -87,7 +159,7 @@ model Category {
 model FeatureBanner {
   id          String   @id @default(cuid())
   imageUrl    String
-  altText     String? 
+  altText     String?
   linkUrl     String?  @default("/")
   order       Int      @default(0)
   isActive    Boolean  @default(true)
@@ -99,12 +171,10 @@ model HomepageSection {
   id        String    @id @default(cuid())
   title     String
   order     Int       @default(0)
-  products  product[] 
+  products  product[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 }
-
-
 
 model User {
   id            String    @id @default(cuid())
@@ -121,6 +191,7 @@ model User {
   cart          Cart?
   addresses     Address[]
   orders        Order[]
+  stockHistory  StockHistory[]
 }
 
 model Session {

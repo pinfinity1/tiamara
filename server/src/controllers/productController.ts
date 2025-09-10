@@ -6,14 +6,36 @@ import fs from "fs";
 import { Prisma } from "@prisma/client";
 import * as xlsx from "xlsx";
 
+const logStockChange = async (
+  productId: string,
+  change: number,
+  newStock: number,
+  type: "INITIAL" | "SALE" | "RETURN" | "PURCHASE" | "ADJUSTMENT" | "DAMAGE",
+  userId: string | null,
+  notes?: string
+) => {
+  if (change !== 0) {
+    await prisma.stockHistory.create({
+      data: {
+        productId,
+        change,
+        newStock,
+        type,
+        notes: notes || `${type} action`,
+        userId: userId || undefined,
+      },
+    });
+  }
+};
+
 const generateSlug = (name: string) => {
   return name
     .toString()
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, "-") // Replace spaces with -
-    .replace(/[^\w\-]+/g, "") // Remove all non-word chars
-    .replace(/\-\-+/g, "-"); // Replace multiple - with single -
+    .replace(/\s+/g, "-")
+    .replace(/[^\w\-]+/g, "")
+    .replace(/\-\-+/g, "-");
 };
 
 // Create a new product
@@ -24,8 +46,8 @@ export const createProduct = async (
   try {
     const {
       name,
-      brandId, // Changed from 'brand' to 'brandId'
-      categoryId, // Changed from 'category' to 'categoryId'
+      brandId,
+      categoryId,
       description,
       how_to_use,
       caution,
@@ -62,13 +84,13 @@ export const createProduct = async (
     // Prepare image data for Prisma, including altText derived from product name
     const imageCreateData = uploadResults.map((result, index) => ({
       url: result.secure_url,
-      altText: `${name} image ${index + 1}`, // Generate a default alt text
+      altText: `${name} image ${index + 1}`,
     }));
 
     const newlyCreatedProduct = await prisma.product.create({
       data: {
         name,
-        slug: generateSlug(name), // Generate slug from product name
+        slug: generateSlug(name),
         brandId,
         categoryId,
         description,
@@ -93,9 +115,9 @@ export const createProduct = async (
         soldCount: 0,
         average_rating: 0,
         review_count: 0,
-        metaTitle: metaTitle || name, // Default metaTitle to product name
+        metaTitle: metaTitle || name,
         metaDescription: metaDescription,
-        // CORRECT WAY: Create related images using the new relation
+
         images: {
           create: imageCreateData,
         },
