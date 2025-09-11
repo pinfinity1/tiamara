@@ -10,6 +10,7 @@ import {
   getProductsForClient,
   bulkCreateProductsFromExcel,
   getProductBySlug,
+  getProductFilters,
 } from "../controllers/productController";
 
 const router = expess.Router();
@@ -37,10 +38,6 @@ router.get(
   fetchAllProductsForAdmin
 );
 
-router.get("/fetch-client-products", getProductsForClient);
-router.get("/slug/:slug", getProductBySlug);
-router.get("/:id", getProductByID);
-
 router.put(
   "/:id",
   authenticateJwt,
@@ -48,6 +45,12 @@ router.put(
   uploadImage.array("images", 10),
   updateProduct
 );
+
 router.delete("/:id", authenticateJwt, isSuperAdmin, deleteProduct);
+
+router.get("/filters", getProductFilters);
+router.get("/fetch-client-products", getProductsForClient);
+router.get("/slug/:slug", getProductBySlug);
+router.get("/:id", getProductByID);
 
 export default router;

@@ -1,4 +1,4 @@
-import { Response } from "express";
+import { Response, Request } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import cloudinary from "../config/cloudinary";
 import { prisma } from "../server";
@@ -36,6 +36,74 @@ const generateSlug = (name: string) => {
     .replace(/\s+/g, "-")
     .replace(/[^\w\-]+/g, "")
     .replace(/\-\-+/g, "-");
+};
+
+export const getProductFilters = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const [
+      brands,
+      categories,
+      priceAggregation,
+      skinTypesRaw,
+      concernsRaw,
+      productFormsRaw,
+    ] = await prisma.$transaction([
+      prisma.brand.findMany({ orderBy: { name: "asc" } }),
+
+      prisma.category.findMany({ orderBy: { name: "asc" } }),
+
+      prisma.product.aggregate({
+        _max: { price: true },
+        _min: { price: true },
+      }),
+
+      prisma.$queryRaw`SELECT DISTINCT unnest(skin_type) as value FROM "Product" WHERE cardinality(skin_type) > 0`,
+
+      prisma.$queryRaw`SELECT DISTINCT unnest(concern) as value FROM "Product" WHERE cardinality(concern) > 0`,
+
+      prisma.product.findMany({
+        select: { product_form: true },
+        where: { product_form: { not: null } },
+        distinct: ["product_form"],
+      }),
+    ]);
+
+    const skinTypes = (skinTypesRaw as any[])
+      .map((item) => item.value)
+      .filter(Boolean)
+      .sort();
+    const concerns = (concernsRaw as any[])
+      .map((item) => item.value)
+      .filter(Boolean)
+      .sort();
+    const productForms = productFormsRaw
+      .map((item) => item.product_form)
+      .filter(Boolean)
+      .sort() as string[];
+
+    res.status(200).json({
+      success: true,
+      filters: {
+        brands,
+        categories,
+        priceRange: {
+          min: priceAggregation._min.price || 0,
+          max: priceAggregation._max.price || 1000000,
+        },
+        skinTypes,
+        concerns,
+        productForms,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching product filters:", error);
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch filters." });
+  }
 };
 
 // Create a new product

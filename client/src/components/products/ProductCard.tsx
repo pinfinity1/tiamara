@@ -9,7 +9,6 @@ function ProductCard({ product }: { product: Product }) {
     product.images && product.images.length > 0
       ? product.images[0].url
       : "/placeholder.png";
-  console.log(product);
 
   return (
     <a

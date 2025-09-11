@@ -46,9 +46,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { concerns, skinTypes } from "@/utils/config";
 
-// Initial state for the product form
+const skinTypesForAdmin = ["چرب", "خشک", "مختلط", "نرمال", "حساس"];
+const concernsForAdmin = [
+  "آکنه",
+  "ضد پیری",
+  "لک و تیرگی",
+  "خشکی و کم آبی",
+  "منافذ باز",
+];
+
 const initialFormState = {
   name: "",
   brandId: "",
@@ -73,13 +80,11 @@ const initialFormState = {
   metaDescription: "",
 };
 
-// Total number of steps in the form
 const TOTAL_STEPS = 6;
 
 function ManageProductsPage() {
   const { toast } = useToast();
 
-  // Zustand Stores
   const {
     products,
     fetchAllProductsForAdmin,
@@ -95,14 +100,9 @@ function ManageProductsPage() {
   const { brands, fetchBrands } = useBrandStore();
   const { categories, fetchCategories } = useCategoryStore();
 
-  // UI State
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-
-  // New state for multi-step form
   const [currentStep, setCurrentStep] = useState(1);
-
-  // Form State
   const [formState, setFormState] = useState(initialFormState);
   const [existingImages, setExistingImages] = useState<
     { id: string; url: string }[]
@@ -118,7 +118,6 @@ function ManageProductsPage() {
     fetchCategories();
   }, [fetchAllProductsForAdmin, fetchBrands, fetchCategories]);
 
-  // Form handlers
   const resetForm = () => {
     setEditingProduct(null);
     setFormState(initialFormState);
@@ -127,7 +126,7 @@ function ManageProductsPage() {
     setSelectedFiles([]);
     setSelectedSkinTypes([]);
     setSelectedConcerns([]);
-    setCurrentStep(1); // Reset to the first step
+    setCurrentStep(1);
   };
 
   const handleAddNew = () => {
@@ -271,7 +270,6 @@ function ManageProductsPage() {
     const file = event.target.files?.[0];
     if (file) {
       const result = await uploadProductsFromExcel(file);
-
       if (result.success && result.data) {
         toast({
           title: "آپلود با موفقیت انجام شد",
@@ -294,14 +292,12 @@ function ManageProductsPage() {
           variant: "destructive",
         });
       }
-
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
     }
   };
 
-  // Functions to navigate between steps
   const nextStep = () =>
     setCurrentStep((prev) => Math.min(prev + 1, TOTAL_STEPS));
   const prevStep = () => setCurrentStep((prev) => Math.max(prev - 1, 1));
@@ -602,7 +598,7 @@ function ManageProductsPage() {
                 <div>
                   <Label>نوع پوست</Label>
                   <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-2 gap-y-4">
-                    {skinTypes.map((type) => (
+                    {skinTypesForAdmin.map((type) => (
                       <div key={type} className="flex items-center gap-2">
                         <Checkbox
                           id={`skin-${type}`}
@@ -624,7 +620,7 @@ function ManageProductsPage() {
                 <div>
                   <Label>نگرانی پوستی</Label>
                   <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {concerns.map((concern) => (
+                    {concernsForAdmin.map((concern) => (
                       <div key={concern} className="flex items-center gap-2">
                         <Checkbox
                           id={`concern-${concern}`}
