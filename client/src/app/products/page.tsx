@@ -1,8 +1,6 @@
 import ProductList from "@/components/products/ProductList";
 import { useProductStore } from "../../store/useProductStore";
 import { useFilterStore } from "@/store/useFilterStore";
-import Loading from "./[slug]/loading";
-import { Suspense } from "react";
 
 export default async function ProductsPage({
   searchParams,
@@ -41,13 +39,11 @@ export default async function ProductsPage({
   const { filters } = useFilterStore.getState();
 
   return (
-    <Suspense fallback={<Loading />}>
-      <ProductList
-        initialProducts={products}
-        initialTotalPages={totalPages}
-        initialTotalProducts={totalProducts}
-        filters={filters}
-      />
-    </Suspense>
+    <ProductList
+      initialProducts={products}
+      initialTotalPages={totalPages}
+      initialTotalProducts={totalProducts}
+      filters={filters}
+    />
   );
 }

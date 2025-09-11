@@ -8,7 +8,7 @@ export const addToCart = async (
 ): Promise<void> => {
   try {
     const userId = req.user?.userId;
-    const { productId, quantity, size, color } = req.body;
+    const { productId, quantity } = req.body;
 
     if (!userId) {
       res.status(401).json({
@@ -27,11 +27,9 @@ export const addToCart = async (
 
     const cartItem = await prisma.cartItem.upsert({
       where: {
-        cartId_productId_size_color: {
+        cartId_productId: {
           cartId: cart.id,
           productId,
-          size: size || null,
-          color: color || null,
         },
       },
       update: {
@@ -41,8 +39,6 @@ export const addToCart = async (
         cartId: cart.id,
         productId,
         quantity,
-        size,
-        color,
       },
     });
 
@@ -61,8 +57,6 @@ export const addToCart = async (
       name: product?.name,
       price: product?.price,
       image: product?.images[0],
-      color: cartItem.color,
-      size: cartItem.size,
       quantity: cartItem.quantity,
     };
 
@@ -128,8 +122,6 @@ export const getCart = async (
           name: product?.name,
           price: product?.price,
           image: product?.images[0],
-          color: item.color,
-          size: item.size,
           quantity: item.quantity,
         };
       })
@@ -224,8 +216,6 @@ export const updateCartItemQuantity = async (
       name: product?.name,
       price: product?.price,
       image: product?.images[0],
-      color: updatedItem.color,
-      size: updatedItem.size,
       quantity: updatedItem.quantity,
     };
 

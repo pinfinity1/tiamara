@@ -52,6 +52,7 @@ model product {
   homepageSections  HomepageSection[]
   stockHistory      StockHistory[]
   purchaseOrderItems PurchaseOrderItem[]
+  wishlistItems     WishlistItem[]
 
   @@map("Product")
 }
@@ -185,6 +186,26 @@ model HomepageSection {
   updatedAt DateTime  @updatedAt
 }
 
+model Wishlist {
+  id        String         @id @default(cuid())
+  userId    String         @unique
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     WishlistItem[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+}
+
+model WishlistItem {
+  id         String   @id @default(cuid())
+  wishlistId String
+  wishlist   Wishlist @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
+  productId  String
+  product    product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([wishlistId, productId])
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -201,6 +222,7 @@ model User {
   addresses     Address[]
   orders        Order[]
   stockHistory  StockHistory[]
+  wishlist      Wishlist?
 }
 
 model Session {
@@ -234,12 +256,10 @@ model CartItem {
   cart      Cart     @relation(fields: [cartId], references: [id])
   productId String
   quantity  Int
-  size      String?
-  color     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([cartId, productId, size, color])
+  @@unique([cartId, productId])
 }
 
 model Coupon {
@@ -303,8 +323,6 @@ model OrderItem {
   productName     String
   productCategory String
   quantity        Int
-  size            String?
-  color           String?
   price           Float
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

@@ -26,7 +26,7 @@ interface Category {
 export interface Product {
   id: string;
   name: string;
-  slug: string; // Added for SEO
+  slug: string;
   description?: string | null;
   how_to_use?: string | null;
   caution?: string | null;
@@ -37,10 +37,10 @@ export interface Product {
   barcode?: string | null;
   volume?: number | null;
   unit?: string | null;
-  expiry_date?: string | null; // Dates are often strings in JSON
+  expiry_date?: string | null;
   manufacture_date?: string | null;
   country_of_origin?: string | null;
-  images: Image[]; // Updated to use the Image interface
+  images: Image[];
   attributes?: any | null;
   skin_type: string[];
   concern: string[];
@@ -94,7 +94,7 @@ interface ProductState {
 
 export const useProductStore = create<ProductState>((set, get) => ({
   products: [],
-  isLoading: false,
+  isLoading: true,
   error: null,
   currentPage: 1,
   totalPages: 1,

@@ -33,8 +33,6 @@ export default function ProductDetailsClient({
       price: product.discount_price || product.price,
       image: product.images[0]?.url,
       quantity: quantity,
-      color: "",
-      size: "",
     });
     toast({
       title: "محصول به سبد خرید اضافه شد.",
@@ -48,7 +46,6 @@ export default function ProductDetailsClient({
     <div className="min-h-screen bg-white">
       <div className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-16">
-          {/* Image Gallery with next/Image */}
           <div>
             <div className="aspect-square relative bg-gray-100 rounded-lg overflow-hidden mb-4">
               <Image
@@ -57,7 +54,7 @@ export default function ProductDetailsClient({
                 fill
                 sizes="(max-width: 768px) 100vw, 50vw"
                 className="w-full h-full object-cover"
-                priority // تصویر اصلی با اولویت بالا لود شود
+                priority
               />
             </div>
             <div className="flex gap-2 justify-center">

@@ -41,7 +41,6 @@ export const createFinalOrder = async (
       return;
     }
 
-    // در اینجا سفارش با وضعیت پرداخت "در انتظار" ایجاد می‌شود
     const newOrder = await prisma.order.create({
       data: {
         userId,
@@ -49,15 +48,13 @@ export const createFinalOrder = async (
         couponId,
         total,
         paymentMethod: "CREDIT_CARD",
-        paymentStatus: "PENDING", // وضعیت پرداخت در انتظار است
+        paymentStatus: "PENDING",
         items: {
           create: items.map((item: any) => ({
             productId: item.productId,
             productName: item.productName,
             productCategory: item.productCategory,
             quantity: item.quantity,
-            size: item.size,
-            color: item.color,
             price: item.price,
           })),
         },
@@ -67,13 +64,9 @@ export const createFinalOrder = async (
       },
     });
 
-    // در این مرحله موجودی انبار کم نمی‌شود. این کار پس از تایید پرداخت انجام خواهد شد.
-
     res.status(201).json({
       success: true,
       order: newOrder,
-      // در اینجا باید URL درگاه پرداخت را برگردانیم
-      // فعلا یک مقدار نمونه برمی‌گردانیم
       paymentUrl: `https://your-payment-gateway.ir/pay/${newOrder.id}`,
     });
   } catch (e) {

@@ -45,6 +45,7 @@ export default function ProductList({
     useProductStore.setState({
       products: initialProducts,
       totalPages: initialTotalPages,
+      isLoading: false,
     });
   }, [initialProducts, initialTotalPages]);
 

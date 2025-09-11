@@ -16,6 +16,7 @@ import categoryRoutes from "./routes/categoryRoutes";
 import supplierRoutes from "./routes/supplierRoutes";
 import stockHistoryRoutes from "./routes/stockHistoryRoutes";
 import purchaseOrderRoutes from "./routes/purchaseOrderRoutes";
+import wishlistRoutes from "./routes/wishlistRoutes";
 
 //load all your enviroment variables
 dotenv.config();
@@ -48,6 +49,7 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/suppliers", supplierRoutes);
 app.use("/api/stock-history", stockHistoryRoutes);
 app.use("/api/purchase-orders", purchaseOrderRoutes);
+app.use("/api/wishlist", wishlistRoutes);
 
 app.get("/", (req, res) => {
   res.send("Hello from E-Commerce backend");

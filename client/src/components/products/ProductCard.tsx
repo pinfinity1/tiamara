@@ -3,42 +3,181 @@
 import { Product } from "@/store/useProductStore";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
+import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
+import { Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
+import { useCartStore } from "@/store/useCartStore";
+import { useToast } from "@/hooks/use-toast";
+import React from "react";
+import { useShallow } from "zustand/react/shallow";
+import WishlistButton from "../common/WishlistButton";
+import placeholderImage from "@/../public/images/placeholder.png";
 
 function ProductCard({ product }: { product: Product }) {
+  const { toast } = useToast();
+  const { items, addToCart, updateCartItemQuantity, removeFromCart } =
+    useCartStore(
+      useShallow((state) => ({
+        items: state.items,
+        addToCart: state.addToCart,
+        updateCartItemQuantity: state.updateCartItemQuantity,
+        removeFromCart: state.removeFromCart,
+      }))
+    );
+
+  const itemInCart = items.find((item) => item.productId === product.id);
+  const quantityInCart = itemInCart?.quantity || 0;
+
   const imageUrl =
     product.images && product.images.length > 0
       ? product.images[0].url
       : "/placeholder.png";
 
+  const hasDiscount =
+    product.discount_price && product.discount_price < product.price;
+  const discountPercentage = hasDiscount
+    ? Math.round(
+        ((product.price - product.discount_price!) / product.price) * 100
+      )
+    : 0;
+
+  const handleAddToCart = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    addToCart({
+      productId: product.id,
+      name: product.name,
+      price: product.discount_price || product.price,
+      image: imageUrl,
+      quantity: 1,
+    });
+    toast({
+      title: "محصول به سبد خرید اضافه شد.",
+      description: product.name,
+    });
+  };
+
+  const handleIncrement = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (itemInCart) {
+      updateCartItemQuantity(itemInCart.id, itemInCart.quantity + 1);
+    }
+  };
+
+  const handleDecrement = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (itemInCart) {
+      if (itemInCart.quantity > 1) {
+        updateCartItemQuantity(itemInCart.id, itemInCart.quantity - 1);
+      } else {
+        removeFromCart(itemInCart.id);
+        toast({
+          title: "محصول از سبد خرید حذف شد.",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
   return (
-    <a
-      href={`/products/${product.slug}`}
-      className="group cursor-pointer flex flex-col h-full no-underline text-current"
-    >
-      <div className="relative aspect-[3/4] mb-3 bg-gray-100 overflow-hidden rounded-lg">
-        <Image
-          src={imageUrl}
-          alt={product.name}
-          fill
-          sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
-          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-        />
-        <div className="absolute inset-0 bg-black bg-opacity-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-          <Button className="bg-white text-black hover:bg-gray-100 pointer-events-none">
-            مشاهده محصول
-          </Button>
+    <div className="group flex flex-col h-full overflow-hidden rounded-lg border border-gray-200/60 hover:shadow-lg transition-shadow duration-300 bg-white">
+      <Link
+        href={`/products/${product.slug}`}
+        className="block"
+        prefetch={false}
+      >
+        <div className="relative aspect-square w-full overflow-hidden">
+          <Image
+            src={imageUrl}
+            alt={product.name}
+            fill
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+            className="object-cover w-full h-full transition-transform duration-300 ease-in-out group-hover:scale-[103%]"
+          />
+          {hasDiscount && (
+            <Badge
+              variant="destructive"
+              className="absolute top-2.5 right-2.5 text-sm"
+            >
+              {discountPercentage}%
+            </Badge>
+          )}
+        </div>
+      </Link>
+
+      <div className="flex flex-col flex-grow p-3 text-right">
+        <p className="text-xs text-gray-500 mb-1">{product.brand?.name}</p>
+        <Link
+          href={`/products/${product.slug}`}
+          className="block"
+          prefetch={false}
+        >
+          <h3 className="font-semibold text-sm text-gray-800 flex-grow mb-2 leading-tight hover:text-primary transition-colors">
+            {product.name}
+          </h3>
+        </Link>
+
+        <div className="flex justify-between items-center mt-auto pt-2">
+          <div className="flex flex-col items-start">
+            {hasDiscount ? (
+              <>
+                <p className="font-bold text-base text-red-600">
+                  {product.discount_price?.toLocaleString("fa-IR")}
+                  <span className="text-xs mr-1">تومان</span>
+                </p>
+                <p className="text-xs text-gray-400 line-through">
+                  {product.price.toLocaleString("fa-IR")}
+                  <span className="text-xs mr-1">تومان</span>
+                </p>
+              </>
+            ) : (
+              <p className="font-bold text-base text-gray-900">
+                {product.price.toLocaleString("fa-IR")}
+                <span className="text-xs mr-1">تومان</span>
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1">
+            <WishlistButton productId={product.id} productName={product.name} />
+
+            {quantityInCart === 0 ? (
+              <Button variant="outline" size="icon" onClick={handleAddToCart}>
+                <ShoppingCart className="h-5 w-5" />
+              </Button>
+            ) : (
+              <div className="flex items-center gap-1 border rounded-lg">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={handleIncrement}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+                <span className="text-sm font-bold w-4 text-center">
+                  {quantityInCart}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={handleDecrement}
+                >
+                  {quantityInCart > 1 ? (
+                    <Minus className="h-4 w-4" />
+                  ) : (
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-      <div className="flex flex-col flex-grow">
-        <h3 className="font-semibold text-sm text-gray-800 flex-grow">
-          {product.name}
-        </h3>
-        <p className="text-xs text-gray-500 mt-1">{product.brand?.name}</p>
-        <p className="font-bold mt-2 text-gray-900">
-          {product.price.toLocaleString("fa-IR")} تومان
-        </p>
-      </div>
-    </a>
+    </div>
   );
 }
 
