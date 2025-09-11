@@ -17,19 +17,14 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import { Button } from "../ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "../ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../ui/sheet";
 import { useEffect, useState } from "react";
 import { useCartStore } from "@/store/useCartStore";
 import logo from "../../../public/images/Logo/tiamara-logo.png";
 import Image from "next/image";
 import { signOut, useSession } from "next-auth/react";
 import GlobalSearch from "../common/GlobalSearch";
+import CartModal from "../common/CartModal";
 
 const navItems = [
   {
@@ -258,17 +253,7 @@ function Header() {
                     بخش مدیریت
                   </Button>
                 )}
-                <Button
-                  size="icon"
-                  variant={"ghost"}
-                  className="relative group"
-                  onClick={() => router.push("/cart")}
-                >
-                  <ShoppingCart className="size-5" />
-                  <span className="absolute top-0 right-0 size-4 bg-black/20 backdrop-blur-lg text-black text-xs rounded-full flex items-center justify-center pt-0.5 group-hover:-top-1 group-hover:-right-1 group-hover:bg-black/30 transition-all duration-200 ">
-                    {items?.length}
-                  </span>
-                </Button>
+                <CartModal />
                 <DropdownMenu modal={false}>
                   <DropdownMenuTrigger
                     asChild

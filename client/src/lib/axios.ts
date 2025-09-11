@@ -1,6 +1,7 @@
 import axios from "axios";
 import { getSession, signOut } from "next-auth/react";
-import { API_BASE_URL } from "@/utils/api";
+
+export const API_BASE_URL = "http://localhost:3001/api";
 
 export const axiosPublic = axios.create({
   baseURL: API_BASE_URL,

@@ -11,7 +11,6 @@ import { useToast } from "@/hooks/use-toast";
 import React from "react";
 import { useShallow } from "zustand/react/shallow";
 import WishlistButton from "../common/WishlistButton";
-import placeholderImage from "@/../public/images/placeholder.png";
 
 function ProductCard({ product }: { product: Product }) {
   const { toast } = useToast();
@@ -104,6 +103,9 @@ function ProductCard({ product }: { product: Product }) {
               {discountPercentage}%
             </Badge>
           )}
+          <div className="absolute top-2 left-2">
+            <WishlistButton productId={product.id} productName={product.name} />
+          </div>
         </div>
       </Link>
 
@@ -140,30 +142,33 @@ function ProductCard({ product }: { product: Product }) {
             )}
           </div>
 
-          <div className="flex items-center gap-1">
-            <WishlistButton productId={product.id} productName={product.name} />
-
+          <div className="flex items-center">
             {quantityInCart === 0 ? (
-              <Button variant="outline" size="icon" onClick={handleAddToCart}>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleAddToCart}
+                className="rounded-full"
+              >
                 <ShoppingCart className="h-5 w-5" />
               </Button>
             ) : (
-              <div className="flex items-center gap-1 border rounded-lg">
+              <div className="flex items-center gap-1 border rounded-full p-1">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8"
+                  className="h-7 w-7 rounded-full"
                   onClick={handleIncrement}
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
-                <span className="text-sm font-bold w-4 text-center">
+                <span className="text-sm font-bold w-5 text-center">
                   {quantityInCart}
                 </span>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8"
+                  className="h-7 w-7 rounded-full"
                   onClick={handleDecrement}
                 >
                   {quantityInCart > 1 ? (

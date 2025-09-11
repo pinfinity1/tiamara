@@ -1,11 +1,8 @@
-import { API_ROUTES } from "@/utils/api";
 import { axiosPublic } from "@/lib/axios";
 import axiosAuth from "@/lib/axios";
 import { create } from "zustand";
 
 // --- Supporting Types ---
-// These types should match your prisma schema for relations
-
 interface Image {
   id: string;
   url: string;
@@ -22,7 +19,7 @@ interface Category {
   name: string;
 }
 
-// --- Main Product Interface (Updated to match the new schema) ---
+// --- Main Product Interface ---
 export interface Product {
   id: string;
   name: string;
@@ -50,12 +47,8 @@ export interface Product {
   average_rating?: number | null;
   review_count?: number | null;
   soldCount: number;
-
-  // SEO fields
   metaTitle?: string | null;
   metaDescription?: string | null;
-
-  // Relational fields
   brandId?: string | null;
   brand?: Brand | null;
   categoryId?: string | null;

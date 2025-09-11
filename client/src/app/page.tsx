@@ -1,9 +1,5 @@
-// file: client/src/app/page.tsx
-
 import HomeBannerCarousel from "@/components/layout/home/HomeBannerCarousel";
 import ProductSection from "@/components/layout/home/ProductSection";
-import { ProductCardSkeleton } from "@/components/products/ProductCardSkeleton";
-import { Skeleton } from "@/components/ui/skeleton";
 import { getHomepageData } from "@/lib/data-fetching";
 
 export default async function HomePage() {

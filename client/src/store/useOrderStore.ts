@@ -1,5 +1,4 @@
-import { API_ROUTES } from "@/utils/api";
-import axios from "axios";
+import axiosAuth from "@/lib/axios";
 import { create } from "zustand";
 
 interface OrderItem {
@@ -36,7 +35,6 @@ export interface AdminOrder extends Order {
   };
 }
 
-// این اینترفیس دیگر نیازی به paymentId ندارد
 interface CreateOrderData {
   userId: string;
   addressId: string;
@@ -52,7 +50,6 @@ interface OrderStore {
   userOrders: Order[];
   adminOrders: AdminOrder[];
   error: string | null;
-  // توابع PayPal حذف شده‌اند
   createFinalOrder: (
     orderData: CreateOrderData
   ) => Promise<{ success: boolean; paymentUrl?: string; order?: Order }>;
@@ -77,10 +74,9 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
   createFinalOrder: async (orderData) => {
     set({ isLoading: true, error: null, isPaymentProcessing: true });
     try {
-      const response = await axios.post(
-        `${API_ROUTES.ORDER}/create-final-order`,
-        orderData,
-        { withCredentials: true }
+      const response = await axiosAuth.post(
+        `/order/create-final-order`,
+        orderData
       );
       set({
         isLoading: false,
@@ -105,11 +101,7 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
   updateOrderStatus: async (orderId, status) => {
     set({ isLoading: true, error: null });
     try {
-      await axios.put(
-        `${API_ROUTES.ORDER}/${orderId}/status`,
-        { status },
-        { withCredentials: true }
-      );
+      await axiosAuth.put(`/order/${orderId}/status`, { status });
       set((state) => ({
         isLoading: false,
         adminOrders: state.adminOrders.map((item) =>
@@ -121,7 +113,7 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
             : item
         ),
       }));
-      get().getOrdersByUserId(); // برای آپدیت لیست سفارشات کاربر
+      get().getOrdersByUserId();
       return true;
     } catch (error) {
       set({ error: "Failed to update order status", isLoading: false });
@@ -132,10 +124,7 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
   getAllOrders: async () => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axios.get(
-        `${API_ROUTES.ORDER}/get-all-orders-for-admin`,
-        { withCredentials: true }
-      );
+      const response = await axiosAuth.get(`/order/get-all-orders-for-admin`);
       set({ isLoading: false, adminOrders: response.data });
       return response.data;
     } catch (error) {
@@ -147,10 +136,7 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
   getOrdersByUserId: async () => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axios.get(
-        `${API_ROUTES.ORDER}/get-order-by-user-id`,
-        { withCredentials: true }
-      );
+      const response = await axiosAuth.get(`/order/get-order-by-user-id`);
       set({ isLoading: false, userOrders: response.data });
       return response.data;
     } catch (error) {
@@ -164,9 +150,8 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
   getOrder: async (orderId) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axios.get(
-        `${API_ROUTES.ORDER}/get-single-order/${orderId}`,
-        { withCredentials: true }
+      const response = await axiosAuth.get(
+        `/order/get-single-order/${orderId}`
       );
       set({ isLoading: false, currentOrder: response.data });
       return response.data;
