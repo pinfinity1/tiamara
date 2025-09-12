@@ -58,7 +58,12 @@ const SearchSuggestions = ({
   onClearHistory: () => void;
 }) => (
   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4">
-    <div className={cn("space-y-6", "md:col-span-2")}>
+    <div
+      className={cn(
+        "space-y-6",
+        recentSearches.length > 0 ? "md:col-span-3" : "md:col-span-2"
+      )}
+    >
       {recentSearches.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-3">
