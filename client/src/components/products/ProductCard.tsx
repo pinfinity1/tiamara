@@ -86,6 +86,7 @@ function ProductCard({ product }: { product: Product }) {
         href={`/products/${product.slug}`}
         className="block"
         prefetch={false}
+        target="_blank"
       >
         <div className="relative aspect-square w-full overflow-hidden">
           <Image

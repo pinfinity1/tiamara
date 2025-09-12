@@ -1,7 +1,3 @@
-import { axiosPublic } from "@/lib/axios";
-import { Product } from "@/store/useProductStore";
-
-import Loading from "./loading";
 import { getProductBySlug, getRelatedProducts } from "@/lib/data-fetching";
 import ProductDetails from "./ProductDetails";
 
