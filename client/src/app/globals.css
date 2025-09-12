@@ -171,3 +171,8 @@ body::-webkit-scrollbar-thumb {
     border-radius: 16px;
   }
 }
+
+input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  display: none;
+}

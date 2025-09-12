@@ -25,9 +25,9 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import WishlistButton from "@/components/common/WishlistButton";
+import WishlistButton from "@/components/common/buttons/WishlistButton";
 import ProductCard from "@/components/products/ProductCard";
-import ShareButton from "@/components/common/ShareButton";
+import ShareButton from "@/components/common/buttons/ShareButton";
 
 const FeatureDisplay = ({
   icon: Icon,

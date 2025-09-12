@@ -10,7 +10,7 @@ import { useCartStore } from "@/store/useCartStore";
 import { useToast } from "@/hooks/use-toast";
 import React from "react";
 import { useShallow } from "zustand/react/shallow";
-import WishlistButton from "../common/WishlistButton";
+import WishlistButton from "../common/buttons/WishlistButton";
 
 function ProductCard({ product }: { product: Product }) {
   const { toast } = useToast();
