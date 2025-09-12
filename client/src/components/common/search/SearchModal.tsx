@@ -1,12 +1,14 @@
 "use client";
 
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import GlobalSearch from "./GlobalSearch";
+import { ArrowRight, X } from "lucide-react";
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -15,13 +17,23 @@ interface SearchModalProps {
 
 export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="p-0 gap-0 w-full h-full max-w-full sm:max-w-full rounded-none sm:rounded-none">
-        <DialogHeader className="sr-only">
-          <DialogTitle>جستجو</DialogTitle>
-        </DialogHeader>
-        <GlobalSearch onClose={onClose} />
-      </DialogContent>
-    </Dialog>
+    <Sheet open={isOpen} onOpenChange={onClose}>
+      <SheetContent
+        side="bottom"
+        className="p-0 gap-0 w-full h-[90vh] rounded-t-lg [&>button]:hidden"
+      >
+        <SheetHeader className="p-4 border-b flex flex-row items-center justify-between gap-2">
+          <SheetClose asChild>
+            <button className="w-fit">
+              <ArrowRight className="text-gray-500" />
+            </button>
+          </SheetClose>
+          <SheetTitle className="!mt-0 w-full">
+            <GlobalSearch />
+          </SheetTitle>
+        </SheetHeader>
+        <div className="p-4"></div>
+      </SheetContent>
+    </Sheet>
   );
 }

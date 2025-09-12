@@ -268,7 +268,7 @@ function Header() {
               </Link>
             </div>
 
-            <div className="hidden lg:flex flex-1 justify-center">
+            <div className="hidden lg:flex justify-center w-[40%]">
               <GlobalSearch
                 onFocusChange={(focused) => setIsDesktopSearchFocused(focused)}
                 isFocusedMode={isDesktopSearchFocused}

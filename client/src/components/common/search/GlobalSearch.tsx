@@ -7,6 +7,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { axiosPublic } from "@/lib/axios";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 // --- Helper Functions for Recent Searches ---
 const getRecentSearches = (): string[] => {
@@ -28,6 +29,11 @@ const addRecentSearch = (query: string) => {
   localStorage.setItem("recentSearches", JSON.stringify(searches.slice(0, 5)));
 };
 
+const clearRecentSearches = () => {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem("recentSearches");
+};
+
 interface SearchResultProduct {
   id: string;
   name: string;
@@ -43,25 +49,31 @@ const SearchSuggestions = ({
   popularProducts,
   onSuggestionClick,
   onLinkClick,
+  onClearHistory,
 }: {
   recentSearches: string[];
   popularProducts: SearchResultProduct[];
   onSuggestionClick: (term: string) => void;
   onLinkClick: () => void;
+  onClearHistory: () => void;
 }) => (
   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4">
-    <div
-      className={cn(
-        "space-y-6",
-        recentSearches.length > 0 ? "md:col-span-3" : "md:col-span-2"
-      )}
-    >
+    <div className={cn("space-y-6", "md:col-span-2")}>
       {recentSearches.length > 0 && (
         <div>
-          <h4 className="flex items-center text-sm font-semibold text-gray-800 mb-3">
-            <History className="w-4 h-4 ml-2 text-gray-500" />
-            آخرین جستجوهای شما
-          </h4>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="flex items-center text-sm font-semibold text-gray-800">
+              <History className="w-4 h-4 ml-2 text-gray-500" />
+              آخرین جستجوهای شما
+            </h4>
+            <Button
+              variant="link"
+              className="text-xs h-auto p-0"
+              onClick={onClearHistory}
+            >
+              پاک کردن
+            </Button>
+          </div>
           <div className="flex flex-wrap gap-2">
             {recentSearches.map((term) => (
               <button
@@ -127,20 +139,18 @@ const SearchSuggestions = ({
 );
 
 interface GlobalSearchProps {
-  onClose?: () => void;
   onFocusChange?: (isFocused: boolean) => void;
   isFocusedMode?: boolean;
+  isModal?: boolean;
 }
 
 export default function GlobalSearch({
-  onClose,
   onFocusChange,
   isFocusedMode = false,
 }: GlobalSearchProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResultProduct[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isDropdownVisible, setIsDropdownVisible] = useState(isFocusedMode); // Open dropdown by default in focused mode
   const searchRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -194,13 +204,12 @@ export default function GlobalSearch({
       } finally {
         setIsLoading(false);
       }
-    }, 300);
+    }, 400);
 
     return () => clearTimeout(debounceTimer);
   }, [query]);
 
   const handleLinkClick = () => {
-    setIsDropdownVisible(false);
     setQuery("");
     if (onFocusChange) onFocusChange(false);
   };
@@ -209,8 +218,13 @@ export default function GlobalSearch({
     setQuery(term);
   };
 
+  const handleClearHistory = () => {
+    clearRecentSearches();
+    setRecentSearches([]);
+  };
+
   return (
-    <div className={cn("relative w-1/2")} ref={searchRef}>
+    <div className={cn("relative w-full")} ref={searchRef}>
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
         <Input
@@ -223,7 +237,6 @@ export default function GlobalSearch({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => {
-            setIsDropdownVisible(true);
             if (onFocusChange) onFocusChange(true);
           }}
         />
@@ -282,6 +295,7 @@ export default function GlobalSearch({
               popularProducts={popularProducts}
               onSuggestionClick={handleSuggestionClick}
               onLinkClick={handleLinkClick}
+              onClearHistory={handleClearHistory}
             />
           )}
         </div>
