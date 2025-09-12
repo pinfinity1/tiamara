@@ -17,7 +17,7 @@ import logo from "../../../public/images/Logo/tiamara-logo.png";
 import Image from "next/image";
 import { signOut, useSession } from "next-auth/react";
 import GlobalSearch from "../common/search/GlobalSearch";
-import CartModal from "../common/CartModal";
+import CartModal from "../common/modal/CartModal";
 import SearchModal from "../common/search/SearchModal";
 import { cn } from "@/lib/utils";
 
