@@ -1,7 +1,7 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
-import { Search, X, History, TrendingUp } from "lucide-react";
+import { Search, X, History, TrendingUp, Trash } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -76,7 +76,7 @@ const SearchSuggestions = ({
               className="text-xs h-auto p-0"
               onClick={onClearHistory}
             >
-              پاک کردن
+              <Trash />
             </Button>
           </div>
           <div className="flex flex-wrap gap-2">
