@@ -1,62 +1,31 @@
 "use client";
 
 import { Input } from "@/components/ui/input";
-import { Search, X, History, TrendingUp, Trash } from "lucide-react";
+import {
+  Search,
+  History,
+  TrendingUp,
+  ShoppingBag,
+  Tag,
+  LayoutGrid,
+  Trash,
+} from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { axiosPublic } from "@/lib/axios";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useSearch, SearchResultProduct } from "@/hooks/useSearch";
+import { useSearchHistoryStore } from "@/store/useSearchHistoryStore";
+import { cn } from "@/lib/utils";
 
-// --- Helper Functions for Recent Searches ---
-const getRecentSearches = (): string[] => {
-  if (typeof window === "undefined") return [];
-  const searches = localStorage.getItem("recentSearches");
-  return searches ? JSON.parse(searches) : [];
-};
-
-const addRecentSearch = (query: string) => {
-  if (typeof window === "undefined") return;
-  const cleanedQuery = query.trim();
-  if (!cleanedQuery) return;
-
-  let searches = getRecentSearches();
-  searches = searches.filter(
-    (s) => s.toLowerCase() !== cleanedQuery.toLowerCase()
-  );
-  searches.unshift(cleanedQuery);
-  localStorage.setItem("recentSearches", JSON.stringify(searches.slice(0, 5)));
-};
-
-const clearRecentSearches = () => {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem("recentSearches");
-};
-
-interface SearchResultProduct {
-  id: string;
-  name: string;
-  slug: string;
-  price: number;
-  images: { url: string; altText?: string | null }[];
-  brand: { name: string } | null;
-}
-
-// Sub-component for the rich suggestions dropdown
 const SearchSuggestions = ({
-  recentSearches,
-  popularProducts,
   onSuggestionClick,
   onLinkClick,
   onClearHistory,
-}: {
-  recentSearches: string[];
-  popularProducts: SearchResultProduct[];
-  onSuggestionClick: (term: string) => void;
-  onLinkClick: () => void;
-  onClearHistory: () => void;
-}) => (
+  recentSearches,
+  popularProducts,
+}: any) => (
   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4">
     <div
       className={cn(
@@ -69,7 +38,7 @@ const SearchSuggestions = ({
           <div className="flex items-center justify-between mb-3">
             <h4 className="flex items-center text-sm font-semibold text-gray-800">
               <History className="w-4 h-4 ml-2 text-gray-500" />
-              آخرین جستجوهای شما
+              آخرین جستجوها
             </h4>
             <Button
               variant="link"
@@ -80,7 +49,7 @@ const SearchSuggestions = ({
             </Button>
           </div>
           <div className="flex flex-wrap gap-2">
-            {recentSearches.map((term) => (
+            {recentSearches.map((term: string) => (
               <button
                 key={term}
                 onClick={() => onSuggestionClick(term)}
@@ -98,7 +67,7 @@ const SearchSuggestions = ({
           پرفروش‌ترین‌ها
         </h4>
         <div className="grid grid-cols-2 gap-3">
-          {popularProducts.map((product) => (
+          {popularProducts.map((product: SearchResultProduct) => (
             <Link
               key={product.id}
               href={`/products/${product.slug}`}
@@ -146,23 +115,18 @@ const SearchSuggestions = ({
 interface GlobalSearchProps {
   onFocusChange?: (isFocused: boolean) => void;
   isFocusedMode?: boolean;
-  isModal?: boolean;
 }
 
 export default function GlobalSearch({
   onFocusChange,
   isFocusedMode = false,
 }: GlobalSearchProps) {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResultProduct[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const searchRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const { query, setQuery, results, isLoading, recentSearches } = useSearch();
+  const { addRecentSearch, clearRecentSearches } = useSearchHistoryStore(); // Get actions directly from the store
   const [popularProducts, setPopularProducts] = useState<SearchResultProduct[]>(
     []
   );
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isFocusedMode && inputRef.current) {
@@ -171,8 +135,6 @@ export default function GlobalSearch({
   }, [isFocusedMode]);
 
   useEffect(() => {
-    setRecentSearches(getRecentSearches());
-
     const fetchPopular = async () => {
       try {
         const response = await axiosPublic.get(
@@ -189,105 +151,123 @@ export default function GlobalSearch({
     fetchPopular();
   }, []);
 
-  useEffect(() => {
-    if (!query.trim()) {
-      setResults([]);
-      return;
-    }
-
-    const debounceTimer = setTimeout(async () => {
-      setIsLoading(true);
-      try {
-        const response = await axiosPublic.get(`/search?q=${query}`);
-        if (response.data.success) {
-          addRecentSearch(query);
-          setRecentSearches(getRecentSearches());
-          setResults(response.data.products);
-        }
-      } catch (error) {
-        console.error("Search failed:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    }, 400);
-
-    return () => clearTimeout(debounceTimer);
-  }, [query]);
-
-  const handleLinkClick = () => {
+  const handleItemClick = (searchTerm: string) => {
+    addRecentSearch(searchTerm); // Use action from the store
     setQuery("");
-    if (onFocusChange) onFocusChange(false);
+    onFocusChange?.(false);
   };
 
-  const handleSuggestionClick = (term: string) => {
-    setQuery(term);
-  };
-
-  const handleClearHistory = () => {
-    clearRecentSearches();
-    setRecentSearches([]);
-  };
+  const hasResults =
+    results.products.length > 0 ||
+    results.brands.length > 0 ||
+    results.categories.length > 0;
 
   return (
-    <div className={cn("relative w-full")} ref={searchRef}>
+    <div className="relative w-full">
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
         <Input
           ref={inputRef}
           type="search"
           placeholder="جستجوی محصولات..."
-          className={cn(
-            "w-full pl-10 pr-4 py-2 h-12 border transition-colors rounded-xl bg-white"
-          )}
+          className="w-full pl-10 pr-4 py-2 h-12 border transition-colors rounded-xl bg-white"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => {
-            if (onFocusChange) onFocusChange(true);
-          }}
+          onFocus={() => onFocusChange?.(true)}
         />
       </div>
 
       {isFocusedMode && (
-        <div className="absolute top-full mt-2 w-full rounded-lg border bg-white shadow-lg z-50 max-h-[450px] overflow-y-auto">
+        <div className="absolute top-full mt-2 w-full rounded-lg border bg-white shadow-lg z-50 max-h-[70vh] overflow-y-auto">
           {query.trim() ? (
             <>
               {isLoading ? (
                 <div className="p-4 text-center text-gray-500">
                   در حال جستجو...
                 </div>
-              ) : results.length > 0 ? (
-                <ul>
-                  {results.map((product) => (
-                    <li key={product.id}>
-                      <Link
-                        href={`/products/${product.slug}`}
-                        className="flex items-center gap-4 p-3 hover:bg-gray-50 transition-colors"
-                        onClick={handleLinkClick}
-                        target="_blank"
-                      >
-                        <div className="relative h-16 w-16 flex-shrink-0">
-                          <Image
-                            src={product.images[0]?.url || "/placeholder.png"}
-                            alt={product.images[0]?.altText || product.name}
-                            fill
-                            className="object-cover rounded-md"
-                          />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-sm">
-                            {product.name}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {product.brand?.name}
-                          </p>
-                          <p className="text-sm font-bold mt-1">
-                            {product.price.toLocaleString("fa-IR")} تومان
-                          </p>
-                        </div>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
+              ) : hasResults ? (
+                <div className="divide-y divide-gray-100">
+                  {results.categories.length > 0 && (
+                    <div className="p-3">
+                      <h4 className="flex items-center text-xs font-semibold text-gray-500 mb-2 px-1">
+                        <LayoutGrid className="w-4 h-4 ml-2" />
+                        دسته‌بندی‌ها
+                      </h4>
+                      <ul>
+                        {results.categories.map((category) => (
+                          <li key={`cat-${category.id}`}>
+                            <Link
+                              href={`/products?categories=${category.name}`}
+                              className="block p-2 text-sm hover:bg-gray-50 transition-colors rounded-md"
+                              onClick={() => handleItemClick(category.name)}
+                            >
+                              {category.name}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {results.brands.length > 0 && (
+                    <div className="p-3">
+                      <h4 className="flex items-center text-xs font-semibold text-gray-500 mb-2 px-1">
+                        <Tag className="w-4 h-4 ml-2" />
+                        برندها
+                      </h4>
+                      <ul>
+                        {results.brands.map((brand) => (
+                          <li key={`brand-${brand.id}`}>
+                            <Link
+                              href={`/products?brands=${brand.name}`}
+                              className="block p-2 text-sm hover:bg-gray-50 transition-colors rounded-md"
+                              onClick={() => handleItemClick(brand.name)}
+                            >
+                              {brand.name}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {results.products.length > 0 && (
+                    <div className="p-3">
+                      <h4 className="flex items-center text-xs font-semibold text-gray-500 mb-2 px-1">
+                        <ShoppingBag className="w-4 h-4 ml-2" />
+                        محصولات
+                      </h4>
+                      <ul>
+                        {results.products.map((product) => (
+                          <li key={`prod-${product.id}`}>
+                            <Link
+                              href={`/products/${product.slug}`}
+                              className="flex items-center gap-4 p-2 hover:bg-gray-50 transition-colors rounded-md"
+                              onClick={() => handleItemClick(product.name)}
+                              target="_blank"
+                            >
+                              <Image
+                                src={
+                                  product.images[0]?.url || "/placeholder.png"
+                                }
+                                alt={product.name}
+                                width={48}
+                                height={48}
+                                className="w-12 h-12 object-cover rounded-md flex-shrink-0"
+                              />
+                              <div>
+                                <p className="font-semibold text-sm">
+                                  {product.name}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {product.brand?.name}
+                                </p>
+                              </div>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="p-4 text-center text-gray-500">
                   هیچ نتیجه‌ای برای "{query}" یافت نشد.
@@ -298,9 +278,9 @@ export default function GlobalSearch({
             <SearchSuggestions
               recentSearches={recentSearches}
               popularProducts={popularProducts}
-              onSuggestionClick={handleSuggestionClick}
-              onLinkClick={handleLinkClick}
-              onClearHistory={handleClearHistory}
+              onSuggestionClick={setQuery}
+              onLinkClick={() => onFocusChange?.(false)}
+              onClearHistory={clearRecentSearches}
             />
           )}
         </div>

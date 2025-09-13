@@ -8,45 +8,21 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
-import { Search, ArrowRight, History, Trash } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import {
+  Search,
+  ArrowRight,
+  History,
+  Trash,
+  ShoppingBag,
+  Tag,
+  LayoutGrid,
+} from "lucide-react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { axiosPublic } from "@/lib/axios";
 import { Button } from "@/components/ui/button";
-
-const getRecentSearches = (): string[] => {
-  if (typeof window === "undefined") return [];
-  const searches = localStorage.getItem("recentSearches");
-  return searches ? JSON.parse(searches) : [];
-};
-
-const addRecentSearch = (query: string) => {
-  if (typeof window === "undefined") return;
-  const cleanedQuery = query.trim();
-  if (!cleanedQuery) return;
-
-  let searches = getRecentSearches();
-  searches = searches.filter(
-    (s) => s.toLowerCase() !== cleanedQuery.toLowerCase()
-  );
-  searches.unshift(cleanedQuery);
-  localStorage.setItem("recentSearches", JSON.stringify(searches.slice(0, 5)));
-};
-
-const clearRecentSearches = () => {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem("recentSearches");
-};
-
-interface SearchResultProduct {
-  id: string;
-  name: string;
-  slug: string;
-  price: number;
-  images: { url: string; altText?: string | null }[];
-  brand: { name: string } | null;
-}
+import { useSearch } from "@/hooks/useSearch";
+import { useSearchHistoryStore } from "@/store/useSearchHistoryStore"; // Import the store
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -54,50 +30,27 @@ interface SearchModalProps {
 }
 
 export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResultProduct[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const { query, setQuery, results, isLoading, recentSearches } = useSearch();
+  const { addRecentSearch, clearRecentSearches } = useSearchHistoryStore(); // Get actions directly from the store
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
-      setRecentSearches(getRecentSearches());
       setTimeout(() => inputRef.current?.focus(), 100);
     } else {
       setQuery("");
-      setResults([]);
     }
-  }, [isOpen]);
+  }, [isOpen, setQuery]);
 
-  useEffect(() => {
-    if (!query.trim()) {
-      setResults([]);
-      return;
-    }
-
-    const debounceTimer = setTimeout(async () => {
-      setIsLoading(true);
-      try {
-        const response = await axiosPublic.get(`/search?q=${query}`);
-        if (response.data.success) {
-          addRecentSearch(query);
-          setResults(response.data.products);
-        }
-      } catch (error) {
-        console.error("Search failed:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    }, 400);
-
-    return () => clearTimeout(debounceTimer);
-  }, [query]);
-
-  const handleClearHistory = () => {
-    clearRecentSearches();
-    setRecentSearches([]);
+  const handleItemClick = (searchTerm: string) => {
+    addRecentSearch(searchTerm); // Use action from the store
+    onClose();
   };
+
+  const hasResults =
+    results.products.length > 0 ||
+    results.brands.length > 0 ||
+    results.categories.length > 0;
 
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
@@ -133,39 +86,87 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
                 <div className="p-4 text-center text-gray-500">
                   در حال جستجو...
                 </div>
-              ) : results.length > 0 ? (
-                <ul>
-                  {results.map((product) => (
-                    <li key={product.id}>
-                      <Link
-                        href={`/products/${product.slug}`}
-                        className="flex items-center gap-4 p-3 hover:bg-gray-50 transition-colors rounded-lg"
-                        onClick={onClose}
-                        target="_blank"
-                      >
-                        <div className="relative h-16 w-16 flex-shrink-0">
-                          <Image
-                            src={product.images[0]?.url || "/placeholder.png"}
-                            alt={product.name}
-                            fill
-                            className="object-cover rounded-md"
-                          />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-sm">
-                            {product.name}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {product.brand?.name}
-                          </p>
-                          <p className="text-sm font-bold mt-1">
-                            {product.price.toLocaleString("fa-IR")} تومان
-                          </p>
-                        </div>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
+              ) : hasResults ? (
+                <div className="space-y-6">
+                  {results.categories.length > 0 && (
+                    <div>
+                      <h4 className="flex items-center text-xs font-semibold text-gray-500 mb-2 px-1">
+                        <LayoutGrid className="w-4 h-4 ml-2" />
+                        دسته‌بندی‌ها
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {results.categories.map((category) => (
+                          <Link
+                            key={`cat-${category.id}`}
+                            href={`/products?categories=${category.name}`}
+                            className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
+                            onClick={() => handleItemClick(category.name)}
+                          >
+                            {category.name}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {results.brands.length > 0 && (
+                    <div>
+                      <h4 className="flex items-center text-xs font-semibold text-gray-500 mb-2 px-1">
+                        <Tag className="w-4 h-4 ml-2" />
+                        برندها
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {results.brands.map((brand) => (
+                          <Link
+                            key={`brand-${brand.id}`}
+                            href={`/products?brands=${brand.name}`}
+                            className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
+                            onClick={() => handleItemClick(brand.name)}
+                          >
+                            {brand.name}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {results.products.length > 0 && (
+                    <div>
+                      <h4 className="flex items-center text-xs font-semibold text-gray-500 mb-2 px-1">
+                        <ShoppingBag className="w-4 h-4 ml-2" />
+                        محصولات
+                      </h4>
+                      <ul>
+                        {results.products.map((product) => (
+                          <li key={`prod-${product.id}`}>
+                            <Link
+                              href={`/products/${product.slug}`}
+                              className="flex items-center gap-4 p-2 hover:bg-gray-50 transition-colors rounded-lg"
+                              onClick={() => handleItemClick(product.name)}
+                              target="_blank"
+                            >
+                              <Image
+                                src={
+                                  product.images[0]?.url || "/placeholder.png"
+                                }
+                                alt={product.name}
+                                width={56}
+                                height={56}
+                                className="w-14 h-14 object-cover rounded-md flex-shrink-0"
+                              />
+                              <div>
+                                <p className="font-semibold text-sm">
+                                  {product.name}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {product.brand?.name}
+                                </p>
+                              </div>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="p-4 text-center text-gray-500">
                   هیچ نتیجه‌ای برای "{query}" یافت نشد.
@@ -173,20 +174,19 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
               )}
             </>
           ) : (
-            // Recent Searches
             recentSearches.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="flex items-center text-sm font-semibold text-gray-800">
                     <History className="w-4 h-4 ml-2 text-gray-500" />
-                    آخرین جستجوهای شما
+                    آخرین جستجوها
                   </h4>
                   <Button
                     variant="link"
-                    className="text-xs h-auto p-0 "
-                    onClick={handleClearHistory}
+                    className="text-xs h-auto p-0"
+                    onClick={clearRecentSearches}
                   >
-                    <Trash />
+                    <Trash className="w-4 h-4" />
                   </Button>
                 </div>
                 <div className="flex flex-wrap gap-2">
