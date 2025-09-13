@@ -4,9 +4,23 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
 import { Label } from "../ui/label";
-import { Slider } from "../ui/slider";
-import { useState, useTransition } from "react";
+import { Input } from "../ui/input";
+import { Slider } from "@/components/ui/slider";
+import {
+  useState,
+  useTransition,
+  useEffect,
+  useMemo,
+  useCallback,
+} from "react";
 import { FilterData } from "@/store/useFilterStore";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { useDebounce } from "@/hooks/use-debounce";
 
 export default function ProductFilters({
   filters,
@@ -20,53 +34,120 @@ export default function ProductFilters({
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
-  const [priceRange, setPriceRange] = useState([
-    parseInt(searchParams.get("minPrice") || filters.priceRange.min.toString()),
-    parseInt(searchParams.get("maxPrice") || filters.priceRange.max.toString()),
-  ]);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(
-    searchParams.get("categories")?.split(",") || []
-  );
-  const [selectedBrands, setSelectedBrands] = useState<string[]>(
-    searchParams.get("brands")?.split(",") || []
-  );
-  const [selectedSkinTypes, setSelectedSkinTypes] = useState<string[]>(
-    searchParams.get("skin_types")?.split(",") || []
-  );
-  const [selectedConcerns, setSelectedConcerns] = useState<string[]>(
-    searchParams.get("concerns")?.split(",") || []
+  // Helpers
+  const getArrayFromParams = useCallback(
+    (param: string) => {
+      const value = searchParams.get(param);
+      return value ? value.split(",") : [];
+    },
+    [searchParams]
   );
 
-  const applyFilters = () => {
-    const params = new URLSearchParams(searchParams.toString());
-
-    params.set("minPrice", priceRange[0].toString());
-    params.set("maxPrice", priceRange[1].toString());
-
-    if (selectedCategories.length > 0)
-      params.set("categories", selectedCategories.join(","));
-    else params.delete("categories");
-
-    if (selectedBrands.length > 0)
-      params.set("brands", selectedBrands.join(","));
-    else params.delete("brands");
-
-    if (selectedSkinTypes.length > 0)
-      params.set("skin_types", selectedSkinTypes.join(","));
-    else params.delete("skin_types");
-
-    if (selectedConcerns.length > 0)
-      params.set("concerns", selectedConcerns.join(","));
-    else params.delete("concerns");
-
-    params.delete("page");
-
-    startTransition(() => {
-      router.push(`${pathname}?${params.toString()}`);
-    });
+  const normalizeRange = (
+    range: [number | null, number | null]
+  ): [number, number] => {
+    const [min, max] = range;
+    return [min ?? filters.priceRange.min, max ?? filters.priceRange.max];
   };
 
-  const handleFilterChange = (
+  // States
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(() =>
+    getArrayFromParams("categories")
+  );
+  const [selectedBrands, setSelectedBrands] = useState<string[]>(() =>
+    getArrayFromParams("brands")
+  );
+  const [selectedSkinTypes, setSelectedSkinTypes] = useState<string[]>(() =>
+    getArrayFromParams("skin_types")
+  );
+  const [selectedConcerns, setSelectedConcerns] = useState<string[]>(() =>
+    getArrayFromParams("concerns")
+  );
+
+  const [priceRange, setPriceRange] = useState<[number, number]>(() =>
+    normalizeRange([
+      searchParams.get("minPrice")
+        ? Number(searchParams.get("minPrice"))
+        : null,
+      searchParams.get("maxPrice")
+        ? Number(searchParams.get("maxPrice"))
+        : null,
+    ])
+  );
+
+  const debouncedPriceRange = useDebounce(priceRange, 500);
+
+  const [brandSearch, setBrandSearch] = useState("");
+  const [categorySearch, setCategorySearch] = useState("");
+
+  /**
+   * Sync state -> URL
+   */
+  useEffect(() => {
+    const params = new URLSearchParams();
+
+    const setParam = (key: string, value: string | string[]) => {
+      const joinedValue = Array.isArray(value) ? value.join(",") : value;
+      if (joinedValue) params.set(key, joinedValue);
+    };
+
+    setParam("categories", selectedCategories);
+    setParam("brands", selectedBrands);
+    setParam("skin_types", selectedSkinTypes);
+    setParam("concerns", selectedConcerns);
+
+    const [min, max] = debouncedPriceRange;
+    if (min > filters.priceRange.min) params.set("minPrice", String(min));
+    if (max < filters.priceRange.max) params.set("maxPrice", String(max));
+
+    // Preserve sort params
+    if (searchParams.get("sortBy"))
+      params.set("sortBy", searchParams.get("sortBy")!);
+    if (searchParams.get("sortOrder"))
+      params.set("sortOrder", searchParams.get("sortOrder")!);
+
+    const newUrl = params.toString()
+      ? `${pathname}?${params.toString()}`
+      : pathname;
+    const currentUrl = searchParams.toString()
+      ? `${pathname}?${searchParams.toString()}`
+      : pathname;
+
+    if (newUrl !== currentUrl) {
+      startTransition(() => {
+        router.replace(newUrl);
+      });
+    }
+  }, [
+    selectedCategories,
+    selectedBrands,
+    selectedSkinTypes,
+    selectedConcerns,
+    debouncedPriceRange,
+    filters.priceRange,
+    pathname,
+    router,
+  ]);
+
+  /**
+   * Sync URL -> state (for back/forward navigation)
+   */
+  useEffect(() => {
+    setSelectedCategories(getArrayFromParams("categories"));
+    setSelectedBrands(getArrayFromParams("brands"));
+    setSelectedSkinTypes(getArrayFromParams("skin_types"));
+    setSelectedConcerns(getArrayFromParams("concerns"));
+
+    const min = searchParams.get("minPrice");
+    const max = searchParams.get("maxPrice");
+
+    setPriceRange(
+      normalizeRange([min ? Number(min) : null, max ? Number(max) : null])
+    );
+  }, [searchParams, filters.priceRange, getArrayFromParams]);
+
+  // Helpers
+  const handleCheckedChange = (
     setter: React.Dispatch<React.SetStateAction<string[]>>,
     value: string
   ) => {
@@ -77,116 +158,212 @@ export default function ProductFilters({
     );
   };
 
+  const clearFilters = () => {
+    // Reset all filter states
+    setSelectedCategories([]);
+    setSelectedBrands([]);
+    setSelectedSkinTypes([]);
+    setSelectedConcerns([]);
+    setPriceRange([filters.priceRange.min, filters.priceRange.max]);
+
+    // Preserve sort params if any
+    const newParams = new URLSearchParams();
+    if (searchParams.get("sortBy")) {
+      newParams.set("sortBy", searchParams.get("sortBy")!);
+    }
+    if (searchParams.get("sortOrder")) {
+      newParams.set("sortOrder", searchParams.get("sortOrder")!);
+    }
+
+    startTransition(() => {
+      const queryString = newParams.toString();
+      if (queryString) {
+        router.replace(`${pathname}?${queryString}`);
+      } else {
+        router.replace(pathname);
+      }
+    });
+  };
+
+  const filteredBrands = useMemo(
+    () =>
+      filters.brands.filter((brand) =>
+        brand.name.toLowerCase().includes(brandSearch.toLowerCase())
+      ),
+    [filters.brands, brandSearch]
+  );
+
+  const filteredCategories = useMemo(
+    () =>
+      filters.categories.filter((category) =>
+        category.name.toLowerCase().includes(categorySearch.toLowerCase())
+      ),
+    [filters.categories, categorySearch]
+  );
+
   return (
-    <div className="space-y-6">
-      {!activeCategoryName && (
-        <div>
-          <h3 className="mb-3 font-semibold">دسته‌بندی‌ها</h3>
-          <div className="space-y-2">
-            {filters.categories.map((category) => (
-              <div key={category.id} className="flex items-center">
-                <Checkbox
-                  checked={selectedCategories.includes(category.name)}
-                  onCheckedChange={() =>
-                    handleFilterChange(setSelectedCategories, category.name)
-                  }
-                  id={`filter-cat-${category.slug}`}
-                />
-                <Label
-                  htmlFor={`filter-cat-${category.slug}`}
-                  className="mr-2 text-sm cursor-pointer"
-                >
-                  {category.name}
-                </Label>
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="font-semibold">فیلترها</h3>
+        <Button
+          variant="link"
+          className="p-0 h-auto text-xs"
+          onClick={clearFilters}
+        >
+          حذف همه فیلترها
+        </Button>
+      </div>
+
+      <Accordion type="multiple" defaultValue={["price", "brands"]}>
+        {/* Price Range */}
+        <AccordionItem value="price">
+          <AccordionTrigger>محدوده قیمت</AccordionTrigger>
+          <AccordionContent>
+            <div className="px-1 pt-2">
+              <Slider
+                min={filters.priceRange.min}
+                max={filters.priceRange.max}
+                step={10000}
+                value={priceRange}
+                onValueChange={(value) =>
+                  setPriceRange(value as [number, number])
+                }
+              />
+              <div className="flex justify-between mt-3 text-xs text-gray-600">
+                <span>{priceRange[0].toLocaleString("fa-IR")} تومان</span>
+                <span>{priceRange[1].toLocaleString("fa-IR")} تومان</span>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
-      <div>
-        <h3 className="mb-3 font-semibold">برندها</h3>
-        <div className="space-y-2">
-          {filters.brands.map((brand) => (
-            <div key={brand.id} className="flex items-center">
-              <Checkbox
-                checked={selectedBrands.includes(brand.name)}
-                onCheckedChange={() =>
-                  handleFilterChange(setSelectedBrands, brand.name)
-                }
-                id={`filter-brand-${brand.slug}`}
-              />
-              <Label
-                htmlFor={`filter-brand-${brand.slug}`}
-                className="mr-2 text-sm cursor-pointer"
-              >
-                {brand.name}
-              </Label>
             </div>
-          ))}
-        </div>
-      </div>
-      <div>
-        <h3 className="mb-3 font-semibold">نوع پوست</h3>
-        <div className="space-y-2">
-          {filters.skinTypes.map((type) => (
-            <div key={type} className="flex items-center">
-              <Checkbox
-                checked={selectedSkinTypes.includes(type)}
-                onCheckedChange={() =>
-                  handleFilterChange(setSelectedSkinTypes, type)
-                }
-                id={`filter-skin-${type}`}
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* Categories */}
+        {!activeCategoryName && filters.categories.length > 0 && (
+          <AccordionItem value="categories">
+            <AccordionTrigger>دسته‌بندی‌ها</AccordionTrigger>
+            <AccordionContent>
+              <Input
+                placeholder="جستجوی دسته‌بندی..."
+                className="mb-2"
+                value={categorySearch}
+                onChange={(e) => setCategorySearch(e.target.value)}
               />
-              <Label
-                htmlFor={`filter-skin-${type}`}
-                className="mr-2 text-sm cursor-pointer"
-              >
-                {type}
-              </Label>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div>
-        <h3 className="mb-3 font-semibold">نگرانی پوستی</h3>
-        <div className="space-y-2">
-          {filters.concerns.map((concern) => (
-            <div key={concern} className="flex items-center">
-              <Checkbox
-                checked={selectedConcerns.includes(concern)}
-                onCheckedChange={() =>
-                  handleFilterChange(setSelectedConcerns, concern)
-                }
-                id={`filter-concern-${concern}`}
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {filteredCategories.map((category) => (
+                  <div key={category.id} className="flex items-center">
+                    <Checkbox
+                      checked={selectedCategories.includes(category.name)}
+                      onCheckedChange={() =>
+                        handleCheckedChange(
+                          setSelectedCategories,
+                          category.name
+                        )
+                      }
+                      id={`filter-cat-${category.slug}`}
+                    />
+                    <Label
+                      htmlFor={`filter-cat-${category.slug}`}
+                      className="mr-2 text-sm cursor-pointer"
+                    >
+                      {category.name}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        )}
+
+        {/* Brands */}
+        {filters.brands.length > 0 && (
+          <AccordionItem value="brands">
+            <AccordionTrigger>برندها</AccordionTrigger>
+            <AccordionContent>
+              <Input
+                placeholder="جستجوی برند..."
+                className="mb-2"
+                value={brandSearch}
+                onChange={(e) => setBrandSearch(e.target.value)}
               />
-              <Label
-                htmlFor={`filter-concern-${concern}`}
-                className="mr-2 text-sm cursor-pointer"
-              >
-                {concern}
-              </Label>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div>
-        <h3 className="mb-3 font-semibold">محدوده قیمت</h3>
-        <Slider
-          min={filters.priceRange.min}
-          max={filters.priceRange.max}
-          step={10000}
-          className="w-full"
-          value={priceRange}
-          onValueChange={(value) => setPriceRange(value)}
-        />
-        <div className="flex justify-between mt-2 text-sm">
-          <span>{priceRange[0].toLocaleString("fa-IR")} تومان</span>
-          <span>{priceRange[1].toLocaleString("fa-IR")} تومان</span>
-        </div>
-      </div>
-      <Button onClick={applyFilters} className="w-full" disabled={isPending}>
-        {isPending ? "در حال اعمال..." : "اعمال فیلترها"}
-      </Button>
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {filteredBrands.map((brand) => (
+                  <div key={brand.id} className="flex items-center">
+                    <Checkbox
+                      checked={selectedBrands.includes(brand.name)}
+                      onCheckedChange={() =>
+                        handleCheckedChange(setSelectedBrands, brand.name)
+                      }
+                      id={`filter-brand-${brand.slug}`}
+                    />
+                    <Label
+                      htmlFor={`filter-brand-${brand.slug}`}
+                      className="mr-2 text-sm cursor-pointer"
+                    >
+                      {brand.name}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        )}
+
+        {/* Skin Types */}
+        {filters.skinTypes.length > 0 && (
+          <AccordionItem value="skinTypes">
+            <AccordionTrigger>نوع پوست</AccordionTrigger>
+            <AccordionContent>
+              <div className="space-y-2">
+                {filters.skinTypes.map((type) => (
+                  <div key={type} className="flex items-center">
+                    <Checkbox
+                      checked={selectedSkinTypes.includes(type)}
+                      onCheckedChange={() =>
+                        handleCheckedChange(setSelectedSkinTypes, type)
+                      }
+                      id={`filter-skin-${type}`}
+                    />
+                    <Label
+                      htmlFor={`filter-skin-${type}`}
+                      className="mr-2 text-sm cursor-pointer"
+                    >
+                      {type}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        )}
+
+        {/* Concerns */}
+        {filters.concerns.length > 0 && (
+          <AccordionItem value="concerns">
+            <AccordionTrigger>نگرانی پوستی</AccordionTrigger>
+            <AccordionContent>
+              <div className="space-y-2">
+                {filters.concerns.map((concern) => (
+                  <div key={concern} className="flex items-center">
+                    <Checkbox
+                      checked={selectedConcerns.includes(concern)}
+                      onCheckedChange={() =>
+                        handleCheckedChange(setSelectedConcerns, concern)
+                      }
+                      id={`filter-concern-${concern}`}
+                    />
+                    <Label
+                      htmlFor={`filter-concern-${concern}`}
+                      className="mr-2 text-sm cursor-pointer"
+                    >
+                      {concern}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        )}
+      </Accordion>
     </div>
   );
 }

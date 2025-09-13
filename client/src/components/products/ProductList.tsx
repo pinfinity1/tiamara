@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useShallow } from "zustand/react/shallow";
 import { Button } from "../ui/button";
@@ -15,7 +15,7 @@ import { Product, useProductStore } from "../../store/useProductStore";
 import { FilterData } from "@/store/useFilterStore";
 import ProductCard from "./ProductCard";
 import ProductFilters from "./ProductFilters";
-import { SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,58 @@ import {
 } from "../ui/dialog";
 import { ProductCardSkeleton } from "./ProductCardSkeleton";
 import Pagination from "../common/Pagination";
+import { Badge } from "../ui/badge";
+
+const ActiveFilters = () => {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const activeFilters = useMemo(() => {
+    const filters = [];
+    for (const [key, value] of searchParams.entries()) {
+      if (key !== "page" && key !== "sortBy" && key !== "sortOrder") {
+        const values = value.split(",");
+        for (const v of values) {
+          filters.push({ key, value: v });
+        }
+      }
+    }
+    return filters;
+  }, [searchParams]);
+
+  const removeFilter = (key: string, value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    const existing = params.get(key)?.split(",") || [];
+    const newValues = existing.filter((v) => v !== value);
+
+    if (newValues.length > 0) {
+      params.set(key, newValues.join(","));
+    } else {
+      params.delete(key);
+    }
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  if (activeFilters.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap gap-2 items-center mb-4">
+      <span className="text-sm font-semibold">فیلترهای فعال:</span>
+      {activeFilters.map(({ key, value }) => (
+        <Badge key={`${key}-${value}`} variant="secondary" className="pl-2">
+          {decodeURIComponent(value)}
+          <button
+            onClick={() => removeFilter(key, value)}
+            className="mr-1 p-0.5 hover:bg-black/10 rounded-full"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </Badge>
+      ))}
+    </div>
+  );
+};
 
 export default function ProductList({
   initialProducts,
@@ -91,47 +143,47 @@ export default function ProductList({
   return (
     <div className="min-h-screen bg-white">
       <div className="container mx-auto px-4 py-8">
-        {!hideFilters && (
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-            <div className="flex items-center gap-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <div className="flex items-center gap-3">
+            {!hideFilters && (
               <h2 className="text-2xl font-semibold">همه محصولات</h2>
-              <p className="text-gray-500 text-sm">
-                {initialTotalProducts} محصول یافت شد
-              </p>
-            </div>
-            <div className="flex items-center justify-between md:justify-normal gap-4">
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button variant={"outline"} className="lg:hidden">
-                    <SlidersHorizontal className="h-4 w-4 ml-2" />
-                    فیلترها
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="w-[90vw] max-h-[80vh] overflow-y-auto max-w-[400px]">
-                  <DialogHeader>
-                    <DialogTitle>فیلترها</DialogTitle>
-                  </DialogHeader>
-                  {filters && (
-                    <ProductFilters
-                      filters={filters}
-                      activeCategoryName={activeCategoryName}
-                    />
-                  )}
-                </DialogContent>
-              </Dialog>
-              <Select value={currentSort} onValueChange={handleSortChange}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="مرتب‌سازی بر اساس" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="createdAt-desc">جدیدترین</SelectItem>
-                  <SelectItem value="price-asc">ارزان‌ترین</SelectItem>
-                  <SelectItem value="price-desc">گران‌ترین</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            )}
+            <p className="text-gray-500 text-sm">
+              {initialTotalProducts} محصول یافت شد
+            </p>
           </div>
-        )}
+          <div className="flex items-center justify-between md:justify-normal gap-4">
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant={"outline"} className="lg:hidden">
+                  <SlidersHorizontal className="h-4 w-4 ml-2" />
+                  فیلترها
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="w-[90vw] max-h-[80vh] overflow-y-auto max-w-[400px]">
+                <DialogHeader>
+                  <DialogTitle>فیلترها</DialogTitle>
+                </DialogHeader>
+                {filters && (
+                  <ProductFilters
+                    filters={filters}
+                    activeCategoryName={activeCategoryName}
+                  />
+                )}
+              </DialogContent>
+            </Dialog>
+            <Select value={currentSort} onValueChange={handleSortChange}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="مرتب‌سازی بر اساس" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="createdAt-desc">جدیدترین</SelectItem>
+                <SelectItem value="price-asc">ارزان‌ترین</SelectItem>
+                <SelectItem value="price-desc">گران‌ترین</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
         <div className="flex gap-8">
           {!hideFilters && (
@@ -146,6 +198,7 @@ export default function ProductList({
           )}
 
           <main className="flex-1">
+            <ActiveFilters />
             {isLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {Array.from({ length: 6 }).map((_, i) => (
