@@ -9,15 +9,18 @@ export default async function BrandPage({
   searchParams,
 }: {
   params: { slug: string };
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const { slug } = params;
+  const { slug } = await params;
   const brand = await getBrandBySlug(slug);
+  const resolvedSearchParams = (await searchParams) || {};
 
-  const page = parseInt((searchParams?.page as string) ?? "1");
-  const sortBy = (searchParams?.sortBy as string) ?? "createdAt";
-  const sortOrder = (searchParams?.sortOrder as "asc" | "desc") ?? "desc";
+  const page = parseInt((resolvedSearchParams?.page as string) ?? "1");
+  const sortBy = (resolvedSearchParams?.sortBy as string) ?? "createdAt";
+  const sortOrder =
+    (resolvedSearchParams?.sortOrder as "asc" | "desc") ?? "desc";
 
+  // Fetch only products for this brand
   await useProductStore.getState().fetchProductsForClient({
     page,
     limit: 12,
@@ -26,6 +29,7 @@ export default async function BrandPage({
     sortOrder,
   });
 
+  // Fetch all filters to still allow sorting and other potential future filters
   await useFilterStore.getState().fetchFilters();
 
   const { products, totalPages, totalProducts } = useProductStore.getState();
@@ -39,6 +43,7 @@ export default async function BrandPage({
         initialTotalPages={totalPages}
         initialTotalProducts={totalProducts}
         filters={filters}
+        // We hide the general filters sidebar for a cleaner brand page
         hideFilters
       />
     </div>

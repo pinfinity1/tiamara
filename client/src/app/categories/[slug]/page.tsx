@@ -11,7 +11,7 @@ export default async function CategoryPage({
   params: { slug: string };
   searchParams: { [key: string]: string | string[] | undefined };
 }) {
-  const { slug } = params;
+  const { slug } = await params;
   const category = await getCategoryBySlug(slug);
 
   const page = parseInt((searchParams?.page as string) ?? "1");
