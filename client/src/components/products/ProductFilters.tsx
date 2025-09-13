@@ -221,13 +221,14 @@ export default function ProductFilters({
           <AccordionContent>
             <div className="px-1 pt-2">
               <Slider
+                dir="rtl"
                 min={filters.priceRange.min}
                 max={filters.priceRange.max}
-                step={10000}
                 value={priceRange}
                 onValueChange={(value) =>
                   setPriceRange(value as [number, number])
                 }
+                step={10000}
               />
               <div className="flex justify-between mt-3 text-xs text-gray-600">
                 <span>{priceRange[0].toLocaleString("fa-IR")} تومان</span>
