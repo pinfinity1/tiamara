@@ -25,58 +25,6 @@ import {
 } from "../ui/dialog";
 import { ProductCardSkeleton } from "./ProductCardSkeleton";
 import Pagination from "../common/Pagination";
-import { Badge } from "../ui/badge";
-
-const ActiveFilters = () => {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
-  const activeFilters = useMemo(() => {
-    const filters = [];
-    for (const [key, value] of searchParams.entries()) {
-      if (key !== "page" && key !== "sortBy" && key !== "sortOrder") {
-        const values = value.split(",");
-        for (const v of values) {
-          filters.push({ key, value: v });
-        }
-      }
-    }
-    return filters;
-  }, [searchParams]);
-
-  const removeFilter = (key: string, value: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    const existing = params.get(key)?.split(",") || [];
-    const newValues = existing.filter((v) => v !== value);
-
-    if (newValues.length > 0) {
-      params.set(key, newValues.join(","));
-    } else {
-      params.delete(key);
-    }
-    router.push(`${pathname}?${params.toString()}`);
-  };
-
-  if (activeFilters.length === 0) return null;
-
-  return (
-    <div className="flex flex-wrap gap-2 items-center mb-4">
-      <span className="text-sm font-semibold">فیلترهای فعال:</span>
-      {activeFilters.map(({ key, value }) => (
-        <Badge key={`${key}-${value}`} variant="secondary" className="pl-2">
-          {decodeURIComponent(value)}
-          <button
-            onClick={() => removeFilter(key, value)}
-            className="mr-1 p-0.5 hover:bg-black/10 rounded-full"
-          >
-            <X className="w-3 h-3" />
-          </button>
-        </Badge>
-      ))}
-    </div>
-  );
-};
 
 export default function ProductList({
   initialProducts,
@@ -187,7 +135,7 @@ export default function ProductList({
 
         <div className="flex gap-8">
           {!hideFilters && (
-            <aside className="hidden lg:block w-64 flex-shrink-0">
+            <aside className="hidden lg:block w-64 flex-shrink-0 sticky top-36 self-start">
               {filters && (
                 <ProductFilters
                   filters={filters}
@@ -198,7 +146,6 @@ export default function ProductList({
           )}
 
           <main className="flex-1">
-            <ActiveFilters />
             {isLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {Array.from({ length: 6 }).map((_, i) => (

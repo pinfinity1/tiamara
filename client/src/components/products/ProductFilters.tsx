@@ -42,37 +42,43 @@ export default function ProductFilters({
     [searchParams]
   );
 
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(
-    getArrayFromParams("categories")
-  );
-  const [selectedBrands, setSelectedBrands] = useState<string[]>(
-    getArrayFromParams("brands")
-  );
-  const [selectedSkinTypes, setSelectedSkinTypes] = useState<string[]>(
-    getArrayFromParams("skin_types")
-  );
-  const [selectedConcerns, setSelectedConcerns] = useState<string[]>(
-    getArrayFromParams("concerns")
-  );
-
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+  const [selectedSkinTypes, setSelectedSkinTypes] = useState<string[]>([]);
+  const [selectedConcerns, setSelectedConcerns] = useState<string[]>([]);
   const [priceRange, setPriceRange] = useState<[number, number]>([
-    Number(searchParams.get("minPrice")) || filters.priceRange.min,
-    Number(searchParams.get("maxPrice")) || filters.priceRange.max,
+    filters.priceRange.min,
+    filters.priceRange.max,
   ]);
-
   const debouncedPriceRange = useDebounce(priceRange, 500);
 
   const [brandSearch, setBrandSearch] = useState("");
   const [categorySearch, setCategorySearch] = useState("");
 
-  // This effect updates the URL when any filter state changes.
+  // Sync state with URL search params
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    setSelectedCategories(getArrayFromParams("categories"));
+    setSelectedBrands(getArrayFromParams("brands"));
+    setSelectedSkinTypes(getArrayFromParams("skin_types"));
+    setSelectedConcerns(getArrayFromParams("concerns"));
+    setPriceRange([
+      Number(searchParams.get("minPrice")) || filters.priceRange.min,
+      Number(searchParams.get("maxPrice")) || filters.priceRange.max,
+    ]);
+  }, [
+    searchParams,
+    getArrayFromParams,
+    filters.priceRange.min,
+    filters.priceRange.max,
+  ]);
 
-    const setParam = (key: string, value: string | string[]) => {
-      const joinedValue = Array.isArray(value) ? value.join(",") : value;
-      if (joinedValue) {
-        params.set(key, joinedValue);
+  // Update URL when filter state changes
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    const setParam = (key: string, value: string[]) => {
+      if (value.length > 0) {
+        params.set(key, value.join(","));
       } else {
         params.delete(key);
       }
@@ -96,10 +102,7 @@ export default function ProductFilters({
       params.delete("maxPrice");
     }
 
-    // Reset page to 1 whenever filters change, but not for initial load
-    if (searchParams.toString() !== params.toString()) {
-      params.set("page", "1");
-    }
+    params.set("page", "1");
 
     startTransition(() => {
       router.replace(`${pathname}?${params.toString()}`);
@@ -114,6 +117,7 @@ export default function ProductFilters({
     router,
     filters.priceRange.min,
     filters.priceRange.max,
+    searchParams,
   ]);
 
   const handleCheckedChange = (
@@ -128,12 +132,14 @@ export default function ProductFilters({
   };
 
   const clearFilters = () => {
-    // Just update the states, the useEffect will handle the URL
-    setSelectedCategories([]);
-    setSelectedBrands([]);
-    setSelectedSkinTypes([]);
-    setSelectedConcerns([]);
-    setPriceRange([filters.priceRange.min, filters.priceRange.max]);
+    const params = new URLSearchParams();
+    if (searchParams.get("sortBy")) {
+      params.set("sortBy", searchParams.get("sortBy")!);
+    }
+    if (searchParams.get("sortOrder")) {
+      params.set("sortOrder", searchParams.get("sortOrder")!);
+    }
+    router.push(`${pathname}?${params.toString()}`);
   };
 
   const filteredBrands = useMemo(
@@ -152,8 +158,37 @@ export default function ProductFilters({
     [filters.categories, categorySearch]
   );
 
+  const renderSelectionSection = (
+    selectedItems: string[],
+    setter: React.Dispatch<React.SetStateAction<string[]>>
+  ) => {
+    if (selectedItems.length === 0) return null;
+    return (
+      <div className="space-y-2 pb-4 mb-4 border-b">
+        <h4 className="font-semibold text-xs text-gray-600">انتخاب شما</h4>
+        {selectedItems.map((item) => (
+          <div key={`selected-${item}`} className="flex items-center">
+            <Checkbox
+              id={`selected-filter-${item}`}
+              checked={true}
+              onCheckedChange={() =>
+                setter((prev) => prev.filter((i) => i !== item))
+              }
+            />
+            <Label
+              htmlFor={`selected-filter-${item}`}
+              className="mr-2 text-sm cursor-pointer"
+            >
+              {item}
+            </Label>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 lg:border lg:p-3 lg:rounded-lg">
       <div className="flex justify-between items-center">
         <h3 className="font-semibold">فیلترها</h3>
         <Button
@@ -194,6 +229,10 @@ export default function ProductFilters({
           <AccordionItem value="categories">
             <AccordionTrigger>دسته‌بندی‌ها</AccordionTrigger>
             <AccordionContent>
+              {renderSelectionSection(
+                selectedCategories,
+                setSelectedCategories
+              )}
               <Input
                 placeholder="جستجوی دسته‌بندی..."
                 className="mb-2"
@@ -231,6 +270,7 @@ export default function ProductFilters({
           <AccordionItem value="brands">
             <AccordionTrigger>برندها</AccordionTrigger>
             <AccordionContent>
+              {renderSelectionSection(selectedBrands, setSelectedBrands)}
               <Input
                 placeholder="جستجوی برند..."
                 className="mb-2"
@@ -265,6 +305,7 @@ export default function ProductFilters({
           <AccordionItem value="skinTypes">
             <AccordionTrigger>نوع پوست</AccordionTrigger>
             <AccordionContent>
+              {renderSelectionSection(selectedSkinTypes, setSelectedSkinTypes)}
               <div className="space-y-2">
                 {filters.skinTypes.map((type) => (
                   <div key={type} className="flex items-center">
@@ -293,6 +334,7 @@ export default function ProductFilters({
           <AccordionItem value="concerns">
             <AccordionTrigger>نگرانی پوستی</AccordionTrigger>
             <AccordionContent>
+              {renderSelectionSection(selectedConcerns, setSelectedConcerns)}
               <div className="space-y-2">
                 {filters.concerns.map((concern) => (
                   <div key={concern} className="flex items-center">
