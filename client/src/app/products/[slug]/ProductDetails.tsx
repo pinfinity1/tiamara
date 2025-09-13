@@ -1,5 +1,3 @@
-// src/app/products/[slug]/ProductDetailsClient.tsx (نسخه کامل و بازطراحی شده)
-
 "use client";
 
 import { useState } from "react";
@@ -28,6 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import WishlistButton from "@/components/common/buttons/WishlistButton";
 import ProductCard from "@/components/products/ProductCard";
 import ShareButton from "@/components/common/buttons/ShareButton";
+import ImagePlaceholder from "@/components/common/ImagePlaceholder";
 
 const FeatureDisplay = ({
   icon: Icon,
@@ -81,7 +80,7 @@ export default function ProductDetailsClient({
       productId: product.id,
       name: product.name,
       price: product.discount_price || product.price,
-      image: product.images[0]?.url || "/placeholder.png",
+      image: product.images[0]?.url || "/images/placeholder.png",
       quantity: 1,
     });
     toast({
@@ -125,14 +124,18 @@ export default function ProductDetailsClient({
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16">
             <div>
               <div className="aspect-square relative bg-gray-100 rounded-lg overflow-hidden mb-4 border">
-                <Image
-                  src={product.images[selectedImage]?.url || "/placeholder.png"}
-                  alt={product.name}
-                  fill
-                  sizes="(max-width: 768px) 100vw, 50vw"
-                  className="w-full h-full object-cover transition-transform duration-300 ease-in-out hover:scale-105"
-                  priority
-                />
+                {product.images && product.images.length > 0 ? (
+                  <Image
+                    src={product.images[selectedImage]?.url}
+                    alt={product.name}
+                    fill
+                    sizes="(max-width: 768px) 100vw, 50vw"
+                    className="w-full h-full object-cover transition-transform duration-300 ease-in-out hover:scale-105"
+                    priority
+                  />
+                ) : (
+                  <ImagePlaceholder />
+                )}
                 {hasDiscount && (
                   <Badge
                     variant="destructive"
@@ -168,12 +171,18 @@ export default function ProductDetailsClient({
             {/* Product Info */}
             <div className="space-y-6">
               <div>
-                <Link
-                  href={`/products?brands=${product.brand?.name}`}
-                  className="text-base text-gray-500 hover:text-primary transition-colors mb-1 inline-block"
-                >
-                  {product.brand?.name}
-                </Link>
+                {product.brand?.slug ? (
+                  <Link
+                    href={`/brands/${product.brand.slug}`}
+                    className="text-base text-gray-500 hover:text-primary transition-colors mb-1 inline-block"
+                  >
+                    {product.brand.name}
+                  </Link>
+                ) : (
+                  <p className="text-base text-gray-500 mb-1">
+                    {product.brand?.name}
+                  </p>
+                )}
                 <h1 className="text-3xl lg:text-4xl font-bold mb-3">
                   {product.name}
                 </h1>

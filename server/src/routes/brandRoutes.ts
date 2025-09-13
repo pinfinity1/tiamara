@@ -1,4 +1,3 @@
-// server/src/routes/brandRoutes.ts
 import express from "express";
 import { authenticateJwt, isSuperAdmin } from "../middleware/authMiddleware";
 import {
@@ -6,6 +5,7 @@ import {
   deleteBrand,
   getAllBrands,
   updateBrand,
+  getBrandBySlug,
 } from "../controllers/brandController";
 import { uploadImage } from "../middleware/uploadMiddleware";
 
@@ -13,6 +13,9 @@ const router = express.Router();
 
 // Public route to get all brands (for filtering on client-side)
 router.get("/", getAllBrands);
+
+// Public route to get a single brand by slug
+router.get("/slug/:slug", getBrandBySlug);
 
 // Admin routes - protected
 router.post(

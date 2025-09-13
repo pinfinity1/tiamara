@@ -197,7 +197,8 @@ export default function GlobalSearch({
                         {results.categories.map((category) => (
                           <li key={`cat-${category.id}`}>
                             <Link
-                              href={`/products?categories=${category.name}`}
+                              prefetch={false}
+                              href={`/categories/${category.slug}`}
                               className="block p-2 text-sm hover:bg-gray-50 transition-colors rounded-md"
                               onClick={() => handleItemClick(category.name)}
                             >
@@ -218,7 +219,8 @@ export default function GlobalSearch({
                         {results.brands.map((brand) => (
                           <li key={`brand-${brand.id}`}>
                             <Link
-                              href={`/products?brands=${brand.name}`}
+                              prefetch={false}
+                              href={`/brands/${brand.slug}`}
                               className="block p-2 text-sm hover:bg-gray-50 transition-colors rounded-md"
                               onClick={() => handleItemClick(brand.name)}
                             >

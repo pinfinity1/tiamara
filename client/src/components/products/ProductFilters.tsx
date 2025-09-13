@@ -8,7 +8,13 @@ import { Slider } from "../ui/slider";
 import { useState, useTransition } from "react";
 import { FilterData } from "@/store/useFilterStore";
 
-export default function ProductFilters({ filters }: { filters: FilterData }) {
+export default function ProductFilters({
+  filters,
+  activeCategoryName,
+}: {
+  filters: FilterData;
+  activeCategoryName?: string;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -73,28 +79,30 @@ export default function ProductFilters({ filters }: { filters: FilterData }) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="mb-3 font-semibold">دسته‌بندی‌ها</h3>
-        <div className="space-y-2">
-          {filters.categories.map((category) => (
-            <div key={category.id} className="flex items-center">
-              <Checkbox
-                checked={selectedCategories.includes(category.name)}
-                onCheckedChange={() =>
-                  handleFilterChange(setSelectedCategories, category.name)
-                }
-                id={`filter-cat-${category.slug}`}
-              />
-              <Label
-                htmlFor={`filter-cat-${category.slug}`}
-                className="mr-2 text-sm cursor-pointer"
-              >
-                {category.name}
-              </Label>
-            </div>
-          ))}
+      {!activeCategoryName && (
+        <div>
+          <h3 className="mb-3 font-semibold">دسته‌بندی‌ها</h3>
+          <div className="space-y-2">
+            {filters.categories.map((category) => (
+              <div key={category.id} className="flex items-center">
+                <Checkbox
+                  checked={selectedCategories.includes(category.name)}
+                  onCheckedChange={() =>
+                    handleFilterChange(setSelectedCategories, category.name)
+                  }
+                  id={`filter-cat-${category.slug}`}
+                />
+                <Label
+                  htmlFor={`filter-cat-${category.slug}`}
+                  className="mr-2 text-sm cursor-pointer"
+                >
+                  {category.name}
+                </Label>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
       <div>
         <h3 className="mb-3 font-semibold">برندها</h3>
         <div className="space-y-2">

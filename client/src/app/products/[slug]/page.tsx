@@ -37,7 +37,7 @@ export async function generateMetadata({
       description: product.metaDescription || product.description,
       images: [
         {
-          url: product.images[0]?.url || "/placeholder.png",
+          url: product.images[0]?.url || "/images/placeholder.png",
           width: 800,
           height: 600,
           alt: product.name,

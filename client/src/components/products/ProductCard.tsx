@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import React from "react";
 import { useShallow } from "zustand/react/shallow";
 import WishlistButton from "../common/buttons/WishlistButton";
+import ImagePlaceholder from "../common/ImagePlaceholder";
 
 function ProductCard({ product }: { product: Product }) {
   const { toast } = useToast();
@@ -28,9 +29,7 @@ function ProductCard({ product }: { product: Product }) {
   const quantityInCart = itemInCart?.quantity || 0;
 
   const imageUrl =
-    product.images && product.images.length > 0
-      ? product.images[0].url
-      : "/placeholder.png";
+    product.images && product.images.length > 0 ? product.images[0].url : null;
 
   const hasDiscount =
     product.discount_price && product.discount_price < product.price;
@@ -47,7 +46,7 @@ function ProductCard({ product }: { product: Product }) {
       productId: product.id,
       name: product.name,
       price: product.discount_price || product.price,
-      image: imageUrl,
+      image: imageUrl || "/images/placeholder.png",
       quantity: 1,
     });
     toast({
@@ -89,13 +88,17 @@ function ProductCard({ product }: { product: Product }) {
         target="_blank"
       >
         <div className="relative aspect-square w-full overflow-hidden">
-          <Image
-            src={imageUrl}
-            alt={product.name}
-            fill
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            className="object-cover w-full h-full transition-transform duration-300 ease-in-out group-hover:scale-[103%]"
-          />
+          {imageUrl ? (
+            <Image
+              src={imageUrl}
+              alt={product.name}
+              fill
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              className="object-cover w-full h-full transition-transform duration-300 ease-in-out group-hover:scale-[103%]"
+            />
+          ) : (
+            <ImagePlaceholder />
+          )}
           {hasDiscount && (
             <Badge
               variant="destructive"
@@ -111,7 +114,19 @@ function ProductCard({ product }: { product: Product }) {
       </Link>
 
       <div className="flex flex-col flex-grow p-3 text-right">
-        <p className="text-xs text-gray-500 mb-1">{product.brand?.name}</p>
+        {product.brand?.slug ? (
+          <Link
+            href={`/brands/${product.brand.slug}`}
+            className="block"
+            prefetch={false}
+          >
+            <p className="text-xs text-gray-500 mb-1 hover:text-primary transition-colors">
+              {product.brand.name}
+            </p>
+          </Link>
+        ) : (
+          <p className="text-xs text-gray-500 mb-1">{product.brand?.name}</p>
+        )}
         <Link
           href={`/products/${product.slug}`}
           className="block"

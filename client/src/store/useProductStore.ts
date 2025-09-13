@@ -12,11 +12,13 @@ interface Image {
 interface Brand {
   id: string;
   name: string;
+  slug: string;
 }
 
 interface Category {
   id: string;
   name: string;
+  slug: string;
 }
 
 // --- Main Product Interface ---

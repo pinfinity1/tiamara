@@ -1,6 +1,8 @@
 import { axiosPublic } from "@/lib/axios";
 import { FeatureBanner, HomepageSection } from "@/store/useHomepageStore";
 import { Product } from "@/store/useProductStore";
+import { Brand } from "@/store/useBrandStore";
+import { Category } from "@/store/useCategoryStore";
 
 // home page sections
 export async function getHomepageData(): Promise<{
@@ -53,5 +55,27 @@ export async function getRelatedProducts(
   } catch (error) {
     console.error("Failed to fetch related products:", error);
     return [];
+  }
+}
+
+export async function getBrandBySlug(slug: string): Promise<Brand | null> {
+  try {
+    const response = await axiosPublic.get(`/brands/slug/${slug}`);
+    return response.data.brand;
+  } catch (error) {
+    console.error(`Failed to fetch brand with slug "${slug}":`, error);
+    return null;
+  }
+}
+
+export async function getCategoryBySlug(
+  slug: string
+): Promise<Category | null> {
+  try {
+    const response = await axiosPublic.get(`/categories/slug/${slug}`);
+    return response.data.category;
+  } catch (error) {
+    console.error(`Failed to fetch category with slug "${slug}":`, error);
+    return null;
   }
 }

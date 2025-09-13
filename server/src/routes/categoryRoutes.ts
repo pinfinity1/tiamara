@@ -6,12 +6,16 @@ import {
   deleteCategory,
   getAllCategories,
   updateCategory,
+  getCategoryBySlug,
 } from "../controllers/categoryController";
 
 const router = express.Router();
 
 // Public route to get all categories
 router.get("/", getAllCategories);
+
+// Public route to get a single category by slug
+router.get("/slug/:slug", getCategoryBySlug);
 
 // Protected admin routes
 router.post(
