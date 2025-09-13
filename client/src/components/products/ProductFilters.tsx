@@ -34,7 +34,6 @@ export default function ProductFilters({
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
-  // Helpers
   const getArrayFromParams = useCallback(
     (param: string) => {
       const value = searchParams.get(param);
@@ -43,52 +42,40 @@ export default function ProductFilters({
     [searchParams]
   );
 
-  const normalizeRange = (
-    range: [number | null, number | null]
-  ): [number, number] => {
-    const [min, max] = range;
-    return [min ?? filters.priceRange.min, max ?? filters.priceRange.max];
-  };
-
-  // States
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(() =>
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(
     getArrayFromParams("categories")
   );
-  const [selectedBrands, setSelectedBrands] = useState<string[]>(() =>
+  const [selectedBrands, setSelectedBrands] = useState<string[]>(
     getArrayFromParams("brands")
   );
-  const [selectedSkinTypes, setSelectedSkinTypes] = useState<string[]>(() =>
+  const [selectedSkinTypes, setSelectedSkinTypes] = useState<string[]>(
     getArrayFromParams("skin_types")
   );
-  const [selectedConcerns, setSelectedConcerns] = useState<string[]>(() =>
+  const [selectedConcerns, setSelectedConcerns] = useState<string[]>(
     getArrayFromParams("concerns")
   );
 
-  const [priceRange, setPriceRange] = useState<[number, number]>(() =>
-    normalizeRange([
-      searchParams.get("minPrice")
-        ? Number(searchParams.get("minPrice"))
-        : null,
-      searchParams.get("maxPrice")
-        ? Number(searchParams.get("maxPrice"))
-        : null,
-    ])
-  );
+  const [priceRange, setPriceRange] = useState<[number, number]>([
+    Number(searchParams.get("minPrice")) || filters.priceRange.min,
+    Number(searchParams.get("maxPrice")) || filters.priceRange.max,
+  ]);
 
   const debouncedPriceRange = useDebounce(priceRange, 500);
 
   const [brandSearch, setBrandSearch] = useState("");
   const [categorySearch, setCategorySearch] = useState("");
 
-  /**
-   * Sync state -> URL
-   */
+  // This effect updates the URL when any filter state changes.
   useEffect(() => {
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(window.location.search);
 
     const setParam = (key: string, value: string | string[]) => {
       const joinedValue = Array.isArray(value) ? value.join(",") : value;
-      if (joinedValue) params.set(key, joinedValue);
+      if (joinedValue) {
+        params.set(key, joinedValue);
+      } else {
+        params.delete(key);
+      }
     };
 
     setParam("categories", selectedCategories);
@@ -97,56 +84,38 @@ export default function ProductFilters({
     setParam("concerns", selectedConcerns);
 
     const [min, max] = debouncedPriceRange;
-    if (min > filters.priceRange.min) params.set("minPrice", String(min));
-    if (max < filters.priceRange.max) params.set("maxPrice", String(max));
-
-    // Preserve sort params
-    if (searchParams.get("sortBy"))
-      params.set("sortBy", searchParams.get("sortBy")!);
-    if (searchParams.get("sortOrder"))
-      params.set("sortOrder", searchParams.get("sortOrder")!);
-
-    const newUrl = params.toString()
-      ? `${pathname}?${params.toString()}`
-      : pathname;
-    const currentUrl = searchParams.toString()
-      ? `${pathname}?${searchParams.toString()}`
-      : pathname;
-
-    if (newUrl !== currentUrl) {
-      startTransition(() => {
-        router.replace(newUrl);
-      });
+    if (min > filters.priceRange.min) {
+      params.set("minPrice", String(min));
+    } else {
+      params.delete("minPrice");
     }
+
+    if (max < filters.priceRange.max) {
+      params.set("maxPrice", String(max));
+    } else {
+      params.delete("maxPrice");
+    }
+
+    // Reset page to 1 whenever filters change, but not for initial load
+    if (searchParams.toString() !== params.toString()) {
+      params.set("page", "1");
+    }
+
+    startTransition(() => {
+      router.replace(`${pathname}?${params.toString()}`);
+    });
   }, [
     selectedCategories,
     selectedBrands,
     selectedSkinTypes,
     selectedConcerns,
     debouncedPriceRange,
-    filters.priceRange,
     pathname,
     router,
+    filters.priceRange.min,
+    filters.priceRange.max,
   ]);
 
-  /**
-   * Sync URL -> state (for back/forward navigation)
-   */
-  useEffect(() => {
-    setSelectedCategories(getArrayFromParams("categories"));
-    setSelectedBrands(getArrayFromParams("brands"));
-    setSelectedSkinTypes(getArrayFromParams("skin_types"));
-    setSelectedConcerns(getArrayFromParams("concerns"));
-
-    const min = searchParams.get("minPrice");
-    const max = searchParams.get("maxPrice");
-
-    setPriceRange(
-      normalizeRange([min ? Number(min) : null, max ? Number(max) : null])
-    );
-  }, [searchParams, filters.priceRange, getArrayFromParams]);
-
-  // Helpers
   const handleCheckedChange = (
     setter: React.Dispatch<React.SetStateAction<string[]>>,
     value: string
@@ -159,30 +128,12 @@ export default function ProductFilters({
   };
 
   const clearFilters = () => {
-    // Reset all filter states
+    // Just update the states, the useEffect will handle the URL
     setSelectedCategories([]);
     setSelectedBrands([]);
     setSelectedSkinTypes([]);
     setSelectedConcerns([]);
     setPriceRange([filters.priceRange.min, filters.priceRange.max]);
-
-    // Preserve sort params if any
-    const newParams = new URLSearchParams();
-    if (searchParams.get("sortBy")) {
-      newParams.set("sortBy", searchParams.get("sortBy")!);
-    }
-    if (searchParams.get("sortOrder")) {
-      newParams.set("sortOrder", searchParams.get("sortOrder")!);
-    }
-
-    startTransition(() => {
-      const queryString = newParams.toString();
-      if (queryString) {
-        router.replace(`${pathname}?${queryString}`);
-      } else {
-        router.replace(pathname);
-      }
-    });
   };
 
   const filteredBrands = useMemo(
