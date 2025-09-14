@@ -18,6 +18,7 @@ import stockHistoryRoutes from "./routes/stockHistoryRoutes";
 import purchaseOrderRoutes from "./routes/purchaseOrderRoutes";
 import wishlistRoutes from "./routes/wishlistRoutes";
 import userRoutes from "./routes/userRoutes";
+import aiRoutes from "./routes/aiRoutes";
 
 //load all your enviroment variables
 dotenv.config();
@@ -52,6 +53,7 @@ app.use("/api/suppliers", supplierRoutes);
 app.use("/api/stock-history", stockHistoryRoutes);
 app.use("/api/purchase-orders", purchaseOrderRoutes);
 app.use("/api/wishlist", wishlistRoutes);
+app.use("/api/ai", aiRoutes);
 
 app.get("/", (req, res) => {
   res.send("Hello from E-Commerce backend");
