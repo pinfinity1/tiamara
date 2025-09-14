@@ -6,7 +6,6 @@ import AuthModal from "../auth/AuthModal";
 import SkinProfileModal from "./SkinProfileModal";
 import ChatWidget from "../ai/ChatWidget";
 import { useChatStore } from "@/store/useChatStore";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 const pathsNotToShowHeaders = ["/auth", "/super-admin", "/chat"];
 
@@ -18,7 +17,6 @@ function CommonLayout({ children }: { children: React.ReactNode }) {
     pathName.startsWith(currentPath)
   );
 
-  // اگر چت در حالت نیم‌صفحه نیست، ساختار عادی سایت را نمایش بده
   if (viewMode !== "half") {
     return (
       <div className="min-h-screen bg-white">
@@ -26,7 +24,7 @@ function CommonLayout({ children }: { children: React.ReactNode }) {
         <SkinProfileModal />
         <ChatWidget />
         <div className="flex flex-col flex-1">
-          {showHeader && <Header />}
+          <Header />
           <main className={`pt-[80px] lg:pt-[128px] ${!showHeader && "!pt-0"}`}>
             {children}
           </main>
@@ -35,30 +33,26 @@ function CommonLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // اگر چت در حالت نیم‌صفحه است، ساختار جدید با پنل‌های قابل تنظیم را نمایش بده
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white flex h-screen overflow-hidden">
       <AuthModal />
       <SkinProfileModal />
-      <ChatWidget />
-      <PanelGroup direction="horizontal">
-        <Panel defaultSize={50} minSize={30}>
-          <div className="flex flex-col h-full">
-            {showHeader && <Header />}
-            <main
-              className={`pt-[80px] lg:pt-[128px] ${
-                !showHeader && "!pt-0"
-              } flex-1 overflow-y-auto`}
-            >
-              {children}
-            </main>
-          </div>
-        </Panel>
-        <PanelResizeHandle className="w-2 bg-gray-200 hover:bg-primary transition-colors" />
-        <Panel defaultSize={50} minSize={30} className="z-[1001]">
-          {/* ChatWidget در حالت نیم‌صفحه خودش را رندر می‌کند */}
-        </Panel>
-      </PanelGroup>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col" style={{ flexBasis: "70%" }}>
+        {showHeader && <Header isPaneView={true} />}
+        <main className={`flex-1 overflow-y-auto ${!showHeader && "!pt-0"}`}>
+          {children}
+        </main>
+      </div>
+
+      {/* Separator */}
+      <div className="w-px bg-gray-200" />
+
+      {/* Chat Widget Panel */}
+      <div className="flex-shrink-0" style={{ flexBasis: "30%" }}>
+        <ChatWidget />
+      </div>
     </div>
   );
 }

@@ -1,6 +1,13 @@
 "use client";
 
-import { ArrowLeft, Menu, Search, ShoppingBag, User } from "lucide-react";
+import {
+  ArrowLeft,
+  Menu,
+  Search,
+  ShoppingBag,
+  ShoppingCart,
+  User,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -32,7 +39,7 @@ const navItems = [
   },
 ];
 
-function Header() {
+function Header({ isPaneView = false }: { isPaneView?: boolean }) {
   const { data: session, status } = useSession();
   const isAuthenticated = status === "authenticated";
   const isLoading = status === "loading";
@@ -212,7 +219,7 @@ function Header() {
 
   return (
     <>
-      <header className={`w-full fixed top-0 z-50`}>
+      <header className={cn("w-full", !isPaneView && "fixed top-0 z-50")}>
         <div
           className={`w-full h-20 bg-white ${
             !showCategories ? "shadow-lg" : "shadow-lg lg:shadow-none"
