@@ -1,3 +1,5 @@
+// client/src/store/useChatStore.ts
+
 import { create } from "zustand";
 
 interface Message {
@@ -6,23 +8,19 @@ interface Message {
   sender: "user" | "ai";
 }
 
+type ViewMode = "closed" | "widget" | "half";
+
 interface ChatState {
-  isOpen: boolean;
-  isExpanded: boolean;
+  viewMode: ViewMode;
   messages: Message[];
-  openChat: () => void;
-  closeChat: () => void;
-  toggleExpanded: () => void;
+  setViewMode: (mode: ViewMode) => void;
   addMessage: (message: Message) => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
-  isOpen: false,
-  isExpanded: false,
+  viewMode: "closed",
   messages: [],
-  openChat: () => set({ isOpen: true }),
-  closeChat: () => set({ isOpen: false }),
-  toggleExpanded: () => set((state) => ({ isExpanded: !state.isExpanded })),
+  setViewMode: (mode) => set({ viewMode: mode }),
   addMessage: (message) =>
     set((state) => ({ messages: [...state.messages, message] })),
 }));
