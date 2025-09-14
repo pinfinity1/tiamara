@@ -22,6 +22,7 @@ import Link from "next/link";
 import { useDraggable } from "@dnd-kit/core";
 import Image from "next/image";
 import tiamIcon from "../../../public/images/Logo/tiamara-icon-white.png";
+import ChatConversation from "./ChatConversation";
 
 const ChatCard = ({ dragListeners }: { dragListeners?: any }) => {
   const { setViewMode } = useChatStore();
@@ -61,12 +62,7 @@ const ChatCard = ({ dragListeners }: { dragListeners?: any }) => {
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="flex-1 p-4 overflow-y-auto">
-        <p>محل نمایش پیام‌ها...</p>
-      </CardContent>
-      <CardFooter className="p-4 border-t">
-        <p>محل فرم ارسال پیام...</p>
-      </CardFooter>
+      <ChatConversation />
     </Card>
   );
 };
@@ -117,12 +113,7 @@ export default function ChatWidget({ isPaneView = false }) {
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="flex-1 p-4 overflow-y-auto">
-          <p>محل نمایش پیام‌ها...</p>
-        </CardContent>
-        <CardFooter className="p-4 border-t">
-          <p>محل فرم ارسال پیام...</p>
-        </CardFooter>
+        <ChatConversation />
       </Card>
     );
   }
