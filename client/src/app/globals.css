@@ -63,6 +63,8 @@
   * {
     @apply border-border;
     font-family: Vazir !important;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
   body {
     @apply bg-background text-foreground;
@@ -70,14 +72,12 @@
 }
 
 body::-webkit-scrollbar {
-  @apply w-[7px];
+  display: none;
 }
-body::-webkit-scrollbar-track {
-  @apply shadow-[inset_0_0_6px_rgba(0,0,0,0.3)];
-}
-body::-webkit-scrollbar-thumb {
-  @apply bg-[darkgrey];
-  outline: 1px solid slategrey;
+
+body {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 .home-banner-carousel {

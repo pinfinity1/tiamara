@@ -135,7 +135,7 @@ export default function ProductList({
 
         <div className="flex gap-8">
           {!hideFilters && (
-            <aside className="hidden lg:block w-64 flex-shrink-0 sticky top-36 self-start">
+            <aside className="hidden lg:block w-64 flex-shrink-0 sticky top-3 self-start">
               {filters && (
                 <ProductFilters
                   filters={filters}
