@@ -1,18 +1,34 @@
 import NextAuth, { DefaultSession, User } from "next-auth";
+import { JWT } from "next-auth/jwt";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { axiosPublic } from "./lib/axios";
 
 declare module "next-auth" {
   interface User {
+    id: string;
     role?: string;
+    phone?: string;
     requiresPasswordSetup?: boolean;
+    accessToken?: string;
   }
   interface Session {
     accessToken?: string;
-    user?: {
+    user: {
+      id: string;
       role?: string;
+      phone?: string;
       requiresPasswordSetup?: boolean;
     } & DefaultSession["user"];
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    id: string;
+    role?: string;
+    phone?: string;
+    requiresPasswordSetup?: boolean;
+    accessToken?: string;
   }
 }
 
@@ -35,16 +51,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         try {
           let response;
-          //Scenario 1 : login with password
           if (loginType === "password") {
             if (!password) throw new Error("Password is required.");
             response = await axiosPublic.post(`/auth/login-password`, {
               phone,
               password,
             });
-          }
-          //Scenario 2 : login with otp
-          else if (loginType === "otp") {
+          } else if (loginType === "otp") {
             if (!otp) throw new Error("OTP is required.");
             response = await axiosPublic.post(`/auth/login-otp`, {
               phone,
@@ -83,35 +96,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   callbacks: {
     async jwt({ token, user }) {
+      // در اولین ورود، user آبجکت را به توکن اضافه می‌کنیم
       if (user) {
         token.id = user.id;
-        // @ts-ignore
         token.role = user.role;
-        // @ts-ignore
         token.phone = user.phone;
-
-        if (user.requiresPasswordSetup !== undefined) {
-          token.requiresPasswordSetup = user.requiresPasswordSetup;
-        }
-        // @ts-ignore
+        token.requiresPasswordSetup = user.requiresPasswordSetup;
         token.accessToken = user.accessToken;
       }
       return token;
     },
     async session({ session, token }) {
+      // اطلاعات را از توکن به session منتقل می‌کنیم
       if (session.user) {
-        // @ts-ignore
         session.user.id = token.id;
-        // @ts-ignore
         session.user.role = token.role;
-        // @ts-ignore
         session.user.phone = token.phone;
-
         if (token.requiresPasswordSetup !== undefined) {
-          session.user.requiresPasswordSetup =
-            token.requiresPasswordSetup as boolean;
+          session.user.requiresPasswordSetup = token.requiresPasswordSetup;
         }
-        // @ts-ignore
         session.accessToken = token.accessToken;
       }
       return session;
@@ -120,6 +123,5 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   pages: {
     signIn: "/auth/login",
   },
-  // Use the correct variable name here
   secret: process.env.AUTH_SECRET,
 });

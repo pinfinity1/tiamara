@@ -6,6 +6,7 @@ import {
   deleteProduct,
   fetchAllProductsForAdmin,
   getProductByID,
+  getProductsByIds,
   updateProduct,
   getProductsForClient,
   bulkCreateProductsFromExcel,
@@ -51,6 +52,7 @@ router.delete("/:id", authenticateJwt, isSuperAdmin, deleteProduct);
 router.get("/filters", getProductFilters);
 router.get("/fetch-client-products", getProductsForClient);
 router.get("/slug/:slug", getProductBySlug);
+router.post("/by-ids", getProductsByIds);
 router.get("/:id", getProductByID);
 
 export default router;

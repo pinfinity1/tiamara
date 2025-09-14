@@ -82,6 +82,7 @@ interface ProductState {
     sortOrder?: "asc" | "desc";
   }) => Promise<void>;
   setCurrentPage: (page: number) => void;
+  fetchProductsByIds: (ids: string[]) => Promise<Product[] | null>;
   uploadProductsFromExcel: (
     file: File
   ) => Promise<{ success: boolean; data?: any; error?: string }>;
@@ -204,6 +205,17 @@ export const useProductStore = create<ProductState>((set, get) => ({
       });
     } catch (e) {
       set({ error: "Failed to fetch products", isLoading: false });
+    }
+  },
+  fetchProductsByIds: async (ids) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await axiosPublic.post(`/products/by-ids`, { ids });
+      set({ isLoading: false });
+      return response.data.products;
+    } catch (e) {
+      set({ error: "Failed to fetch products by IDs", isLoading: false });
+      return null;
     }
   },
   setCurrentPage: (page: number) => set({ currentPage: page }),

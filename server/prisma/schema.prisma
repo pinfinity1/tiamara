@@ -223,6 +223,10 @@ model User {
   orders        Order[]
   stockHistory  StockHistory[]
   wishlist      Wishlist?
+  skinType           String?   
+  skinConcerns       String[]   @default([]) 
+  skincareGoals      String[]   @default([]) 
+  productPreferences String[]   @default([])
 }
 
 model Session {

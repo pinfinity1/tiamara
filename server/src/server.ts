@@ -17,6 +17,7 @@ import supplierRoutes from "./routes/supplierRoutes";
 import stockHistoryRoutes from "./routes/stockHistoryRoutes";
 import purchaseOrderRoutes from "./routes/purchaseOrderRoutes";
 import wishlistRoutes from "./routes/wishlistRoutes";
+import userRoutes from "./routes/userRoutes";
 
 //load all your enviroment variables
 dotenv.config();
@@ -37,6 +38,7 @@ app.use(cookieParser());
 export const prisma = new PrismaClient();
 
 app.use("/api/auth", authRoutes);
+app.use("/api/user", userRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/coupon", couponRoutes);
 app.use("/api/homepage", homepageRoutes);

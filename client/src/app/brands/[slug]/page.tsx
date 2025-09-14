@@ -3,6 +3,34 @@ import ProductList from "@/components/products/ProductList";
 import { getBrandBySlug } from "@/lib/data-fetching";
 import { useFilterStore } from "@/store/useFilterStore";
 import { useProductStore } from "@/store/useProductStore";
+import { Metadata } from "next";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: { slug: string };
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const brand = await getBrandBySlug(slug);
+  if (!brand) {
+    return {
+      title: "برند یافت نشد",
+    };
+  }
+  return {
+    title: brand.metaTitle || brand.name,
+    description:
+      brand.metaDescription ||
+      `خرید محصولات اورجینال برند ${brand.name} با بهترین قیمت.`,
+    openGraph: {
+      title: brand.metaTitle || brand.name,
+      description:
+        brand.metaDescription ||
+        `خرید محصولات اورجینال برند ${brand.name} با بهترین قیمت.`,
+      images: [brand.logoUrl || "/images/placeholder.png"],
+    },
+  };
+}
 
 export default async function BrandPage({
   params,

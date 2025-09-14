@@ -3,6 +3,34 @@ import ProductList from "@/components/products/ProductList";
 import { getCategoryBySlug } from "@/lib/data-fetching";
 import { useFilterStore } from "@/store/useFilterStore";
 import { useProductStore } from "@/store/useProductStore";
+import { Metadata } from "next";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: { slug: string };
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const category = await getCategoryBySlug(slug);
+  if (!category) {
+    return {
+      title: "دسته‌بندی یافت نشد",
+    };
+  }
+  return {
+    title: category.metaTitle || category.name,
+    description:
+      category.metaDescription ||
+      `خرید بهترین محصولات در دسته‌بندی ${category.name}.`,
+    openGraph: {
+      title: category.metaTitle || category.name,
+      description:
+        category.metaDescription ||
+        `خرید بهترین محصولات در دسته‌بندی ${category.name}.`,
+      images: [category.imageUrl || "/images/placeholder.png"],
+    },
+  };
+}
 
 export default async function CategoryPage({
   params,

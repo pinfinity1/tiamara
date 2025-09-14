@@ -6,7 +6,8 @@ export default async function ProductPage({
 }: {
   params: { slug: string };
 }) {
-  const product = await getProductBySlug(params.slug);
+  const { slug } = await params;
+  const product = await getProductBySlug(slug);
   const relatedProducts = await getRelatedProducts(
     product?.id || "",
     product?.category?.name
@@ -20,7 +21,8 @@ export async function generateMetadata({
 }: {
   params: { slug: string };
 }) {
-  const product = await getProductBySlug(params.slug);
+  const { slug } = await params;
+  const product = await getProductBySlug(slug);
 
   if (!product) {
     return {

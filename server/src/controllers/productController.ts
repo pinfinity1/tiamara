@@ -278,7 +278,6 @@ export const getProductByID = async (
     const { id } = req.params;
     const product = await prisma.product.findUnique({
       where: { id },
-      // CORRECT WAY: Include related data
       include: {
         images: true,
         brand: true,
@@ -298,6 +297,39 @@ export const getProductByID = async (
   } catch (e) {
     console.error("Error fetching product by ID:", e);
     res.status(500).json({ success: false, message: "Some error occurred!" });
+  }
+};
+
+// Get a multiple product by IDs
+export const getProductsByIds = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { ids } = req.body;
+
+    if (!ids || !Array.isArray(ids)) {
+      res.status(400).json({ success: false, message: "No IDs provided" });
+      return;
+    }
+
+    const products = await prisma.product.findMany({
+      where: {
+        id: { in: ids },
+      },
+      include: {
+        images: { take: 1 },
+        brand: true,
+      },
+    });
+
+    const sortedProducts = ids
+      .map((id) => products.find((p) => p.id === id))
+      .filter(Boolean);
+
+    res.status(200).json({ success: true, products: sortedProducts });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 

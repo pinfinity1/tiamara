@@ -67,9 +67,9 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
     } else if (result?.ok) {
       toast({ title: "خوش آمدید!" });
       if (onSuccess) {
-        onSuccess(); // اجرای callback در صورت وجود (برای بستن مودال)
+        onSuccess();
       } else {
-        router.push("/"); // رفتار پیش‌فرض در صفحه لاگین
+        router.push("/");
         router.refresh();
       }
     }
