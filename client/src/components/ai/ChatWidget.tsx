@@ -6,9 +6,9 @@ import {
   Sparkles,
   X,
   Minimize2,
-  Maximize2,
   ArrowUpRightFromSquare,
   GripVertical,
+  Maximize2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -19,12 +19,58 @@ import {
   CardTitle,
 } from "../ui/card";
 import Link from "next/link";
-import { DndContext, useDraggable } from "@dnd-kit/core";
+import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { useState } from "react";
 
-const ChatCard = ({ dragListeners }: { dragListeners?: any }) => {
+const ChatCard = ({
+  dragListeners,
+  isPaneView = false,
+}: {
+  dragListeners?: any;
+  isPaneView?: boolean;
+}) => {
   const { setViewMode } = useChatStore();
+
+  if (isPaneView) {
+    return (
+      <Card className="h-full rounded-none border-0 flex flex-col">
+        {/* Special Header for Pane View (Tab-like) */}
+        <CardHeader className="flex flex-row items-center justify-between p-4 border-b h-14 bg-white rounded-tr-lg border-t">
+          <div className="text-right">
+            <CardTitle className="font-bold text-base">تیام</CardTitle>
+            <p className="text-xs text-gray-500">دستیار هوشمند شما</p>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setViewMode("widget")}
+            >
+              <Minimize2 className="h-4 w-4" />
+            </Button>
+            <Button asChild variant="ghost" size="icon">
+              <Link href="/chat" target="_blank">
+                <ArrowUpRightFromSquare className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setViewMode("closed")}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="flex-1 p-4 overflow-y-auto">
+          <p>محل نمایش پیام‌ها...</p>
+        </CardContent>
+        <CardFooter className="p-4 border-t">
+          <p>محل فرم ارسال پیام...</p>
+        </CardFooter>
+      </Card>
+    );
+  }
 
   return (
     <Card className="rounded-2xl shadow-2xl border flex flex-col w-96 h-[600px] bg-background">
@@ -72,18 +118,21 @@ const ChatCard = ({ dragListeners }: { dragListeners?: any }) => {
 };
 
 // کامپوننت اصلی که بین حالت‌های مختلف جابجا می‌شود
-export default function ChatWidget() {
+export default function ChatWidget({ isPaneView = false }) {
   const { viewMode, setViewMode } = useChatStore();
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: "chat-widget",
   });
 
-  // موقعیت ویجت را در state ذخیره می‌کنیم
   const style = transform
     ? {
         transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
       }
     : {};
+
+  if (isPaneView) {
+    return <ChatCard isPaneView={true} />;
+  }
 
   if (viewMode === "closed") {
     return (
@@ -108,49 +157,6 @@ export default function ChatWidget() {
         {...attributes}
       >
         <ChatCard dragListeners={listeners} />
-      </div>
-    );
-  }
-
-  if (viewMode === "half") {
-    // در حالت نیم‌صفحه، ویجت در داخل پنل خودش رندر می‌شود
-    return (
-      <div className="h-full flex flex-col">
-        <Card className="h-full rounded-none border-0 border-l flex flex-col">
-          <CardHeader className="flex flex-row items-center justify-between p-4 border-b">
-            <div className="text-right">
-              <CardTitle className="font-bold text-base">تیام</CardTitle>
-              <p className="text-xs text-gray-500">دستیار هوشمند شما</p>
-            </div>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setViewMode("widget")}
-              >
-                <Minimize2 className="h-4 w-4" />
-              </Button>
-              <Button asChild variant="ghost" size="icon">
-                <Link href="/chat" target="_blank">
-                  <ArrowUpRightFromSquare className="h-4 w-4" />
-                </Link>
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setViewMode("closed")}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="flex-1 p-4 overflow-y-auto">
-            <p>محل نمایش پیام‌ها...</p>
-          </CardContent>
-          <CardFooter className="p-4 border-t">
-            <p>محل فرم ارسال پیام...</p>
-          </CardFooter>
-        </Card>
       </div>
     );
   }
