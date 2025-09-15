@@ -160,23 +160,25 @@ function ProductCard({ product }: { product: Product }) {
 
           <div className="flex items-center">
             {quantityInCart === 0 ? (
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleAddToCart}
-                className="rounded-full"
-              >
-                <ShoppingCart className="h-5 w-5" />
-              </Button>
+              <div className="border border-transparent rounded-full ">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleAddToCart}
+                  className="rounded-full"
+                >
+                  <ShoppingCart className="size-4" />
+                </Button>
+              </div>
             ) : (
-              <div className="flex items-center gap-1 border rounded-full p-1">
+              <div className="flex items-center gap-1 border rounded-full">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 rounded-full"
+                  className="rounded-full border-l"
                   onClick={handleIncrement}
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="size-4" />
                 </Button>
                 <span className="text-sm font-bold w-5 text-center">
                   {quantityInCart}
@@ -184,13 +186,13 @@ function ProductCard({ product }: { product: Product }) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 rounded-full"
+                  className="rounded-full border-r"
                   onClick={handleDecrement}
                 >
                   {quantityInCart > 1 ? (
-                    <Minus className="h-4 w-4" />
+                    <Minus className="size-4" />
                   ) : (
-                    <Trash2 className="h-4 w-4 text-red-500" />
+                    <Trash2 className="size-4 text-red-500" />
                   )}
                 </Button>
               </div>

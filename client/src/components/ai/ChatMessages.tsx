@@ -28,9 +28,10 @@ export default function ChatMessages() {
           })}
         >
           <div
-            className={cn("px-3 py-2 rounded-lg max-w-md", {
-              "bg-primary text-primary-foreground": msg.sender === "user",
-              "bg-gray-100": msg.sender === "ai",
+            className={cn("px-3 py-2 max-w-md", {
+              "bg-primary text-primary-foreground rounded-[8px_8px_0_8px]":
+                msg.sender === "user",
+              "bg-gray-100 rounded-[8px_8px_8px_0]": msg.sender === "ai",
             })}
           >
             <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
@@ -39,10 +40,10 @@ export default function ChatMessages() {
       ))}
       {isLoading && (
         <div className="flex items-start gap-3 justify-end">
-          <div className="p-3 rounded-lg bg-gray-100">
-            <p className="text-sm text-gray-500 animate-pulse">
-              تیام در حال تایپ کردن است...
-            </p>
+          <div className="typing-indicator">
+            <span></span>
+            <span></span>
+            <span></span>
           </div>
         </div>
       )}
