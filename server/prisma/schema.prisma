@@ -11,64 +11,62 @@ datasource db {
 }
 
 model product {
-  id                String    @id @default(cuid())
-  name              String
-  slug              String
-  description       String?
-  how_to_use        String?
-  caution           String?
-  price             Float
-  discount_price    Float?
-  stock             Int
-  sku               String?   @unique
-  barcode           String?   @unique
-  volume            Float?
-  unit              String?
-  expiry_date       DateTime?
-  manufacture_date  DateTime?
-  country_of_origin String?
-  attributes        Json?
-  skin_type         String[]
-  concern           String[]
-  product_form      String?
-  ingredients       String[]
-  tags              String[]
-  average_rating    Float?    @default(0)
-  review_count      Int?      @default(0)
-  soldCount         Int       @default(0)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  metaTitle         String?
-  metaDescription   String?
-
-  lowStockThreshold Int?      @default(5)
-
-  images            Image[]
-  brandId           String?
-  brand             Brand?    @relation(fields: [brandId], references: [id])
-  categoryId        String?
-  category          Category? @relation(fields: [categoryId], references: [id])
-  homepageSections  HomepageSection[]
-  stockHistory      StockHistory[]
+  id                 String              @id @default(cuid())
+  name               String
+  slug               String
+  description        String?
+  how_to_use         String?
+  caution            String?
+  price              Float
+  discount_price     Float?
+  stock              Int
+  sku                String?             @unique
+  barcode            String?             @unique
+  volume             Float?
+  unit               String?
+  expiry_date        DateTime?
+  manufacture_date   DateTime?
+  country_of_origin  String?
+  attributes         Json?
+  skin_type          String[]
+  concern            String[]
+  product_form       String?
+  ingredients        String[]
+  tags               String[]
+  average_rating     Float?              @default(0)
+  review_count       Int?                @default(0)
+  soldCount          Int                 @default(0)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  metaTitle          String?
+  metaDescription    String?
+  lowStockThreshold  Int?                @default(5)
+  images             Image[]
+  brandId            String?
+  brand              Brand?              @relation(fields: [brandId], references: [id])
+  categoryId         String?
+  category           Category?           @relation(fields: [categoryId], references: [id])
+  homepageSections   HomepageSection[]
+  stockHistory       StockHistory[]
   purchaseOrderItems PurchaseOrderItem[]
-  wishlistItems     WishlistItem[]
+  wishlistItems      WishlistItem[]
+  cartItems          CartItem[] // <-- ارتباط دوطرفه اینجا اضافه شد
 
   @@map("Product")
 }
 
 model StockHistory {
-  id        String   @id @default(cuid())
+  id        String          @id @default(cuid())
   productId String
-  product   product  @relation(fields: [productId], references: [id])
+  product   product         @relation(fields: [productId], references: [id])
   change    Int
   newStock  Int
   type      StockChangeType
   notes     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
   userId    String?
-  user      User?     @relation(fields: [userId], references: [id])
+  user      User?           @relation(fields: [userId], references: [id])
 }
 
 enum StockChangeType {
@@ -81,41 +79,41 @@ enum StockChangeType {
 }
 
 model Supplier {
-  id              String    @id @default(cuid())
-  name            String    @unique
-  contactPerson   String?
-  phone           String?
-  email           String?   @unique
-  address         String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  purchaseOrders  PurchaseOrder[]
+  id             String          @id @default(cuid())
+  name           String          @unique
+  contactPerson  String?
+  phone          String?
+  email          String?         @unique
+  address        String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  purchaseOrders PurchaseOrder[]
 }
 
 model PurchaseOrder {
-  id              String   @id @default(cuid())
-  supplierId      String
-  supplier        Supplier @relation(fields: [supplierId], references: [id])
-  orderDate       DateTime @default(now())
-  expectedDate    DateTime?
-  status          PurchaseOrderStatus @default(PENDING)
-  totalAmount     Float
-  notes           String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  items           PurchaseOrderItem[]
+  id           String              @id @default(cuid())
+  supplierId   String
+  supplier     Supplier            @relation(fields: [supplierId], references: [id])
+  orderDate    DateTime            @default(now())
+  expectedDate DateTime?
+  status       PurchaseOrderStatus @default(PENDING)
+  totalAmount  Float
+  notes        String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  items        PurchaseOrderItem[]
 }
 
 model PurchaseOrderItem {
-  id              String   @id @default(cuid())
+  id              String        @id @default(cuid())
   purchaseOrderId String
   purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
   productId       String
-  product         product  @relation(fields: [productId], references: [id])
+  product         product       @relation(fields: [productId], references: [id])
   quantity        Int
   unitPrice       Float
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 }
 
 enum PurchaseOrderStatus {
@@ -160,20 +158,20 @@ model Category {
 }
 
 model FeatureBanner {
-  id          String   @id @default(cuid())
-  imageUrl    String
-  altText     String?
-  linkUrl     String?  @default("/")
-  order       Int      @default(0)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  imageUrl  String
+  altText   String?
+  linkUrl   String?  @default("/")
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum SectionType {
-  MANUAL 
-  DISCOUNTED 
-  BEST_SELLING 
+  MANUAL
+  DISCOUNTED
+  BEST_SELLING
 }
 
 model HomepageSection {
@@ -207,26 +205,26 @@ model WishlistItem {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  phone         String?   @unique
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  role          Role      @default(USER)
-  sessions      Session[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  cart          Cart?
-  addresses     Address[]
-  orders        Order[]
-  stockHistory  StockHistory[]
-  wishlist      Wishlist?
-  skinType           String?   
-  skinConcerns       String[]   @default([]) 
-  skincareGoals      String[]   @default([]) 
-  productPreferences String[]   @default([])
+  id                 String    @id @default(cuid())
+  name               String?
+  phone              String?   @unique
+  email              String?   @unique
+  emailVerified      DateTime?
+  image              String?
+  password           String?
+  role               Role      @default(USER)
+  sessions           Session[]
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  cart               Cart?
+  addresses          Address[]
+  orders             Order[]
+  stockHistory       StockHistory[]
+  wishlist           Wishlist?
+  skinType           String?
+  skinConcerns       String[]  @default([])
+  skincareGoals      String[]  @default([])
+  productPreferences String[]  @default([])
 }
 
 model Session {
@@ -247,8 +245,8 @@ model VerificationToken {
 
 model Cart {
   id        String     @id @default(cuid())
-  userId    String     @unique
-  user      User       @relation(fields: [userId], references: [id])
+  userId    String?    @unique
+  user      User?      @relation(fields: [userId], references: [id])
   items     CartItem[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
@@ -259,6 +257,7 @@ model CartItem {
   cartId    String
   cart      Cart     @relation(fields: [cartId], references: [id])
   productId String
+  product   product  @relation(fields: [productId], references: [id])
   quantity  Int
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

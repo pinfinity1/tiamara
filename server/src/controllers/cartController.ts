@@ -1,27 +1,30 @@
 import { Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { prisma } from "../server";
+import { Cart, CartItem, product as Product } from "@prisma/client";
 
-/**
- * تابع کمکی برای فرمت‌دهی استاندارد آیتم‌های سبد خرید.
- * این تابع داده‌های محصول مرتبط را نیز دریافت می‌کند.
- */
-const formatCartItemResponse = (cartItem: any) => {
+type CartItemWithProduct = CartItem & {
+  product: Product & {
+    images: { url: string }[];
+  };
+};
+
+const formatCartItemResponse = (cartItem: CartItemWithProduct) => {
   const { product } = cartItem;
   return {
     id: cartItem.id,
     productId: cartItem.productId,
-    name: product?.name || "محصول نامشخص",
-    price: product?.discount_price || product?.price || 0,
-    image: product?.images?.[0]?.url || "/images/placeholder.png",
+    name: product?.name ?? "محصول نامشخص",
+    price: product?.discount_price ?? product?.price ?? 0,
+    image: product?.images?.[0]?.url ?? "/images/placeholder.png",
     quantity: cartItem.quantity,
   };
 };
 
-/**
- * تابع کمکی برای پیدا کردن یا ساختن سبد خرید.
- */
-const findOrCreateCart = async (userId?: string, guestCartId?: string) => {
+const findOrCreateCart = async (
+  userId?: string,
+  guestCartId?: string
+): Promise<Cart> => {
   if (userId) {
     const userCart = await prisma.cart.findUnique({ where: { userId } });
     if (userCart) return userCart;
@@ -33,13 +36,9 @@ const findOrCreateCart = async (userId?: string, guestCartId?: string) => {
     });
     if (guestCart) return guestCart;
   }
-  // هنگام ساخت سبد برای مهمان، data را خالی نمی‌گذاریم
   return prisma.cart.create({ data: {} });
 };
 
-/**
- * افزودن محصول به سبد خرید.
- */
 export const addToCart = async (
   req: AuthenticatedRequest,
   res: Response
@@ -66,7 +65,7 @@ export const addToCart = async (
 
     res.status(201).json({
       success: true,
-      data: formatCartItemResponse(cartItem),
+      data: formatCartItemResponse(cartItem as CartItemWithProduct),
       cartId: cart.id,
     });
   } catch (e) {
@@ -77,9 +76,6 @@ export const addToCart = async (
   }
 };
 
-/**
- * دریافت محتویات سبد خرید.
- */
 export const getCart = async (
   req: AuthenticatedRequest,
   res: Response
@@ -118,7 +114,9 @@ export const getCart = async (
     });
 
     const formattedItems =
-      cartWithDetails?.items.map(formatCartItemResponse) || [];
+      cartWithDetails?.items.map((item) =>
+        formatCartItemResponse(item as CartItemWithProduct)
+      ) ?? [];
     res.json({ success: true, data: formattedItems, cartId: cart.id });
   } catch (e) {
     console.error(e);
@@ -128,9 +126,6 @@ export const getCart = async (
   }
 };
 
-/**
- * ادغام سبد خریدها پس از ورود.
- */
 export const mergeCarts = async (
   req: AuthenticatedRequest,
   res: Response
@@ -184,15 +179,12 @@ export const mergeCarts = async (
   }
 };
 
-/**
- * به‌روزرسانی تعداد محصول.
- */
 export const updateCartItemQuantity = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params; // CartItem ID
+    const { id } = req.params;
     const { quantity, guestCartId } = req.body;
     const userId = req.user?.userId;
 
@@ -210,7 +202,10 @@ export const updateCartItemQuantity = async (
       include: { product: { include: { images: { take: 1 } } } },
     });
 
-    res.json({ success: true, data: formatCartItemResponse(updatedItem) });
+    res.json({
+      success: true,
+      data: formatCartItemResponse(updatedItem as CartItemWithProduct),
+    });
   } catch (e) {
     console.error(e);
     res
@@ -219,15 +214,12 @@ export const updateCartItemQuantity = async (
   }
 };
 
-/**
- * حذف محصول از سبد.
- */
 export const removeFromCart = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params; // CartItem ID
+    const { id } = req.params;
     const { guestCartId } = req.query;
     const userId = req.user?.userId;
 
@@ -249,9 +241,6 @@ export const removeFromCart = async (
   }
 };
 
-/**
- * خالی کردن سبد خرید.
- */
 export const clearEntireCart = async (
   req: AuthenticatedRequest,
   res: Response
