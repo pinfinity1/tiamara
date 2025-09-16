@@ -23,6 +23,12 @@ import { Separator } from "@/components/ui/separator";
 import { MapPin, Tag, CheckCircle, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { Label } from "@/components/ui/label";
+import { Metadata } from "next";
+
+// export const metadata: Metadata = {
+//   title: "سبد خرید و پرداخت | تیامارا",
+//   robots: { index: false, follow: false },
+// };
 
 const AddressCard = ({
   address,

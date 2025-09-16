@@ -1,6 +1,7 @@
-import axiosAuth from "@/lib/axios";
-import debounce from "lodash/debounce";
 import { create } from "zustand";
+import axiosAuth from "@/lib/axios";
+import { useUserStore } from "./useUserStore";
+import { useToast } from "@/hooks/use-toast";
 
 export interface CartItem {
   id: string;
@@ -11,87 +12,150 @@ export interface CartItem {
   quantity: number;
 }
 
-interface CartStore {
+interface CartState {
   items: CartItem[];
+  cartId: string | null;
   isLoading: boolean;
-  error: string | null;
-  fetchCart: () => Promise<void>;
-  addToCart: (item: Omit<CartItem, "id">) => Promise<void>;
-  removeFromCart: (id: string) => Promise<void>;
-  updateCartItemQuantity: (id: string, quantity: number) => Promise<void>;
+  isInitialized: boolean;
+  initializeCart: () => Promise<void>;
+  addToCart: (product: Omit<CartItem, "id">) => Promise<void>;
+  updateCartItemQuantity: (itemId: string, quantity: number) => Promise<void>;
+  removeFromCart: (itemId: string) => Promise<void>;
   clearCart: () => Promise<void>;
+  mergeCartsOnLogin: () => Promise<void>;
+  setItems: (items: CartItem[]) => void;
 }
 
-export const useCartStore = create<CartStore>((set, get) => {
-  const debounceUpdateCartItemQuantity = debounce(
-    async (id: string, quantity: number) => {
-      try {
-        await axiosAuth.put(`/cart/update/${id}`, { quantity });
-      } catch (e) {
-        set({ error: "Failed to update cart quantity" });
+const getGuestCartId = () =>
+  typeof window !== "undefined" ? localStorage.getItem("guestCartId") : null;
+const setGuestCartId = (id: string) =>
+  typeof window !== "undefined"
+    ? localStorage.setItem("guestCartId", id)
+    : null;
+const removeGuestCartId = () =>
+  typeof window !== "undefined" ? localStorage.removeItem("guestCartId") : null;
+
+export const useCartStore = create<CartState>((set, get) => ({
+  items: [],
+  cartId: null,
+  isLoading: false,
+  isInitialized: false,
+
+  setItems: (items) => set({ items }),
+
+  initializeCart: async () => {
+    if (get().isInitialized) return;
+    set({ isLoading: true });
+
+    const isLoggedIn = !!useUserStore.getState().userProfile;
+    const guestCartId = getGuestCartId();
+    const url = isLoggedIn ? "/cart" : `/cart?guestCartId=${guestCartId || ""}`;
+
+    try {
+      const response = await axiosAuth.get(url);
+      const { data: items, cartId } = response.data;
+      set({ items, cartId, isInitialized: true });
+      if (!isLoggedIn && cartId) {
+        setGuestCartId(cartId);
       }
-    },
-    500
-  );
+    } catch (error) {
+      console.error("Failed to initialize cart:", error);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
 
-  return {
-    items: [],
-    isLoading: false,
-    error: null,
-    fetchCart: async () => {
-      set({ isLoading: true, error: null });
-      try {
-        const response = await axiosAuth.get(`/cart/fetch-cart`);
+  addToCart: async (product) => {
+    try {
+      const response = await axiosAuth.post("/cart/add", {
+        ...product,
+        guestCartId: getGuestCartId(),
+      });
+      const { data: newItem, cartId } = response.data;
 
-        set({ items: response.data.data, isLoading: false });
-      } catch (e) {
-        set({ error: "Failed to fetch cart", isLoading: false });
+      set((state) => {
+        const existingItemIndex = state.items.findIndex(
+          (i) => i.productId === newItem.productId
+        );
+        if (existingItemIndex > -1) {
+          const newItems = [...state.items];
+          newItems[existingItemIndex] = newItem;
+          return { items: newItems };
+        }
+        return { items: [...state.items, newItem] };
+      });
+
+      if (!useUserStore.getState().userProfile) {
+        setGuestCartId(cartId);
       }
-    },
-    addToCart: async (item) => {
-      set({ isLoading: true, error: null });
-      try {
-        const response = await axiosAuth.post(`/cart/add-to-cart`, item);
+      set({ cartId });
+      useToast().toast({ title: "محصول به سبد خرید اضافه شد." });
+    } catch (error) {
+      console.error("Failed to add to cart:", error);
+      useToast().toast({
+        title: "خطا در افزودن محصول",
+        variant: "destructive",
+      });
+    }
+  },
 
-        set((state) => ({
-          items: [...state.items, response.data.data],
-          isLoading: false,
-        }));
-      } catch (e) {
-        set({ error: "Failed to add to cart", isLoading: false });
-      }
-    },
-    removeFromCart: async (id) => {
-      set({ isLoading: true, error: null });
-      try {
-        await axiosAuth.delete(`/cart/remove/${id}`);
+  updateCartItemQuantity: async (itemId, quantity) => {
+    set((state) => ({
+      items: state.items.map((item) =>
+        item.id === itemId ? { ...item, quantity } : item
+      ),
+    }));
+    try {
+      await axiosAuth.put(`/cart/update/${itemId}`, {
+        quantity,
+        guestCartId: getGuestCartId(),
+      });
+    } catch (error) {
+      console.error("Failed to update quantity:", error);
+      get().initializeCart(); // Re-sync with server on error
+    }
+  },
 
-        set((state) => ({
-          items: state.items.filter((item) => item.id !== id),
-          isLoading: false,
-        }));
-      } catch (e) {
-        set({ error: "Failed to delete from cart", isLoading: false });
-      }
-    },
-    updateCartItemQuantity: async (id, quantity) => {
-      set((state) => ({
-        items: state.items.map((cartItem) =>
-          cartItem.id === id ? { ...cartItem, quantity } : cartItem
-        ),
-      }));
+  removeFromCart: async (itemId: string) => {
+    set((state) => ({
+      items: state.items.filter((item) => item.id !== itemId),
+    }));
+    try {
+      const guestCartId = getGuestCartId();
+      const url = `/cart/remove/${itemId}${
+        guestCartId ? `?guestCartId=${guestCartId}` : ""
+      }`;
+      await axiosAuth.delete(url);
+      useToast().toast({
+        title: "محصول از سبد خرید حذف شد.",
+        variant: "destructive",
+      });
+    } catch (error) {
+      console.error("Failed to remove item:", error);
+      get().initializeCart();
+    }
+  },
 
-      debounceUpdateCartItemQuantity(id, quantity);
-    },
-    clearCart: async () => {
-      set({ isLoading: true, error: null });
-      try {
-        await axiosAuth.post(`/cart/clear-cart`, {});
+  clearCart: async () => {
+    set({ items: [] });
+    try {
+      await axiosAuth.post("/cart/clear", { guestCartId: getGuestCartId() });
+    } catch (error) {
+      console.error("Failed to clear cart:", error);
+    }
+  },
 
-        set({ items: [], isLoading: false });
-      } catch (e) {
-        set({ error: "Failed to clear cart", isLoading: false });
-      }
-    },
-  };
-});
+  mergeCartsOnLogin: async () => {
+    const guestCartId = getGuestCartId();
+    if (!guestCartId) return;
+    try {
+      await axiosAuth.post("/cart/merge", { guestCartId });
+      removeGuestCartId();
+      // Force a full re-initialization to get the merged cart
+      set({ isInitialized: false });
+      await get().initializeCart();
+    } catch (error) {
+      console.error("Failed to merge carts:", error);
+    }
+  },
+}));
