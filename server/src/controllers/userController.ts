@@ -1,8 +1,14 @@
-// server/src/controllers/userController.ts
-
 import { Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { prisma } from "../server";
+
+interface UpdateUserProfileBody {
+  name?: string;
+  skinType?: string;
+  skinConcerns?: string[];
+  skincareGoals?: string[];
+  productPreferences?: string[];
+}
 
 export const getUserProfile = async (
   req: AuthenticatedRequest,
@@ -14,7 +20,6 @@ export const getUserProfile = async (
       res.status(401).json({ success: false, message: "Unauthenticated" });
       return;
     }
-
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -27,12 +32,10 @@ export const getUserProfile = async (
         productPreferences: true,
       },
     });
-
     if (!user) {
       res.status(404).json({ success: false, message: "User not found" });
       return;
     }
-
     res.status(200).json(user);
   } catch (error) {
     res.status(500).json({ success: false, message: "Server error" });
@@ -46,7 +49,7 @@ export const updateUserProfile = async (
   try {
     const userId = req.user?.userId;
     const { name, skinType, skinConcerns, skincareGoals, productPreferences } =
-      req.body;
+      req.body as UpdateUserProfileBody;
 
     if (!userId) {
       res.status(401).json({ success: false, message: "Unauthenticated" });
