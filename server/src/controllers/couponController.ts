@@ -80,3 +80,65 @@ export const deleteCoupon = async (
     });
   }
 };
+
+export const validateCoupon = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { code } = req.body;
+    if (!code) {
+      res.status(400).json({ success: false, message: "کد تخفیف الزامی است." });
+      return;
+    }
+
+    const coupon = await prisma.coupon.findUnique({
+      where: { code },
+    });
+
+    if (!coupon) {
+      res.status(404).json({ success: false, message: "کد تخفیف یافت نشد." });
+      return;
+    }
+
+    const now = new Date();
+    if (now < coupon.startDate) {
+      res
+        .status(400)
+        .json({ success: false, message: "این کد تخفیف هنوز فعال نشده است." });
+      return;
+    }
+
+    if (now > coupon.endDate) {
+      res
+        .status(400)
+        .json({ success: false, message: "این کد تخفیف منقضی شده است." });
+      return;
+    }
+
+    if (coupon.usageCount >= coupon.usageLimit) {
+      res
+        .status(400)
+        .json({
+          success: false,
+          message: "ظرفیت استفاده از این کد تخفیف به اتمام رسیده است.",
+        });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "کد تخفیف معتبر است.",
+      coupon: {
+        id: coupon.id,
+        code: coupon.code,
+        discountPercent: coupon.discountPercent,
+      },
+    });
+  } catch (e) {
+    console.error(e);
+    res
+      .status(500)
+      .json({ success: false, message: "خطا در اعتبارسنجی کد تخفیف." });
+  }
+};

@@ -4,6 +4,7 @@ import { create } from "zustand";
 import axiosAuth from "@/lib/axios";
 
 interface UserProfile {
+  id: string; // <-- این خط اضافه شده است
   name: string | null;
   email: string | null;
   phone: string | null;

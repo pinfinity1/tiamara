@@ -2,265 +2,277 @@ import { Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { prisma } from "../server";
 
+/**
+ * تابع کمکی برای فرمت‌دهی استاندارد آیتم‌های سبد خرید.
+ * این تابع داده‌های محصول مرتبط را نیز دریافت می‌کند.
+ */
+const formatCartItemResponse = (cartItem: any) => {
+  const { product } = cartItem;
+  return {
+    id: cartItem.id,
+    productId: cartItem.productId,
+    name: product?.name || "محصول نامشخص",
+    price: product?.discount_price || product?.price || 0,
+    image: product?.images?.[0]?.url || "/images/placeholder.png",
+    quantity: cartItem.quantity,
+  };
+};
+
+/**
+ * تابع کمکی برای پیدا کردن یا ساختن سبد خرید.
+ */
+const findOrCreateCart = async (userId?: string, guestCartId?: string) => {
+  if (userId) {
+    const userCart = await prisma.cart.findUnique({ where: { userId } });
+    if (userCart) return userCart;
+    return prisma.cart.create({ data: { userId } });
+  }
+  if (guestCartId) {
+    const guestCart = await prisma.cart.findFirst({
+      where: { id: guestCartId, userId: null },
+    });
+    if (guestCart) return guestCart;
+  }
+  // هنگام ساخت سبد برای مهمان، data را خالی نمی‌گذاریم
+  return prisma.cart.create({ data: {} });
+};
+
+/**
+ * افزودن محصول به سبد خرید.
+ */
 export const addToCart = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
     const userId = req.user?.userId;
-    const { productId, quantity } = req.body;
+    const { productId, quantity, guestCartId } = req.body;
 
-    if (!userId) {
-      res.status(401).json({
-        success: false,
-        message: "Unauthenticated user",
-      });
-
+    if (!productId || !quantity) {
+      res
+        .status(400)
+        .json({ success: false, message: "شناسه محصول و تعداد الزامی است." });
       return;
     }
 
-    const cart = await prisma.cart.upsert({
-      where: { userId },
-      create: { userId },
-      update: {},
-    });
+    const cart = await findOrCreateCart(userId, guestCartId);
 
     const cartItem = await prisma.cartItem.upsert({
-      where: {
-        cartId_productId: {
-          cartId: cart.id,
-          productId,
-        },
-      },
-      update: {
-        quantity: { increment: quantity },
-      },
-      create: {
-        cartId: cart.id,
-        productId,
-        quantity,
-      },
+      where: { cartId_productId: { cartId: cart.id, productId } },
+      update: { quantity: { increment: quantity } },
+      create: { cartId: cart.id, productId, quantity },
+      include: { product: { include: { images: { take: 1 } } } },
     });
-
-    const product = await prisma.product.findUnique({
-      where: { id: productId },
-      select: {
-        name: true,
-        price: true,
-        images: true,
-      },
-    });
-
-    const responseItem = {
-      id: cartItem.id,
-      productId: cartItem.productId,
-      name: product?.name,
-      price: product?.price,
-      image: product?.images[0],
-      quantity: cartItem.quantity,
-    };
 
     res.status(201).json({
       success: true,
-      data: responseItem,
+      data: formatCartItemResponse(cartItem),
+      cartId: cart.id,
     });
   } catch (e) {
-    res.status(500).json({
-      success: false,
-      message: "Some error occured!",
-    });
+    console.error(e);
+    res
+      .status(500)
+      .json({ success: false, message: "خطا در افزودن به سبد خرید." });
   }
 };
 
+/**
+ * دریافت محتویات سبد خرید.
+ */
 export const getCart = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
     const userId = req.user?.userId;
+    const { guestCartId } = req.query;
 
-    if (!userId) {
-      res.status(401).json({
-        success: false,
-        message: "Unauthenticated user",
+    let cart;
+    if (userId) {
+      cart = await prisma.cart.findUnique({ where: { userId } });
+    } else if (guestCartId) {
+      cart = await prisma.cart.findFirst({
+        where: { id: guestCartId as string, userId: null },
       });
+    }
 
+    if (!cart) {
+      const newCart = await prisma.cart.create({ data: {} });
+      res.json({ success: true, data: [], cartId: newCart.id });
       return;
     }
 
-    const cart = await prisma.cart.findUnique({
-      where: { userId },
+    const cartWithDetails = await prisma.cart.findUnique({
+      where: { id: cart.id },
       include: {
-        items: true,
+        items: {
+          orderBy: { createdAt: "asc" },
+          include: {
+            product: {
+              include: { images: { take: 1 } },
+            },
+          },
+        },
       },
     });
 
-    if (!cart) {
-      res.json({
-        success: false,
-        messaage: "No Item found in cart",
-        data: [],
-      });
-
-      return;
-    }
-
-    const cartItemsWithProducts = await Promise.all(
-      cart?.items.map(async (item) => {
-        const product = await prisma.product.findUnique({
-          where: { id: item.productId },
-          select: {
-            name: true,
-            price: true,
-            images: true,
-          },
-        });
-
-        return {
-          id: item.id,
-          productId: item.productId,
-          name: product?.name,
-          price: product?.price,
-          image: product?.images[0],
-          quantity: item.quantity,
-        };
-      })
-    );
-
-    res.json({
-      success: true,
-      data: cartItemsWithProducts,
-    });
+    const formattedItems =
+      cartWithDetails?.items.map(formatCartItemResponse) || [];
+    res.json({ success: true, data: formattedItems, cartId: cart.id });
   } catch (e) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch cart!",
-    });
+    console.error(e);
+    res
+      .status(500)
+      .json({ success: false, message: "خطا در دریافت سبد خرید." });
   }
 };
 
-export const removeFromCart = async (
+/**
+ * ادغام سبد خریدها پس از ورود.
+ */
+export const mergeCarts = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
     const userId = req.user?.userId;
-    const { id } = req.params;
+    const { guestCartId } = req.body;
 
-    if (!userId) {
-      res.status(401).json({
-        success: false,
-        message: "Unauthenticated user",
-      });
-
+    if (!userId || !guestCartId) {
+      res
+        .status(400)
+        .json({ success: false, message: "شناسه کاربر و مهمان الزامی است." });
       return;
     }
 
-    await prisma.cartItem.delete({
-      where: {
-        id,
-        cart: { userId },
-      },
+    const userCart = await findOrCreateCart(userId);
+    const guestCart = await prisma.cart.findFirst({
+      where: { id: guestCartId, userId: null },
+      include: { items: true },
     });
 
-    res.status(200).json({
-      success: true,
-      message: "Item is removed from cart",
-    });
+    if (
+      guestCart &&
+      guestCart.id !== userCart.id &&
+      guestCart.items.length > 0
+    ) {
+      for (const guestItem of guestCart.items) {
+        await prisma.cartItem.upsert({
+          where: {
+            cartId_productId: {
+              cartId: userCart.id,
+              productId: guestItem.productId,
+            },
+          },
+          update: { quantity: { increment: guestItem.quantity } },
+          create: {
+            cartId: userCart.id,
+            productId: guestItem.productId,
+            quantity: guestItem.quantity,
+          },
+        });
+      }
+      await prisma.cart.delete({ where: { id: guestCartId } });
+    }
+    res
+      .status(200)
+      .json({ success: true, message: "سبد خرید با موفقیت ادغام شد." });
   } catch (e) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to remove from cart!",
-    });
+    console.error(e);
+    res.status(500).json({ success: false, message: "خطا در ادغام سبد خرید." });
   }
 };
 
+/**
+ * به‌روزرسانی تعداد محصول.
+ */
 export const updateCartItemQuantity = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
+    const { id } = req.params; // CartItem ID
+    const { quantity, guestCartId } = req.body;
     const userId = req.user?.userId;
-    const { id } = req.params;
-    const { quantity } = req.body;
 
-    if (!userId) {
-      res.status(401).json({
-        success: false,
-        message: "Unauthenticated user",
-      });
+    const cart = await findOrCreateCart(userId, guestCartId);
 
+    if (quantity < 1) {
+      await prisma.cartItem.delete({ where: { id, cartId: cart.id } });
+      res.status(200).json({ success: true, removed: true, id });
       return;
     }
 
     const updatedItem = await prisma.cartItem.update({
-      where: {
-        id,
-        cart: { userId },
-      },
+      where: { id, cartId: cart.id },
       data: { quantity },
+      include: { product: { include: { images: { take: 1 } } } },
     });
 
-    const product = await prisma.product.findUnique({
-      where: { id: updatedItem.productId },
-      select: {
-        name: true,
-        price: true,
-        images: true,
-      },
-    });
-
-    const responseItem = {
-      id: updatedItem.id,
-      productId: updatedItem.productId,
-      name: product?.name,
-      price: product?.price,
-      image: product?.images[0],
-      quantity: updatedItem.quantity,
-    };
-
-    res.json({
-      success: true,
-      data: responseItem,
-    });
+    res.json({ success: true, data: formatCartItemResponse(updatedItem) });
   } catch (e) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to update cart item quantity",
-    });
+    console.error(e);
+    res
+      .status(500)
+      .json({ success: false, message: "خطا در به‌روزرسانی تعداد محصول." });
   }
 };
 
+/**
+ * حذف محصول از سبد.
+ */
+export const removeFromCart = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params; // CartItem ID
+    const { guestCartId } = req.query;
+    const userId = req.user?.userId;
+
+    const cart = await findOrCreateCart(
+      userId,
+      guestCartId as string | undefined
+    );
+
+    await prisma.cartItem.delete({
+      where: { id, cartId: cart.id },
+    });
+
+    res
+      .status(200)
+      .json({ success: true, message: "محصول از سبد خرید حذف شد." });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: "خطا در حذف محصول." });
+  }
+};
+
+/**
+ * خالی کردن سبد خرید.
+ */
 export const clearEntireCart = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
+    const { guestCartId } = req.body;
     const userId = req.user?.userId;
 
-    if (!userId) {
-      res.status(401).json({
-        success: false,
-        message: "Unauthenticated user",
-      });
-
-      return;
-    }
+    const cart = await findOrCreateCart(userId, guestCartId);
 
     await prisma.cartItem.deleteMany({
-      where: {
-        cart: { userId },
-      },
+      where: { cartId: cart.id },
     });
 
-    res.status(200).json({
-      success: true,
-      message: "cart cleared successfully!",
-    });
+    res
+      .status(200)
+      .json({ success: true, message: "سبد خرید با موفقیت خالی شد." });
   } catch (e) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to clear cart!",
-    });
+    console.error(e);
+    res
+      .status(500)
+      .json({ success: false, message: "خطا در خالی کردن سبد خرید." });
   }
 };

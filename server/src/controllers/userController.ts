@@ -4,6 +4,7 @@ import { prisma } from "../server";
 
 interface UpdateUserProfileBody {
   name?: string;
+  email?: string;
   skinType?: string;
   skinConcerns?: string[];
   skincareGoals?: string[];
@@ -20,9 +21,11 @@ export const getUserProfile = async (
       res.status(401).json({ success: false, message: "Unauthenticated" });
       return;
     }
+
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
+        id: true,
         name: true,
         email: true,
         phone: true,
@@ -32,10 +35,12 @@ export const getUserProfile = async (
         productPreferences: true,
       },
     });
+
     if (!user) {
       res.status(404).json({ success: false, message: "User not found" });
       return;
     }
+
     res.status(200).json(user);
   } catch (error) {
     res.status(500).json({ success: false, message: "Server error" });
@@ -48,8 +53,14 @@ export const updateUserProfile = async (
 ): Promise<void> => {
   try {
     const userId = req.user?.userId;
-    const { name, skinType, skinConcerns, skincareGoals, productPreferences } =
-      req.body as UpdateUserProfileBody;
+    const {
+      name,
+      email,
+      skinType,
+      skinConcerns,
+      skincareGoals,
+      productPreferences,
+    } = req.body as UpdateUserProfileBody;
 
     if (!userId) {
       res.status(401).json({ success: false, message: "Unauthenticated" });
@@ -60,12 +71,14 @@ export const updateUserProfile = async (
       where: { id: userId },
       data: {
         name,
+        email,
         skinType,
         skinConcerns,
         skincareGoals,
         productPreferences,
       },
       select: {
+        id: true,
         name: true,
         email: true,
         phone: true,

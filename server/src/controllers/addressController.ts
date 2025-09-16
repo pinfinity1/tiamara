@@ -94,13 +94,16 @@ export const getAddresses = async (
         success: false,
         message: "Unauthenticated user",
       });
-
       return;
     }
 
     const fetchAllAddresses = await prisma.address.findMany({
       where: { userId },
-      orderBy: { createdAt: "desc" },
+      // ۱. منطق مرتب‌سازی را با کد زیر جایگزین کنید
+      orderBy: [
+        { isDefault: "desc" }, // آدرس پیش‌فرض (true) را در بالا قرار می‌دهد
+        { createdAt: "desc" }, // سپس بقیه را بر اساس جدیدترین مرتب می‌کند
+      ],
     });
 
     res.status(200).json({
