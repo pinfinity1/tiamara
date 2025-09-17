@@ -50,14 +50,14 @@ function Header({ isPaneView = false }: { isPaneView?: boolean }) {
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isDesktopSearchFocused, setIsDesktopSearchFocused] = useState(false);
 
-  const { fetchCart, items } = useCartStore();
+  const { initializeCart, items, isInitialized } = useCartStore();
   const router = useRouter();
 
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchCart();
+    if (!isInitialized) {
+      initializeCart();
     }
-  }, [fetchCart, isAuthenticated]);
+  }, [initializeCart, isInitialized]);
 
   async function handleLogout() {
     await signOut({ redirect: true, callbackUrl: "/" });
