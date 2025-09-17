@@ -49,7 +49,9 @@ export const useCartStore = create<CartState>((set, get) => ({
 
     const isLoggedIn = !!useUserStore.getState().userProfile;
     const guestCartId = getGuestCartId();
-    const url = isLoggedIn ? "/cart" : `/cart?guestCartId=${guestCartId || ""}`;
+    const url = isLoggedIn
+      ? "/cart/fetch-cart"
+      : `/cart/fetch-cart?guestCartId=${guestCartId || ""}`;
 
     try {
       const response = await axiosAuth.get(url);
@@ -61,7 +63,9 @@ export const useCartStore = create<CartState>((set, get) => ({
     } catch (error) {
       console.error("Failed to initialize cart:", error);
     } finally {
-      set({ isLoading: false });
+      // این بخش اطمینان می‌دهد که isLoading همیشه به false تغییر می‌کند
+      // و مهم‌تر از آن، isInitialized همیشه به true تنظیم می‌شود تا از حلقه بی‌نهایت جلوگیری شود.
+      set({ isLoading: false, isInitialized: true });
     }
   },
 

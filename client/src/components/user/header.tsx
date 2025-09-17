@@ -293,19 +293,9 @@ function Header({ isPaneView = false }: { isPaneView?: boolean }) {
                 </Button>
               </div>
               <div className="hidden lg:flex items-center gap-4">
+                <CartModal />
                 {isAuthenticated ? (
                   <>
-                    {session.user?.role === "SUPER_ADMIN" && (
-                      <Button
-                        size="icon"
-                        variant={"ghost"}
-                        className="relative group w-fit px-2"
-                        onClick={() => router.push("/super-admin")}
-                      >
-                        بخش مدیریت
-                      </Button>
-                    )}
-                    <CartModal />
                     <DropdownMenu modal={false}>
                       <DropdownMenuTrigger
                         asChild
@@ -329,6 +319,16 @@ function Header({ isPaneView = false }: { isPaneView?: boolean }) {
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    {session.user?.role === "SUPER_ADMIN" && (
+                      <Button
+                        size="icon"
+                        variant={"ghost"}
+                        className="relative group w-fit px-2"
+                        onClick={() => router.push("/super-admin")}
+                      >
+                        بخش مدیریت
+                      </Button>
+                    )}
                   </>
                 ) : (
                   !isLoading && (
@@ -337,9 +337,6 @@ function Header({ isPaneView = false }: { isPaneView?: boolean }) {
                     </Button>
                   )
                 )}
-              </div>
-              <div className="lg:hidden">
-                <CartModal />
               </div>
             </div>
           </div>

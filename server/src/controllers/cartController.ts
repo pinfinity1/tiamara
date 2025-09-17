@@ -87,9 +87,13 @@ export const getCart = async (
     let cart;
     if (userId) {
       cart = await prisma.cart.findUnique({ where: { userId } });
-    } else if (guestCartId) {
+    } else if (
+      guestCartId &&
+      typeof guestCartId === "string" &&
+      guestCartId.length > 0
+    ) {
       cart = await prisma.cart.findFirst({
-        where: { id: guestCartId as string, userId: null },
+        where: { id: guestCartId, userId: null },
       });
     }
 

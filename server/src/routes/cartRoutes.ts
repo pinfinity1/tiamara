@@ -10,10 +10,10 @@ import {
 
 const router = express.Router();
 
-router.get("/fetch-cart", authenticateJwt, getCart);
-router.post("/add-to-cart", authenticateJwt, addToCart);
-router.delete("/remove/:id", authenticateJwt, removeFromCart);
-router.put("/update/:id", authenticateJwt, updateCartItemQuantity);
-router.post("/clear-cart", authenticateJwt, clearEntireCart);
+router.get("/fetch-cart", getCart);
+router.post("/add-to-cart", addToCart);
+router.delete("/remove/:id", removeFromCart);
+router.put("/update/:id", updateCartItemQuantity);
+router.post("/clear-cart", clearEntireCart);
 
 export default router;
