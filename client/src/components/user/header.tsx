@@ -182,18 +182,26 @@ function Header({ isPaneView = false }: { isPaneView?: boolean }) {
   };
 
   useEffect(() => {
-    let lastScrollY = window.scrollY;
+    const scrollContainer = document.getElementById("main-content");
+    if (!scrollContainer) {
+      console.warn("main-content not found");
+      return;
+    }
+
+    let lastScrollY = scrollContainer.scrollTop;
     let ticking = false;
     const scrollThreshold = 50;
 
     const updateScroll = () => {
-      if (Math.abs(window.scrollY - lastScrollY) > scrollThreshold) {
-        if (window.scrollY > lastScrollY) {
+      if (Math.abs(scrollContainer.scrollTop - lastScrollY) > scrollThreshold) {
+        if (scrollContainer.scrollTop > lastScrollY) {
           setShowCategories(false);
+          console.log("hide");
         } else {
           setShowCategories(true);
+          console.log("show");
         }
-        lastScrollY = window.scrollY;
+        lastScrollY = scrollContainer.scrollTop;
       }
       ticking = false;
     };
@@ -205,8 +213,8 @@ function Header({ isPaneView = false }: { isPaneView?: boolean }) {
       }
     };
 
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+    scrollContainer.addEventListener("scroll", handleScroll);
+    return () => scrollContainer.removeEventListener("scroll", handleScroll);
   }, []);
 
   useEffect(() => {

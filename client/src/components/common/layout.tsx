@@ -33,6 +33,7 @@ function CommonLayout({ children }: { children: React.ReactNode }) {
       >
         {showHeader && <Header isPaneView={isHalfMode} />}
         <main
+          id="main-content"
           className={cn(
             "flex-1 overflow-y-auto",
             !isHalfMode && `pt-[80px] lg:pt-[128px]`,
