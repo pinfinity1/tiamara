@@ -7,14 +7,21 @@ import SkinProfileModal from "./SkinProfileModal";
 import ChatWidget from "../ai/ChatWidget";
 import { useChatStore } from "@/store/useChatStore";
 import { cn } from "@/lib/utils";
+import Footer from "./Footer";
 
 const pathsNotToShowHeaders = ["/auth", "/super-admin", "/chat"];
+
+const pathsNotToShowLayout = ["/auth", "/super-admin", "/chat"];
 
 function CommonLayout({ children }: { children: React.ReactNode }) {
   const pathName = usePathname();
   const { viewMode } = useChatStore();
 
   const showHeader = !pathsNotToShowHeaders.some((currentPath) =>
+    pathName.startsWith(currentPath)
+  );
+
+  const showLayout = !pathsNotToShowLayout.some((currentPath) =>
     pathName.startsWith(currentPath)
   );
 
@@ -41,6 +48,7 @@ function CommonLayout({ children }: { children: React.ReactNode }) {
           )}
         >
           {children}
+          {showLayout && <Footer />}
         </main>
       </div>
 

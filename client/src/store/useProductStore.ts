@@ -55,6 +55,8 @@ export interface Product {
   brand?: Brand | null;
   categoryId?: string | null;
   category?: Category | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface ProductState {

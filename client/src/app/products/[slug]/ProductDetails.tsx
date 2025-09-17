@@ -27,6 +27,7 @@ import WishlistButton from "@/components/common/buttons/WishlistButton";
 import ProductCard from "@/components/products/ProductCard";
 import ShareButton from "@/components/common/buttons/ShareButton";
 import ImagePlaceholder from "@/components/common/ImagePlaceholder";
+import Script from "next/script";
 
 const FeatureDisplay = ({
   icon: Icon,
@@ -47,6 +48,45 @@ const FeatureDisplay = ({
     </div>
   );
 };
+
+function JsonLd({ product }: { product: Product }) {
+  const productSchema = {
+    "@context": "https://schema.org/",
+    "@type": "Product",
+    name: product.name,
+    image: product.images.map((img) => img.url),
+    description: product.metaDescription || product.description,
+    sku: product.sku,
+    brand: {
+      "@type": "Brand",
+      name: product.brand?.name,
+    },
+    offers: {
+      "@type": "Offer",
+      url: `http://localhost:3000/products/${product.slug}`, // آدرس کامل محصول
+      priceCurrency: "IRR", // واحد پول ریال ایران
+      price: product.discount_price || product.price,
+      availability:
+        product.stock > 0
+          ? "https://schema.org/InStock"
+          : "https://schema.org/OutOfStock",
+    },
+    // اگر سیستم امتیازدهی دارید، این بخش را اضافه کنید
+    // aggregateRating: {
+    //   '@type': 'AggregateRating',
+    //   ratingValue: product.average_rating,
+    //   reviewCount: product.review_count,
+    // },
+  };
+
+  return (
+    <Script
+      id="product-jsonld"
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }}
+    />
+  );
+}
 
 export default function ProductDetailsClient({
   product,
@@ -121,6 +161,7 @@ export default function ProductDetailsClient({
 
   return (
     <>
+      <JsonLd product={product} />
       <div className="min-h-screen bg-white">
         <div className="container mx-auto px-4 py-8 md:py-12">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16">
