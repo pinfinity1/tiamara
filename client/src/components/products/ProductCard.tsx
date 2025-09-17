@@ -48,6 +48,8 @@ function ProductCard({ product }: { product: Product }) {
       price: product.discount_price || product.price,
       image: imageUrl || "/images/placeholder.png",
       quantity: 1,
+      slug: product.slug,
+      stock: product.stock,
     });
     toast({
       title: "محصول به سبد خرید اضافه شد.",
@@ -177,6 +179,7 @@ function ProductCard({ product }: { product: Product }) {
                   size="icon"
                   className="rounded-full border-l"
                   onClick={handleIncrement}
+                  disabled={quantityInCart >= product.stock}
                 >
                   <Plus className="size-4" />
                 </Button>

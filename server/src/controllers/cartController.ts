@@ -1,12 +1,10 @@
-// server/src/controllers/cartController.ts
-
 import { Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { prisma } from "../server";
-import { Cart, CartItem, product as Product } from "@prisma/client";
+import { Cart, CartItem, product } from "@prisma/client";
 
 type CartItemWithProduct = CartItem & {
-  product: Product & {
+  product: product & {
     images: { url: string }[];
   };
 };
@@ -17,9 +15,11 @@ const formatCartItemResponse = (cartItem: CartItemWithProduct) => {
     id: cartItem.id,
     productId: cartItem.productId,
     name: product?.name ?? "محصول نامشخص",
+    slug: product?.slug ?? "",
     price: product?.discount_price ?? product?.price ?? 0,
     image: product?.images?.[0]?.url ?? "/images/placeholder.png",
     quantity: cartItem.quantity,
+    stock: product?.stock ?? 0,
   };
 };
 
@@ -28,7 +28,6 @@ const findOrCreateCart = async (
   guestCartId?: string
 ): Promise<Cart> => {
   if (userId) {
-    // FIX: Changed findUnique to findFirst
     const userCart = await prisma.cart.findFirst({ where: { userId } });
     if (userCart) return userCart;
     return prisma.cart.create({ data: { userId } });
@@ -48,7 +47,7 @@ export const addToCart = async (
 ): Promise<void> => {
   try {
     const userId = req.user?.userId;
-    const { productId, quantity, guestCartId } = req.body;
+    const { productId, quantity, guestCartId, slug } = req.body;
 
     if (!productId || !quantity) {
       res
@@ -89,7 +88,6 @@ export const getCart = async (
 
     let cart;
     if (userId) {
-      // FIX: Changed findUnique to findFirst
       cart = await prisma.cart.findFirst({ where: { userId } });
       if (!cart) {
         cart = await prisma.cart.create({ data: { userId } });
@@ -195,20 +193,52 @@ export const updateCartItemQuantity = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
-    const { quantity, guestCartId } = req.body;
+    const { id } = req.params; // ID of the CartItem
+    const { quantity } = req.body;
     const userId = req.user?.userId;
+    const guestCartId = req.body.guestCartId || req.query.guestCartId;
 
-    const cart = await findOrCreateCart(userId, guestCartId);
+    if (!quantity || quantity < 0) {
+      res.status(400).json({ success: false, message: "تعداد نامعتبر است." });
+      return;
+    }
 
-    if (quantity < 1) {
-      await prisma.cartItem.delete({ where: { id, cartId: cart.id } });
+    const cart = await findOrCreateCart(userId, guestCartId as string);
+    if (!cart) {
+      res.status(404).json({ success: false, message: "سبد خرید یافت نشد." });
+      return;
+    }
+
+    const cartItem = await prisma.cartItem.findFirst({
+      where: { id, cartId: cart.id },
+      include: { product: true },
+    });
+
+    if (!cartItem) {
+      res
+        .status(404)
+        .json({ success: false, message: "محصول در سبد خرید یافت نشد." });
+      return;
+    }
+
+    // *** Check stock availability ***
+    if (quantity > cartItem.product.stock) {
+      res.status(400).json({
+        success: false,
+        message: `موجودی انبار کافی نیست. تنها ${cartItem.product.stock} عدد موجود است.`,
+        stock: cartItem.product.stock,
+      });
+      return;
+    }
+
+    if (quantity === 0) {
+      await prisma.cartItem.delete({ where: { id } });
       res.status(200).json({ success: true, removed: true, id });
       return;
     }
 
     const updatedItem = await prisma.cartItem.update({
-      where: { id, cartId: cart.id },
+      where: { id },
       data: { quantity },
       include: { product: { include: { images: { take: 1 } } } },
     });
@@ -218,7 +248,7 @@ export const updateCartItemQuantity = async (
       data: formatCartItemResponse(updatedItem as CartItemWithProduct),
     });
   } catch (e) {
-    console.error(e);
+    console.error("Error updating cart item quantity:", e);
     res
       .status(500)
       .json({ success: false, message: "خطا در به‌روزرسانی تعداد محصول." });

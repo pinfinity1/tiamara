@@ -240,12 +240,12 @@ export const fetchAllProductsForAdmin = async (
 
 // Get a single product by SLUG
 export const getProductBySlug = async (
-  req: AuthenticatedRequest,
+  req: Request,
   res: Response
 ): Promise<void> => {
   try {
     const { slug } = req.params;
-    const product = await prisma.product.findFirst({
+    const product = await prisma.product.findUnique({
       where: { slug },
       include: {
         images: true,

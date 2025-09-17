@@ -79,9 +79,11 @@ export default function ProductDetailsClient({
     addToCart({
       productId: product.id,
       name: product.name,
+      slug: product.slug,
       price: product.discount_price || product.price,
       image: product.images[0]?.url || "/images/placeholder.png",
       quantity: 1,
+      stock: product.stock,
     });
     toast({
       title: "محصول به سبد خرید اضافه شد",
@@ -262,6 +264,7 @@ export default function ProductDetailsClient({
                         size="icon"
                         className="h-12 w-12"
                         onClick={handleIncrement}
+                        disabled={quantityInCart >= product.stock}
                       >
                         <Plus className="h-5 w-5" />
                       </Button>

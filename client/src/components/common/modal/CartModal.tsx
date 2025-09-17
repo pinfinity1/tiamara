@@ -6,12 +6,15 @@ import {
   SheetHeader,
   SheetTitle,
   SheetTrigger,
+  SheetFooter,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
 import { useCartStore } from "@/store/useCartStore";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import ImagePlaceholder from "../ImagePlaceholder";
+import Link from "next/link";
 
 export default function CartModal() {
   const { items, updateCartItemQuantity, removeFromCart, isLoading } =
@@ -25,6 +28,7 @@ export default function CartModal() {
     }
     router.push("/checkout");
   };
+
   const total = items.reduce(
     (acc, item) => acc + item.price * item.quantity,
     0
@@ -47,87 +51,120 @@ export default function CartModal() {
       </SheetTrigger>
       <SheetContent
         side="left"
-        className="w-[400px] sm:w-[540px] flex flex-col"
+        className="w-[90vw] max-w-[420px] flex flex-col p-0"
       >
-        <SheetHeader>
-          <SheetTitle>سبد خرید</SheetTitle>
+        <SheetHeader className="p-4 border-b">
+          <SheetTitle className="text-lg font-bold">سبد خرید</SheetTitle>
         </SheetHeader>
         {isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <p>در حال بارگذاری...</p>
           </div>
         ) : items.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center">
-            <p>سبد خرید شما خالی است.</p>
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
+            <ShoppingCart className="h-16 w-16 text-gray-300" />
+            <p className="mt-4 font-semibold">سبد خرید شما خالی است.</p>
           </div>
         ) : (
           <>
-            <div className="flex-1 overflow-y-auto -mx-6 px-6">
-              <div className="divide-y divide-gray-200">
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="space-y-4">
                 {items.map((item) => (
-                  <div key={item.id} className="flex items-center gap-4 py-4">
-                    <Image
-                      src={item.image}
-                      alt={item.name}
-                      width={80}
-                      height={80}
-                      className="rounded-md object-cover"
-                    />
-                    <div className="flex-1">
-                      <h3 className="font-semibold">{item.name}</h3>
-                      <p className="text-sm text-gray-500">
-                        {item.price.toLocaleString("fa-IR")} تومان
-                      </p>
-                      <div className="flex items-center gap-2 mt-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
+                  <div key={item.id} className="flex items-center gap-4">
+                    <Link
+                      href={`/products/${item.slug}`}
+                      className="block flex-shrink-0"
+                      onClick={() =>
+                        document.getElementById("cart-sheet-trigger")?.click()
+                      }
+                    >
+                      <div className="relative h-20 w-20 overflow-hidden rounded-md border">
+                        {item.image ? (
+                          <Image
+                            src={item.image}
+                            alt={item.name}
+                            fill
+                            sizes="80px"
+                            className="object-cover"
+                          />
+                        ) : (
+                          <ImagePlaceholder />
+                        )}
+                      </div>
+                    </Link>
+
+                    <div className="flex-1 flex flex-col justify-between self-stretch">
+                      <div className="flex justify-between items-start">
+                        <Link
+                          href={`/products/${item.slug}`}
                           onClick={() =>
-                            updateCartItemQuantity(item.id, item.quantity - 1)
+                            document
+                              .getElementById("cart-sheet-trigger")
+                              ?.click()
                           }
-                          disabled={item.quantity <= 1}
                         >
-                          <Minus className="h-4 w-4" />
-                        </Button>
-                        <span>{item.quantity}</span>
+                          <h3 className="font-semibold text-sm leading-tight hover:text-primary transition-colors">
+                            {item.name}
+                          </h3>
+                        </Link>
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="icon"
-                          className="h-8 w-8"
-                          onClick={() =>
-                            updateCartItemQuantity(item.id, item.quantity + 1)
-                          }
+                          className="h-7 w-7 flex-shrink-0 text-red-500 hover:text-red-600"
+                          onClick={() => removeFromCart(item.id)}
                         >
-                          <Plus className="h-4 w-4" />
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
+                      <div className="flex justify-between items-end">
+                        <p className="text-sm font-medium text-gray-700">
+                          {item.price.toLocaleString("fa-IR")}
+                          <span className="text-xs mr-1">تومان</span>
+                        </p>
+                        <div className="flex items-center gap-1 rounded-lg border p-0.5">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() =>
+                              updateCartItemQuantity(item.id, item.quantity + 1)
+                            }
+                            disabled={item.quantity >= item.stock}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                          <span className="w-6 text-center font-bold text-sm">
+                            {item.quantity.toLocaleString("fa-IR")}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() =>
+                              updateCartItemQuantity(item.id, item.quantity - 1)
+                            }
+                            disabled={item.quantity <= 1}
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-red-500 hover:text-red-600"
-                      onClick={() => removeFromCart(item.id)}
-                    >
-                      <Trash2 className="h-5 w-5" />
-                    </Button>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="border-t pt-4">
-              <div className="flex justify-between font-bold text-lg">
-                <p>مجموع</p>
-                <p>{total.toLocaleString("fa-IR")} تومان</p>
+            <SheetFooter className="p-4 border-t bg-gray-50">
+              <div className="w-full space-y-4">
+                <div className="flex justify-between font-bold text-lg">
+                  <p>جمع کل</p>
+                  <p>{total.toLocaleString("fa-IR")} تومان</p>
+                </div>
+                <Button className="w-full" size="lg" onClick={handleCheckout}>
+                  ادامه فرآیند خرید
+                </Button>
               </div>
-              <Button
-                className="w-full mt-4"
-                size="lg"
-                onClick={handleCheckout}
-              >
-                ادامه فرآیند خرید
-              </Button>
-            </div>
+            </SheetFooter>
           </>
         )}
       </SheetContent>

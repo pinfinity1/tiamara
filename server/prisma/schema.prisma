@@ -13,7 +13,7 @@ datasource db {
 model product {
   id                 String              @id @default(cuid())
   name               String
-  slug               String
+  slug               String              @unique
   description        String?
   how_to_use         String?
   caution            String?

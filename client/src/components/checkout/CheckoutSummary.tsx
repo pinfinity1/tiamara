@@ -23,7 +23,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, Loader2 } from "lucide-react";
+import { CheckCircle, Loader2, PercentSquare } from "lucide-react";
 
 interface AppliedCoupon {
   code: string;
@@ -58,6 +58,7 @@ export default function CheckoutSummary({
     () => cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0),
     [cartItems]
   );
+
   const finalTotal = useMemo(() => {
     if (appliedCoupon) {
       const discountAmount = cartTotal * (appliedCoupon.discountPercent / 100);
@@ -127,17 +128,17 @@ export default function CheckoutSummary({
   };
 
   return (
-    <Card>
+    <Card className="shadow-md">
       <CardHeader>
-        <CardTitle>خلاصه پرداخت</CardTitle>
+        <CardTitle className="text-xl font-bold">خلاصه پرداخت</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex justify-between text-sm">
-          <span>جمع کل سبد خرید</span>
+        <div className="flex justify-between text-sm text-gray-600">
+          <span>جمع کل</span>
           <span>{cartTotal.toLocaleString("fa-IR")} تومان</span>
         </div>
         {appliedCoupon && (
-          <div className="flex justify-between text-sm text-green-600">
+          <div className="flex justify-between text-sm text-green-600 font-medium">
             <span>تخفیف ({appliedCoupon.discountPercent}%)</span>
             <span>
               - {(cartTotal - finalTotal).toLocaleString("fa-IR")} تومان
@@ -146,16 +147,22 @@ export default function CheckoutSummary({
         )}
         <Separator />
         <div className="flex justify-between font-bold text-lg">
-          <span>مبلغ قابل پرداخت</span>
+          <span>مبلغ نهایی</span>
           <span>{finalTotal.toLocaleString("fa-IR")} تومان</span>
         </div>
-        {isUserLoggedIn && (
-          <div className="space-y-2 pt-4">
-            <Label htmlFor="coupon">کد تخفیف</Label>
+      </CardContent>
+
+      {isUserLoggedIn && (
+        <CardContent className="border-t pt-4">
+          <div className="space-y-2">
+            <Label htmlFor="coupon" className="flex items-center gap-2">
+              <PercentSquare className="w-4 h-4" />
+              کد تخفیف دارید؟
+            </Label>
             <div className="flex gap-2">
               <Input
                 id="coupon"
-                placeholder="کد تخفیف خود را وارد کنید"
+                placeholder="کد تخفیف"
                 value={couponCode}
                 onChange={(e) => setCouponCode(e.target.value)}
                 disabled={!!appliedCoupon || isCouponLoading}
@@ -163,6 +170,7 @@ export default function CheckoutSummary({
               <Button
                 onClick={handleApplyCoupon}
                 disabled={isCouponLoading || !!appliedCoupon}
+                className="px-6"
               >
                 {isCouponLoading ? (
                   <Loader2 className="animate-spin" />
@@ -177,19 +185,20 @@ export default function CheckoutSummary({
               <p className="text-xs text-red-500 mt-1">{couponError}</p>
             )}
           </div>
-        )}
-      </CardContent>
+        </CardContent>
+      )}
+
       <CardFooter>
         {isUserLoggedIn ? (
           <Button
-            className="w-full h-12 text-lg"
+            className="w-full h-12 text-lg font-bold"
             onClick={handlePlaceOrder}
             disabled={isPaymentProcessing}
           >
             {isPaymentProcessing ? (
               <Loader2 className="animate-spin" />
             ) : (
-              "ادامه و پرداخت"
+              "ادامه فرآیند خرید"
             )}
           </Button>
         ) : (

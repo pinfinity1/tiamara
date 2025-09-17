@@ -35,12 +35,13 @@ export default function CheckoutClient({
     }
   }, [isInitialized, initializeCart]);
 
-  if (!isInitialized) {
-    return <CheckoutSkeleton />;
-  }
+  useEffect(() => {
+    if (isInitialized && cartItems.length === 0) {
+      router.replace("/products");
+    }
+  }, [isInitialized, cartItems, router]);
 
-  if (isInitialized && cartItems.length === 0) {
-    router.replace("/products");
+  if (!isInitialized || (isInitialized && cartItems.length === 0)) {
     return <CheckoutSkeleton />;
   }
 

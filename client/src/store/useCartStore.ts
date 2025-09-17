@@ -13,6 +13,8 @@ export interface CartItem {
   price: number;
   image: string;
   quantity: number;
+  slug: string;
+  stock: number;
 }
 
 interface CartState {
@@ -107,19 +109,46 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 
   updateCartItemQuantity: async (itemId, quantity) => {
+    const originalItems = get().items;
+    const itemToUpdate = originalItems.find((item) => item.id === itemId);
+
+    if (!itemToUpdate) return;
+
+    // Optimistic UI update
     set((state) => ({
       items: state.items.map((item) =>
-        item.id === itemId ? { ...item, quantity } : item
+        item.id === itemId ? { ...item, quantity: Math.max(0, quantity) } : item
       ),
     }));
+
+    if (quantity === 0) {
+      get().removeFromCart(itemId);
+      return;
+    }
+
     try {
       await axiosAuth.put(`/cart/update/${itemId}`, {
         quantity,
         guestCartId: getGuestCartId(),
       });
-    } catch (error) {
-      console.error("Failed to update quantity:", error);
-      get().initializeCart(); // Re-sync with server on error
+    } catch (error: any) {
+      // Revert UI on error and show a simple toast
+      set({ items: originalItems });
+
+      const stock = error.response?.data?.stock;
+      if (stock !== undefined) {
+        // If server tells us the max stock, update the cart to that value
+        set((state) => ({
+          items: state.items.map((item) =>
+            item.id === itemId ? { ...item, quantity: stock } : item
+          ),
+        }));
+      }
+
+      toast({
+        title: "موجودی محصول کافی نیست.",
+        variant: "destructive",
+      });
     }
   },
 
