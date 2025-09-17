@@ -1,55 +1,65 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useCartStore } from "@/store/useCartStore";
-import { useAddressStore } from "@/store/useAddressStore";
-import { useAuthModalStore } from "@/store/useAuthModalStore";
+import { useShallow } from "zustand/react/shallow";
 import CartView from "@/components/checkout/CartView";
 import CheckoutView from "@/components/checkout/CheckoutView";
-import { Button } from "@/components/ui/button";
+import CheckoutSkeleton from "./checkoutSkeleton";
+import CheckoutSummary from "@/components/checkout/CheckoutSummary";
 
 interface CheckoutClientProps {
-  initialCartItems: any[];
-  initialAddresses: any[];
   isUserLoggedIn: boolean;
 }
 
 export default function CheckoutClient({
-  initialCartItems,
-  initialAddresses,
   isUserLoggedIn,
 }: CheckoutClientProps) {
-  useEffect(() => {
-    useCartStore.getState().setItems(initialCartItems);
-    useAddressStore.getState().setAddresses(initialAddresses);
-  }, [initialCartItems, initialAddresses]);
+  const router = useRouter();
+  const {
+    items: cartItems,
+    isInitialized,
+    initializeCart,
+  } = useCartStore(
+    useShallow((state) => ({
+      items: state.items,
+      isInitialized: state.isInitialized,
+      initializeCart: state.initializeCart,
+    }))
+  );
 
-  const openModal = useAuthModalStore((state) => state.openModal);
+  useEffect(() => {
+    if (!isInitialized) {
+      initializeCart();
+    }
+  }, [isInitialized, initializeCart]);
+
+  if (!isInitialized) {
+    return <CheckoutSkeleton />;
+  }
+
+  if (isInitialized && cartItems.length === 0) {
+    router.replace("/products");
+    return <CheckoutSkeleton />;
+  }
 
   return (
-    <div>
-      <CartView />
-      <div className="mt-8 border-t pt-8">
-        {isUserLoggedIn ? (
-          <CheckoutView />
-        ) : (
-          initialCartItems.length > 0 && (
-            <div className="text-center bg-gray-100 p-8 rounded-lg">
-              <h2 className="text-xl font-semibold">برای ادامه وارد شوید</h2>
-              <p className="text-gray-600 mt-2">
-                برای انتخاب آدرس و نهایی کردن خرید، لطفاً وارد حساب کاربری خود
-                شوید.
-              </p>
-              <Button
-                size="lg"
-                className="mt-4"
-                onClick={() => openModal("login")}
-              >
-                ورود یا ثبت‌نام
-              </Button>
-            </div>
-          )
-        )}
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-3xl font-bold text-center mb-8">
+          سبد خرید و پرداخت
+        </h1>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+          <div className="lg:col-span-2 space-y-6">
+            <CartView />
+            {isUserLoggedIn && <CheckoutView />}
+          </div>
+
+          <div className="lg:col-span-1 lg:sticky top-3">
+            <CheckoutSummary isUserLoggedIn={isUserLoggedIn} />
+          </div>
+        </div>
       </div>
     </div>
   );

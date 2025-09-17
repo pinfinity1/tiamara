@@ -216,7 +216,7 @@ model User {
   sessions           Session[]
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
-  cart               Cart?
+  carts              Cart[]
   addresses          Address[]
   orders             Order[]
   stockHistory       StockHistory[]
@@ -245,7 +245,7 @@ model VerificationToken {
 
 model Cart {
   id        String     @id @default(cuid())
-  userId    String?    @unique
+  userId    String?    
   user      User?      @relation(fields: [userId], references: [id])
   items     CartItem[]
   createdAt DateTime   @default(now())

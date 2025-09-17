@@ -1,7 +1,10 @@
+// client/src/store/useCartStore.ts
+
 import { create } from "zustand";
 import axiosAuth from "@/lib/axios";
 import { useUserStore } from "./useUserStore";
-import { useToast } from "@/hooks/use-toast";
+// 1. Import the standalone `toast` function directly
+import { toast } from "@/hooks/use-toast";
 
 export interface CartItem {
   id: string;
@@ -63,8 +66,6 @@ export const useCartStore = create<CartState>((set, get) => ({
     } catch (error) {
       console.error("Failed to initialize cart:", error);
     } finally {
-      // این بخش اطمینان می‌دهد که isLoading همیشه به false تغییر می‌کند
-      // و مهم‌تر از آن، isInitialized همیشه به true تنظیم می‌شود تا از حلقه بی‌نهایت جلوگیری شود.
       set({ isLoading: false, isInitialized: true });
     }
   },
@@ -93,10 +94,12 @@ export const useCartStore = create<CartState>((set, get) => ({
         setGuestCartId(cartId);
       }
       set({ cartId });
-      useToast().toast({ title: "محصول به سبد خرید اضافه شد." });
+      // 2. Use the imported `toast` function directly
+      toast({ title: "محصول به سبد خرید اضافه شد." });
     } catch (error) {
       console.error("Failed to add to cart:", error);
-      useToast().toast({
+      // 3. Use the imported `toast` function here as well
+      toast({
         title: "خطا در افزودن محصول",
         variant: "destructive",
       });
@@ -130,7 +133,8 @@ export const useCartStore = create<CartState>((set, get) => ({
         guestCartId ? `?guestCartId=${guestCartId}` : ""
       }`;
       await axiosAuth.delete(url);
-      useToast().toast({
+      // 4. And here
+      toast({
         title: "محصول از سبد خرید حذف شد.",
         variant: "destructive",
       });
@@ -155,7 +159,6 @@ export const useCartStore = create<CartState>((set, get) => ({
     try {
       await axiosAuth.post("/cart/merge", { guestCartId });
       removeGuestCartId();
-      // Force a full re-initialization to get the merged cart
       set({ isInitialized: false });
       await get().initializeCart();
     } catch (error) {

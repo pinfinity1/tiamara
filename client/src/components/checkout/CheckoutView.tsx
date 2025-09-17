@@ -105,99 +105,29 @@ export default function CheckoutView() {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-      <div className="lg:col-span-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MapPin className="text-primary" />
-              انتخاب آدرس ارسال
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {addresses.map((addr) => (
-              <AddressCard
-                key={addr.id}
-                address={addr}
-                isSelected={selectedAddressId === addr.id}
-                onSelect={() => setSelectedAddressId(addr.id)}
-              />
-            ))}
-            <Button
-              variant="outline"
-              onClick={() => router.push("/account?tab=addresses")}
-            >
-              مدیریت آدرس‌ها
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-      <div className="lg:sticky top-36">
-        <Card>
-          <CardHeader>
-            <CardTitle>خلاصه پرداخت</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex justify-between">
-              <span>جمع کل</span>
-              <span>{cartTotal.toLocaleString("fa-IR")} تومان</span>
-            </div>
-            {appliedCoupon && (
-              <div className="flex justify-between text-green-600">
-                <span>تخفیف</span>
-                <span>
-                  - {(cartTotal - finalTotal).toLocaleString("fa-IR")} تومان
-                </span>
-              </div>
-            )}
-            <Separator />
-            <div className="flex justify-between font-bold text-lg">
-              <span>قابل پرداخت</span>
-              <span>{finalTotal.toLocaleString("fa-IR")} تومان</span>
-            </div>
-            <div className="space-y-2 pt-4">
-              <Label htmlFor="coupon">کد تخفیف</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="coupon"
-                  placeholder="کد تخفیف"
-                  value={couponCode}
-                  onChange={(e) => setCouponCode(e.target.value)}
-                  disabled={!!appliedCoupon}
-                />
-                <Button
-                  onClick={handleApplyCoupon}
-                  disabled={isCouponLoading || !!appliedCoupon}
-                >
-                  {isCouponLoading ? (
-                    <Loader2 className="animate-spin" />
-                  ) : appliedCoupon ? (
-                    <CheckCircle />
-                  ) : (
-                    "اعمال"
-                  )}
-                </Button>
-              </div>
-              {couponError && (
-                <p className="text-xs text-red-500 mt-1">{couponError}</p>
-              )}
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button
-              className="w-full h-12 text-lg"
-              onClick={handlePlaceOrder}
-              disabled={isPaymentProcessing}
-            >
-              {isPaymentProcessing ? (
-                <Loader2 className="animate-spin" />
-              ) : (
-                "پرداخت و ثبت نهایی"
-              )}
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <MapPin className="text-primary" />
+          انتخاب آدرس ارسال
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {addresses.map((addr) => (
+          <AddressCard
+            key={addr.id}
+            address={addr}
+            isSelected={selectedAddressId === addr.id}
+            onSelect={() => setSelectedAddressId(addr.id)}
+          />
+        ))}
+        <Button
+          variant="outline"
+          onClick={() => router.push("/account?tab=addresses")}
+        >
+          مدیریت آدرس‌ها
+        </Button>
+      </CardContent>
+    </Card>
   );
 }

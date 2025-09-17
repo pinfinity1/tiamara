@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 
-const protectedRoutes = ["/account", "/checkout", "/cart"];
+const protectedRoutes = ["/account"];
 const superAdminRoutes = ["/super-admin"];
 const authRoutes = ["/auth/login"];
 

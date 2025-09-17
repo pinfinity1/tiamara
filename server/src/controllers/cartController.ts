@@ -1,3 +1,5 @@
+// server/src/controllers/cartController.ts
+
 import { Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { prisma } from "../server";
@@ -26,7 +28,8 @@ const findOrCreateCart = async (
   guestCartId?: string
 ): Promise<Cart> => {
   if (userId) {
-    const userCart = await prisma.cart.findUnique({ where: { userId } });
+    // FIX: Changed findUnique to findFirst
+    const userCart = await prisma.cart.findFirst({ where: { userId } });
     if (userCart) return userCart;
     return prisma.cart.create({ data: { userId } });
   }
@@ -86,7 +89,11 @@ export const getCart = async (
 
     let cart;
     if (userId) {
-      cart = await prisma.cart.findUnique({ where: { userId } });
+      // FIX: Changed findUnique to findFirst
+      cart = await prisma.cart.findFirst({ where: { userId } });
+      if (!cart) {
+        cart = await prisma.cart.create({ data: { userId } });
+      }
     } else if (
       guestCartId &&
       typeof guestCartId === "string" &&
