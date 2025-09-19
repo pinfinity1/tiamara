@@ -40,21 +40,8 @@ interface HomepageState {
   reorderBanners: (reorderedBanners: FeatureBanner[]) => Promise<void>;
   // Section Actions
   fetchSections: () => Promise<void>;
-  createSection: (data: {
-    title: string;
-    order: number;
-    productIds: string[];
-    type: SectionType;
-  }) => Promise<HomepageSection | null>;
-  updateSection: (
-    id: string,
-    data: {
-      title: string;
-      order: number;
-      productIds: string[];
-      type: SectionType;
-    }
-  ) => Promise<HomepageSection | null>;
+  createSection: (data: FormData) => Promise<void>;
+  updateSection: (id: string, data: FormData) => Promise<void>;
   deleteSection: (id: string) => Promise<boolean>;
 }
 
@@ -164,35 +151,48 @@ export const useHomepageStore = create<HomepageState>((set, get) => ({
     }
   },
   createSection: async (data) => {
-    set({ isLoading: true, error: null });
     try {
-      const response = await axiosAuth.post(
-        `/homepage/homepage-sections/create`,
-        data
-      );
-      await get().fetchSections();
-      set({ isLoading: false });
-      return response.data.section;
-    } catch (e) {
-      console.error(e);
-      set({ error: "Failed to create section", isLoading: false });
-      return null;
+      const response = await axios.post("/homepage/sections", data, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      if (response.data.success) {
+        set((state) => ({
+          sections: [...state.sections, response.data.section].sort(
+            (a, b) => a.order - b.order
+          ),
+        }));
+        toast({ title: "موفق", description: "سکشن با موفقیت ایجاد شد." });
+      }
+    } catch (error) {
+      console.error("Failed to create section:", error);
+      toast({
+        title: "خطا",
+        description: "ایجاد سکشن با خطا مواجه شد.",
+        variant: "destructive",
+      });
     }
   },
+
   updateSection: async (id, data) => {
-    set({ isLoading: true, error: null });
     try {
-      const response = await axiosAuth.put(
-        `/homepage/homepage-sections/update/${id}`,
-        data
-      );
-      await get().fetchSections();
-      set({ isLoading: false });
-      return response.data.section;
-    } catch (e) {
-      console.error(e);
-      set({ error: "Failed to update section", isLoading: false });
-      return null;
+      const response = await axios.put(`/homepage/sections/${id}`, data, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      if (response.data.success) {
+        set((state) => ({
+          sections: state.sections
+            .map((s) => (s.id === id ? response.data.section : s))
+            .sort((a, b) => a.order - b.order),
+        }));
+        toast({ title: "موفق", description: "سکشن با موفقیت به‌روز شد." });
+      }
+    } catch (error) {
+      console.error("Failed to update section:", error);
+      toast({
+        title: "خطا",
+        description: "به‌روزرسانی سکشن با خطا مواجه شد.",
+        variant: "destructive",
+      });
     }
   },
   deleteSection: async (id) => {

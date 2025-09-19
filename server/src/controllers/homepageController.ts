@@ -3,7 +3,26 @@ import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import cloudinary from "../config/cloudinary";
 import { prisma } from "../server";
 import fs from "fs";
-import { SectionType } from "@prisma/client";
+import { Prisma, SectionType } from "@prisma/client";
+
+// --- Type Generation using Prisma GetPayload ---
+const homepageSectionWithRelations =
+  Prisma.validator<Prisma.HomepageSectionDefaultArgs>()({
+    include: {
+      products: {
+        include: {
+          images: { take: 1 },
+          brand: true,
+          category: true,
+        },
+      },
+      brand: true,
+    },
+  });
+
+type HomepageSectionWithRelations = Prisma.HomepageSectionGetPayload<
+  typeof homepageSectionWithRelations
+>;
 
 // --- Banner Management ---
 
@@ -12,7 +31,7 @@ export const addFeatureBanner = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { linkUrl, altText, isActive } = req.body;
+    const { linkUrl, altText, isActive, group } = req.body;
     const file = req.file as Express.Multer.File;
 
     if (!file) {
@@ -24,10 +43,11 @@ export const addFeatureBanner = async (
       folder: "tiamara-banners",
     });
 
-    const lastBanner = await prisma.featureBanner.findFirst({
+    const lastBannerInGroup = await prisma.featureBanner.findFirst({
+      where: { group: group || "default" },
       orderBy: { order: "desc" },
     });
-    const newOrder = lastBanner ? lastBanner.order + 1 : 1;
+    const newOrder = lastBannerInGroup ? lastBannerInGroup.order + 1 : 1;
 
     const banner = await prisma.featureBanner.create({
       data: {
@@ -36,6 +56,7 @@ export const addFeatureBanner = async (
         altText: altText,
         order: newOrder,
         isActive: isActive ? isActive === "true" : true,
+        group: group || "default",
       },
     });
 
@@ -54,8 +75,11 @@ export const fetchFeatureBanners = async (
   res: Response
 ): Promise<void> => {
   try {
-    // Fetches all banners for admin, ordered correctly
+    const { group } = req.query;
+    const whereClause = group ? { group: group as string } : {};
+
     const banners = await prisma.featureBanner.findMany({
+      where: whereClause,
       orderBy: { order: "asc" },
     });
     res.status(200).json({ success: true, banners });
@@ -73,7 +97,7 @@ export const updateFeatureBanner = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { linkUrl, altText, order, isActive, imageUrl } = req.body;
+    const { linkUrl, altText, order, isActive, imageUrl, group } = req.body;
     const file = req.file as Express.Multer.File;
 
     const bannerToUpdate = await prisma.featureBanner.findUnique({
@@ -88,43 +112,35 @@ export const updateFeatureBanner = async (
     const originalOrder = bannerToUpdate.order;
     const newOrder = parseInt(order);
 
-    // --- Smart Reordering Logic within a transaction ---
-    await prisma.$transaction(async (prisma) => {
-      // If order has changed, re-sequence other banners
+    await prisma.$transaction(async (tx) => {
       if (originalOrder !== newOrder) {
-        // Get all banners to re-calculate order
-        const allBanners = await prisma.featureBanner.findMany({
+        const allBannersInGroup = await tx.featureBanner.findMany({
+          where: { group: bannerToUpdate.group },
           orderBy: { order: "asc" },
         });
-        const bannerIds = allBanners.map((b) => b.id);
-
-        // Remove the banner from its original position
+        const bannerIds = allBannersInGroup.map((b) => b.id);
         const itemIndex = bannerIds.indexOf(id);
         if (itemIndex > -1) {
           bannerIds.splice(itemIndex, 1);
         }
-
-        // Insert the banner at the new position
-        // Clamp the newOrder to be within valid bounds (1 to banner count)
         const effectiveNewOrder = Math.max(
           1,
           Math.min(newOrder, bannerIds.length + 1)
         );
         bannerIds.splice(effectiveNewOrder - 1, 0, id);
 
-        // Update the order for all banners based on their new index
-        for (let i = 0; i < bannerIds.length; i++) {
-          await prisma.featureBanner.update({
-            where: { id: bannerIds[i] },
-            data: { order: i + 1 },
-          });
-        }
+        // Batch update promises
+        const updatePromises = bannerIds.map((bannerId, index) =>
+          tx.featureBanner.update({
+            where: { id: bannerId },
+            data: { order: index + 1 },
+          })
+        );
+        await Promise.all(updatePromises);
       }
 
-      // Handle file upload
       let newImageUrl = imageUrl;
       if (file) {
-        // ... (cloudinary logic remains the same)
         const uploadResult = await cloudinary.uploader.upload(file.path, {
           folder: "tiamara-banners",
         });
@@ -132,19 +148,19 @@ export const updateFeatureBanner = async (
         fs.unlinkSync(file.path);
       }
 
-      // Update the banner's other details
-      const updatedBanner = await prisma.featureBanner.update({
+      await tx.featureBanner.update({
         where: { id },
         data: {
           imageUrl: newImageUrl,
           linkUrl,
           altText: altText,
           isActive: isActive === "true",
+          group: group || bannerToUpdate.group,
         },
       });
 
-      // Send response after transaction is complete
-      const finalBanners = await prisma.featureBanner.findMany({
+      const finalBanners = await tx.featureBanner.findMany({
+        where: { group: group || bannerToUpdate.group },
         orderBy: { order: "asc" },
       });
       res.status(200).json({ success: true, banners: finalBanners });
@@ -188,18 +204,22 @@ export const deleteFeatureBanner = async (
 
       await prisma.featureBanner.delete({ where: { id } });
 
-      // Reorder remaining banners
       const bannersToUpdate = await prisma.featureBanner.findMany({
-        where: { order: { gt: bannerToDelete.order } },
+        where: {
+          group: bannerToDelete.group,
+          order: { gt: bannerToDelete.order },
+        },
         orderBy: { order: "asc" },
       });
 
-      for (const banner of bannersToUpdate) {
-        await prisma.featureBanner.update({
+      // Batch update promises
+      const updatePromises = bannersToUpdate.map((banner) =>
+        prisma.featureBanner.update({
           where: { id: banner.id },
           data: { order: banner.order - 1 },
-        });
-      }
+        })
+      );
+      await Promise.all(updatePromises);
     });
 
     res
@@ -213,7 +233,6 @@ export const deleteFeatureBanner = async (
   }
 };
 
-// New function to handle drag-and-drop reordering
 export const reorderBanners = async (
   req: AuthenticatedRequest,
   res: Response
@@ -228,14 +247,15 @@ export const reorderBanners = async (
       return;
     }
 
-    await prisma.$transaction(async (prisma) => {
-      for (let i = 0; i < bannerIds.length; i++) {
-        await prisma.featureBanner.update({
-          where: { id: bannerIds[i] },
-          data: { order: i + 1 },
-        });
-      }
-    });
+    // Batch update promises
+    const updatePromises = bannerIds.map((id, index) =>
+      prisma.featureBanner.update({
+        where: { id },
+        data: { order: index + 1 },
+      })
+    );
+
+    await prisma.$transaction(updatePromises);
 
     res
       .status(200)
@@ -255,37 +275,74 @@ export const getHomepageSections = async (
   res: Response
 ): Promise<void> => {
   try {
-    const sections = await prisma.homepageSection.findMany({
-      orderBy: { order: "asc" },
-      include: {
-        products: {
-          include: {
-            images: { take: 1 },
-            brand: true,
-            category: true,
+    const { location } = req.query;
+    const whereClause = location
+      ? { location: location as string }
+      : { location: "homepage" };
+
+    const sections: HomepageSectionWithRelations[] =
+      await prisma.homepageSection.findMany({
+        where: whereClause,
+        orderBy: { order: "asc" },
+        include: {
+          products: {
+            include: {
+              images: { take: 1 },
+              brand: true,
+              category: true,
+            },
           },
+          brand: true,
         },
-      },
+      });
+
+    // ** PERFORMANCE OPTIMIZATION **
+    // Instead of querying inside a loop, we run necessary queries in parallel.
+    const [discountedProducts, bestSellingProducts] = await Promise.all([
+      prisma.product.findMany({
+        where: { discount_price: { not: null } },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        include: { images: { take: 1 }, brand: true, category: true },
+      }),
+      prisma.product.findMany({
+        orderBy: { soldCount: "desc" },
+        take: 10,
+        include: { images: { take: 1 }, brand: true, category: true },
+      }),
+    ]);
+
+    // Fetch products for all BRAND sections in one go
+    const brandSectionIds = sections
+      .filter((s) => s.type === "BRAND" && s.brandId)
+      .map((s) => s.brandId!);
+
+    const brandProducts = await prisma.product.findMany({
+      where: { brandId: { in: brandSectionIds } },
+      orderBy: { createdAt: "desc" },
+      include: { images: { take: 1 }, brand: true, category: true },
     });
 
-    for (const section of sections) {
+    // Map the fetched products back to their sections
+    const finalSections = sections.map((section) => {
       if (section.type === "DISCOUNTED") {
-        section.products = await prisma.product.findMany({
-          where: { discount_price: { not: null } },
-          orderBy: { createdAt: "desc" },
-          take: 10,
-          include: { images: { take: 1 }, brand: true, category: true },
-        });
-      } else if (section.type === "BEST_SELLING") {
-        section.products = await prisma.product.findMany({
-          orderBy: { soldCount: "desc" },
-          take: 10,
-          include: { images: { take: 1 }, brand: true, category: true },
-        });
+        return { ...section, products: discountedProducts };
       }
-    }
+      if (section.type === "BEST_SELLING") {
+        return { ...section, products: bestSellingProducts };
+      }
+      if (section.type === "BRAND" && section.brandId) {
+        return {
+          ...section,
+          products: brandProducts
+            .filter((p) => p.brandId === section.brandId)
+            .slice(0, 10),
+        };
+      }
+      return section;
+    });
 
-    res.status(200).json({ success: true, sections });
+    res.status(200).json({ success: true, sections: finalSections });
   } catch (error) {
     console.error("Error fetching homepage sections:", error);
     res
@@ -299,11 +356,13 @@ export const createHomepageSection = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { title, order, type, productIds } = req.body as {
+    const { title, order, type, productIds, brandId, location } = req.body as {
       title: string;
       order: string;
       type: SectionType;
       productIds: string[];
+      brandId?: string;
+      location?: string;
     };
 
     if (!title || !type) {
@@ -321,11 +380,21 @@ export const createHomepageSection = async (
       return;
     }
 
+    if (type === "BRAND" && !brandId) {
+      res.status(400).json({
+        success: false,
+        message: "Brand ID is required for BRAND sections.",
+      });
+      return;
+    }
+
     const section = await prisma.homepageSection.create({
       data: {
         title,
         order: order ? parseInt(order) : 0,
         type,
+        location: location || "homepage",
+        brandId: type === "BRAND" ? brandId : null,
         products:
           type === "MANUAL"
             ? { connect: productIds.map((id: string) => ({ id })) }
@@ -348,11 +417,13 @@ export const updateHomepageSection = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { title, order, type, productIds } = req.body as {
+    const { title, order, type, productIds, brandId, location } = req.body as {
       title: string;
       order: string;
       type: SectionType;
       productIds: string[];
+      brandId?: string;
+      location?: string;
     };
 
     if (title === undefined || type === undefined) {
@@ -370,12 +441,22 @@ export const updateHomepageSection = async (
       return;
     }
 
+    if (type === "BRAND" && !brandId) {
+      res.status(400).json({
+        success: false,
+        message: "Brand ID is required for BRAND sections.",
+      });
+      return;
+    }
+
     const section = await prisma.homepageSection.update({
       where: { id },
       data: {
         title,
         order: order ? parseInt(order) : 0,
         type,
+        location: location || "homepage",
+        brandId: type === "BRAND" ? brandId : null,
         products:
           type === "MANUAL"
             ? { set: productIds.map((id: string) => ({ id })) }

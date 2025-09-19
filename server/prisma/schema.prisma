@@ -134,15 +134,16 @@ model Image {
 }
 
 model Brand {
-  id              String    @id @default(cuid())
-  name            String    @unique
-  slug            String    @unique
-  logoUrl         String?
-  metaTitle       String?
-  metaDescription String?
-  products        product[]
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id               String            @id @default(cuid())
+  name             String            @unique
+  slug             String            @unique
+  logoUrl          String?
+  metaTitle        String?
+  metaDescription  String?
+  products         product[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  homepageSections HomepageSection[]
 }
 
 model Category {
@@ -164,6 +165,7 @@ model FeatureBanner {
   linkUrl   String?  @default("/")
   order     Int      @default(0)
   isActive  Boolean  @default(true)
+  group     String   @default("default")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -172,16 +174,23 @@ enum SectionType {
   MANUAL
   DISCOUNTED
   BEST_SELLING
+  BRAND
 }
 
 model HomepageSection {
-  id        String    @id @default(cuid())
+  id        String      @id @default(cuid())
   title     String
-  order     Int       @default(0)
+  order     Int         @default(0)
   type      SectionType @default(MANUAL)
+  location  String?     @default("homepage")
+  brandId   String?
+  brand     Brand?      @relation(fields: [brandId], references: [id])
   products  product[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  imageUrl  String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([brandId])
 }
 
 model Wishlist {
@@ -205,26 +214,26 @@ model WishlistItem {
 }
 
 model User {
-  id                 String    @id @default(cuid())
+  id                 String         @id @default(cuid())
   name               String?
-  phone              String?   @unique
-  email              String?   @unique
+  phone              String?        @unique
+  email              String?        @unique
   emailVerified      DateTime?
   image              String?
   password           String?
-  role               Role      @default(USER)
+  role               Role           @default(USER)
   sessions           Session[]
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
   carts              Cart[]
   addresses          Address[]
   orders             Order[]
   stockHistory       StockHistory[]
   wishlist           Wishlist?
   skinType           String?
-  skinConcerns       String[]  @default([])
-  skincareGoals      String[]  @default([])
-  productPreferences String[]  @default([])
+  skinConcerns       String[]       @default([])
+  skincareGoals      String[]       @default([])
+  productPreferences String[]       @default([])
 }
 
 model Session {
@@ -245,7 +254,7 @@ model VerificationToken {
 
 model Cart {
   id        String     @id @default(cuid())
-  userId    String?    
+  userId    String?
   user      User?      @relation(fields: [userId], references: [id])
   items     CartItem[]
   createdAt DateTime   @default(now())
