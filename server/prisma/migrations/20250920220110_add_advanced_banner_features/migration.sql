@@ -1,0 +1,8 @@
+-- AlterTable
+ALTER TABLE "public"."FeatureBanner" ADD COLUMN     "clicks" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "endDate" TIMESTAMP(3),
+ADD COLUMN     "imageUrlMobile" TEXT,
+ADD COLUMN     "startDate" TIMESTAMP(3),
+ADD COLUMN     "views" INTEGER NOT NULL DEFAULT 0,
+ALTER COLUMN "linkUrl" DROP DEFAULT,
+ALTER COLUMN "group" DROP DEFAULT;

@@ -4,70 +4,57 @@ import { uploadImage } from "../middleware/uploadMiddleware";
 
 import {
   addFeatureBanner,
-  createHomepageSection,
-  deleteHomepageSection,
-  fetchFeatureBanners,
-  getHomepageSections,
-  updateHomepageSection,
   updateFeatureBanner,
   deleteFeatureBanner,
   reorderBanners,
+  deleteBannerGroup,
+  fetchBannersForAdmin,
+  fetchBannersForClient,
+  trackBannerClick,
 } from "../controllers/homepageController";
 
 const router = express.Router();
 
-// This is a public route for clients to fetch active banners
-router.get("/banners", fetchFeatureBanners);
-
-// This is a protected admin route to add a new banner
+// --- Admin Routes (for management panel) ---
+router.get(
+  "/banners/admin",
+  authenticateJwt,
+  isSuperAdmin,
+  fetchBannersForAdmin
+);
 router.post(
   "/banners/add",
   authenticateJwt,
   isSuperAdmin,
-  uploadImage.single("image"),
+  uploadImage.array("images", 10),
   addFeatureBanner
 );
-
 router.put(
   "/banners/update/:id",
   authenticateJwt,
   isSuperAdmin,
-  uploadImage.single("image"),
+  uploadImage.fields([
+    { name: "images[desktop]", maxCount: 1 },
+    { name: "images[mobile]", maxCount: 1 },
+  ]),
   updateFeatureBanner
 );
-
 router.delete(
   "/banners/delete/:id",
   authenticateJwt,
   isSuperAdmin,
   deleteFeatureBanner
 );
-
-// This is a protected admin route to reorder banners
 router.post("/banners/reorder", authenticateJwt, isSuperAdmin, reorderBanners);
-
-// Public route for clients to fetch all homepage sections
-router.get("/homepage-sections", getHomepageSections);
-// Protected admin route to create a new section
-router.post(
-  "/homepage-sections/create",
-  authenticateJwt,
-  isSuperAdmin,
-  createHomepageSection
-);
-// Protected admin route to update an existing section
-router.put(
-  "/homepage-sections/update/:id",
-  authenticateJwt,
-  isSuperAdmin,
-  updateHomepageSection
-);
-// Protected admin route to delete a section
 router.delete(
-  "/homepage-sections/delete/:id",
+  "/banners/group/:groupName",
   authenticateJwt,
   isSuperAdmin,
-  deleteHomepageSection
+  deleteBannerGroup
 );
+
+// --- Client Routes (for public website) ---
+router.get("/banners", fetchBannersForClient);
+router.post("/banners/track-click/:id", trackBannerClick);
 
 export default router;

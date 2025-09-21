@@ -4,27 +4,31 @@ import { Product } from "@/store/useProductStore";
 import { Brand } from "@/store/useBrandStore";
 import { Category } from "@/store/useCategoryStore";
 
-// home page sections
-export async function getHomepageData(): Promise<{
-  banners: FeatureBanner[];
-  sections: HomepageSection[];
-}> {
+export async function getHomepageData() {
   try {
-    const [bannersRes, sectionsRes] = await Promise.all([
-      axiosPublic.get(`/homepage/banners`),
-      axiosPublic.get(`/homepage/homepage-sections`),
-    ]);
+    // We are using the group ID you created: "home-banner"
+    const bannerGroup = "home-banner";
 
-    const banners = bannersRes.data.banners || [];
-    const sections = sectionsRes.data.sections || [];
+    // Only fetch the banners for now
+    const bannersRes = await axiosPublic.get(
+      `/homepage/banners?group=${bannerGroup}`
+    );
 
-    return { banners, sections };
+    return {
+      banners: bannersRes.data.banners || [],
+      sections: [], // Return an empty array for sections temporarily
+      error: null,
+    };
   } catch (error) {
     console.error("Failed to fetch homepage data:", error);
-    return { banners: [], sections: [] };
+    // Return empty arrays on error to prevent the page from crashing.
+    return {
+      banners: [],
+      sections: [],
+      error: "Could not load homepage data.",
+    };
   }
 }
-
 // product/[slug] page.tsx
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   try {

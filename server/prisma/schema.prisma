@@ -50,7 +50,7 @@ model product {
   stockHistory       StockHistory[]
   purchaseOrderItems PurchaseOrderItem[]
   wishlistItems      WishlistItem[]
-  cartItems          CartItem[] // <-- ارتباط دوطرفه اینجا اضافه شد
+  cartItems          CartItem[] 
 
   @@map("Product")
 }
@@ -159,15 +159,23 @@ model Category {
 }
 
 model FeatureBanner {
-  id        String   @id @default(cuid())
-  imageUrl  String
-  altText   String?
-  linkUrl   String?  @default("/")
-  order     Int      @default(0)
-  isActive  Boolean  @default(true)
-  group     String   @default("default")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String    @id @default(cuid())
+  group           String
+  imageUrl        String
+  imageUrlMobile  String?   
+  linkUrl         String?
+  altText         String?
+  order           Int       @default(0)
+  isActive        Boolean   @default(true)
+  
+  startDate       DateTime? 
+  endDate         DateTime? 
+
+  views           Int       @default(0) 
+  clicks          Int       @default(0) 
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }
 
 enum SectionType {

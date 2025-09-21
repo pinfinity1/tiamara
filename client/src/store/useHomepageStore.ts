@@ -1,22 +1,28 @@
-import axiosAuth from "@/lib/axios";
-import { axiosPublic } from "@/lib/axios";
-import { Product } from "./useProductStore";
 import { create } from "zustand";
+import axiosAuth, { axiosPublic } from "@/lib/axios";
+import { toast } from "@/hooks/use-toast";
+import { Product } from "./useProductStore";
 
 export enum SectionType {
   MANUAL = "MANUAL",
   DISCOUNTED = "DISCOUNTED",
   BEST_SELLING = "BEST_SELLING",
+  BRAND = "BRAND",
 }
 
 export interface FeatureBanner {
   id: string;
+  group: string;
   imageUrl: string;
-  altText?: string | null;
+  imageUrlMobile?: string | null;
   linkUrl?: string | null;
-  buttonText?: string | null;
+  altText?: string | null;
   order: number;
   isActive: boolean;
+  startDate?: string | null;
+  endDate?: string | null;
+  views: number;
+  clicks: number;
 }
 
 export interface HomepageSection {
@@ -25,187 +31,178 @@ export interface HomepageSection {
   order: number;
   type: SectionType;
   products: Product[];
+  location?: string;
+  imageUrl?: string | null;
+  brandId?: string | null;
 }
 
 interface HomepageState {
-  banners: FeatureBanner[];
-  sections: HomepageSection[];
+  banners: FeatureBanner[]; // For admin panel
+  clientBanners: FeatureBanner[]; // For public website
   isLoading: boolean;
   error: string | null;
-  // Banner Actions
+  // Admin actions
   fetchBanners: () => Promise<void>;
-  addBanner: (data: FormData) => Promise<FeatureBanner | null>;
-  updateBanner: (id: string, data: FormData) => Promise<FeatureBanner | null>;
+  addBanner: (data: FormData) => Promise<boolean>;
+  updateBanner: (id: string, data: FormData) => Promise<boolean>;
   deleteBanner: (id: string) => Promise<boolean>;
-  reorderBanners: (reorderedBanners: FeatureBanner[]) => Promise<void>;
-  // Section Actions
-  fetchSections: () => Promise<void>;
-  createSection: (data: FormData) => Promise<void>;
-  updateSection: (id: string, data: FormData) => Promise<void>;
+  reorderBanners: (reorderedBanners: FeatureBanner[]) => Promise<boolean>;
+  deleteBannerGroup: (groupName: string) => Promise<boolean>;
+  // Client actions
+  fetchBannersForClient: (group: string) => Promise<void>;
+  trackClick: (id: string) => Promise<void>;
+  // Section actions (placeholders)
+  sections: HomepageSection[];
+  fetchSections: (location?: string) => Promise<void>;
+  createSection: (data: FormData) => Promise<HomepageSection | null>;
+  updateSection: (
+    id: string,
+    data: FormData
+  ) => Promise<HomepageSection | null>;
   deleteSection: (id: string) => Promise<boolean>;
 }
 
 export const useHomepageStore = create<HomepageState>((set, get) => ({
   banners: [],
+  clientBanners: [],
   sections: [],
   isLoading: false,
   error: null,
 
-  // --- Banner Actions Implementation ---
+  // --- Banner Actions for Admin Panel ---
   fetchBanners: async () => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axiosPublic.get(`/homepage/banners`);
-      set({ banners: response.data.banners, isLoading: false });
+      const response = await axiosAuth.get("/homepage/banners/admin");
+      set({ banners: response.data.banners });
     } catch (e) {
       console.error(e);
-      set({ error: "Failed to fetch banners", isLoading: false });
+      set({ error: "Failed to fetch banners" });
+    } finally {
+      set({ isLoading: false });
     }
   },
+
   addBanner: async (data) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true });
     try {
-      const response = await axiosAuth.post(`/homepage/banners/add`, data, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      set((state) => ({
-        banners: [...state.banners, response.data.banner].sort(
-          (a, b) => a.order - b.order
-        ),
-        isLoading: false,
-      }));
-      return response.data.banner;
+      await axiosAuth.post("/homepage/banners/add", data);
+      toast({ title: "بنر(ها) با موفقیت اضافه شدند." });
+      await get().fetchBanners();
+      return true;
     } catch (e) {
+      toast({ title: "خطا در افزودن بنر", variant: "destructive" });
       console.error(e);
-      set({ error: "Failed to add banner", isLoading: false });
-      return null;
+      return false;
+    } finally {
+      set({ isLoading: false });
     }
   },
+
   updateBanner: async (id, data) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true });
     try {
-      const response = await axiosAuth.put(
-        `/homepage/banners/update/${id}`,
-        data,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-        }
-      );
-      if (response.data && Array.isArray(response.data.banners)) {
-        set({
-          banners: response.data.banners,
-          isLoading: false,
-        });
-        return response.data.banners;
-      } else {
-        console.warn("پاسخ نامعتبر از سرور، در حال واکشی مجدد لیست بنرها...");
-        await get().fetchBanners();
-        return get().banners;
-      }
+      await axiosAuth.put(`/homepage/banners/update/${id}`, data);
+      toast({ title: "بنر با موفقیت ویرایش شد." });
+      await get().fetchBanners();
+      return true;
     } catch (e) {
+      toast({ title: "خطا در ویرایش بنر", variant: "destructive" });
       console.error(e);
-      set({ error: "Failed to update banner", isLoading: false });
-      return null;
+      return false;
+    } finally {
+      set({ isLoading: false });
     }
   },
-  deleteBanner: async (id) => {
-    set({ isLoading: true, error: null });
+
+  deleteBanner: async (id: string) => {
+    set({ isLoading: true });
     try {
       await axiosAuth.delete(`/homepage/banners/delete/${id}`);
-      get().fetchBanners();
-      set((state) => ({
-        banners: state.banners.filter((b) => b.id !== id),
-        isLoading: false,
-      }));
+      toast({ title: "بنر با موفقیت حذف شد." });
+      await get().fetchBanners();
       return true;
     } catch (e) {
+      toast({ title: "خطا در حذف بنر", variant: "destructive" });
       console.error(e);
-      set({ error: "Failed to delete banner", isLoading: false });
       return false;
+    } finally {
+      set({ isLoading: false });
     }
   },
-  reorderBanners: async (reorderedBanners) => {
-    set({ banners: reorderedBanners });
 
+  deleteBannerGroup: async (groupName: string) => {
+    set({ isLoading: true });
     try {
-      const bannerIds = reorderedBanners.map((banner) => banner.id);
-      await axiosAuth.post(`/homepage/banners/reorder`, { bannerIds });
-
+      await axiosAuth.delete(`/homepage/banners/group/${groupName}`);
+      toast({ title: `گروه '${groupName}' حذف شد.` });
       await get().fetchBanners();
+      return true;
     } catch (e) {
+      toast({ title: "خطا در حذف گروه", variant: "destructive" });
       console.error(e);
-      get().fetchBanners();
-      set({ error: "Failed to reorder banners" });
+      return false;
+    } finally {
+      set({ isLoading: false });
     }
   },
 
-  // --- Homepage Section Actions Implementation ---
-  fetchSections: async () => {
-    set({ isLoading: true, error: null });
+  reorderBanners: async (reorderedBanners) => {
+    const originalBanners = get().banners;
+    set({ banners: reorderedBanners }); // Optimistic update
+    set({ isLoading: true });
     try {
-      const response = await axiosPublic.get(`/homepage/homepage-sections`);
-      set({ sections: response.data.sections, isLoading: false });
+      const bannerIds = reorderedBanners.map((b) => b.id);
+      await axiosAuth.post("/homepage/banners/reorder", { bannerIds });
+      await get().fetchBanners();
+      return true;
     } catch (e) {
+      set({ banners: originalBanners }); // Revert on error
+      toast({ title: "خطا در مرتب‌سازی بنرها", variant: "destructive" });
       console.error(e);
-      set({ error: "Failed to fetch sections", isLoading: false });
+      return false;
+    } finally {
+      set({ isLoading: false });
     }
+  },
+
+  // --- Banner Actions for Client Website ---
+  fetchBannersForClient: async (group: string) => {
+    set({ isLoading: true });
+    try {
+      const response = await axiosPublic.get(
+        `/homepage/banners?group=${group}`
+      );
+      set({ clientBanners: response.data.banners });
+    } catch (e) {
+      console.error(`Failed to fetch banners for group ${group}`, e);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  trackClick: async (id: string) => {
+    try {
+      await axiosPublic.post(`/homepage/banners/track-click/${id}`);
+    } catch (e) {
+      console.error("Failed to track click for banner:", id);
+    }
+  },
+
+  // --- Homepage Section Actions (Placeholders) ---
+  fetchSections: async (location = "homepage") => {
+    // Implementation needed
   },
   createSection: async (data) => {
-    try {
-      const response = await axios.post("/homepage/sections", data, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      if (response.data.success) {
-        set((state) => ({
-          sections: [...state.sections, response.data.section].sort(
-            (a, b) => a.order - b.order
-          ),
-        }));
-        toast({ title: "موفق", description: "سکشن با موفقیت ایجاد شد." });
-      }
-    } catch (error) {
-      console.error("Failed to create section:", error);
-      toast({
-        title: "خطا",
-        description: "ایجاد سکشن با خطا مواجه شد.",
-        variant: "destructive",
-      });
-    }
+    // Implementation needed
+    return null;
   },
-
   updateSection: async (id, data) => {
-    try {
-      const response = await axios.put(`/homepage/sections/${id}`, data, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      if (response.data.success) {
-        set((state) => ({
-          sections: state.sections
-            .map((s) => (s.id === id ? response.data.section : s))
-            .sort((a, b) => a.order - b.order),
-        }));
-        toast({ title: "موفق", description: "سکشن با موفقیت به‌روز شد." });
-      }
-    } catch (error) {
-      console.error("Failed to update section:", error);
-      toast({
-        title: "خطا",
-        description: "به‌روزرسانی سکشن با خطا مواجه شد.",
-        variant: "destructive",
-      });
-    }
+    // Implementation needed
+    return null;
   },
   deleteSection: async (id) => {
-    set({ isLoading: true, error: null });
-    try {
-      await axiosAuth.delete(`/homepage/homepage-sections/delete/${id}`);
-      await get().fetchSections();
-      set({ isLoading: false });
-      return true;
-    } catch (e) {
-      console.error(e);
-      set({ error: "Failed to delete section", isLoading: false });
-      return false;
-    }
+    // Implementation needed
+    return false;
   },
 }));
