@@ -54,6 +54,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import Image from "next/image";
 
 // کامپوننت قابل مرتب‌سازی برای هر ردیف از مجموعه
 const SortableCollectionItem = ({
@@ -136,7 +137,10 @@ function CollectionManager() {
     productIds: [] as string[],
     brandId: null as string | null,
     location: "homepage",
+    image: null as File | null,
+    existingImageUrl: null as string | null,
   });
+  const [preview, setPreview] = useState<string | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor));
 
@@ -154,7 +158,10 @@ function CollectionManager() {
       productIds: [],
       brandId: null,
       location: "homepage",
+      image: null,
+      existingImageUrl: null,
     });
+    setPreview(null);
     setIsDialogOpen(true);
   };
 
@@ -164,25 +171,46 @@ function CollectionManager() {
       title: collection.title,
       type: collection.type,
       productIds: collection.products.map((p) => p.id),
-      // FIX: Ensure undefined becomes null
       brandId: collection.brandId ?? null,
       location: collection.location || "homepage",
+      image: null,
+      existingImageUrl: collection.imageUrl || null,
     });
+    setPreview(collection.imageUrl || null);
     setIsDialogOpen(true);
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setFormData((prev) => ({ ...prev, image: file }));
+      setPreview(URL.createObjectURL(file));
+    }
+  };
+
   const handleSubmit = async () => {
-    const dataToSend = {
-      ...formData,
-      productIds:
-        formData.type === SectionType.MANUAL ? formData.productIds : [],
-      brandId: formData.type === SectionType.BRAND ? formData.brandId : null,
-    };
+    const data = new FormData();
+    data.append("title", formData.title);
+    data.append("type", formData.type);
+    data.append("location", formData.location);
+
+    if (formData.type === SectionType.BRAND && formData.brandId) {
+      data.append("brandId", formData.brandId);
+    }
+    if (formData.type === SectionType.MANUAL) {
+      formData.productIds.forEach((id) => data.append("productIds[]", id));
+    }
+    if (formData.image) {
+      data.append("image", formData.image);
+    }
+    if (formData.existingImageUrl) {
+      data.append("existingImageUrl", formData.existingImageUrl);
+    }
 
     if (editingCollection) {
-      await updateCollection(editingCollection.id, dataToSend);
+      await updateCollection(editingCollection.id, data);
     } else {
-      await createCollection(dataToSend);
+      await createCollection(data);
     }
     setIsDialogOpen(false);
   };
@@ -232,7 +260,7 @@ function CollectionManager() {
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingCollection ? "ویرایش مجموعه" : "ایجاد مجموعه جدید"}
@@ -366,6 +394,26 @@ function CollectionManager() {
                 </div>
               </div>
             )}
+            <div>
+              <Label htmlFor="image">بنر پس‌زمینه (اختیاری)</Label>
+              <Input
+                id="image"
+                type="file"
+                onChange={handleFileChange}
+                className="mt-1"
+              />
+              {preview && (
+                <div className="mt-4 relative w-full h-32">
+                  <Image
+                    src={preview}
+                    alt="پیش‌نمایش بنر"
+                    layout="fill"
+                    objectFit="cover"
+                    className="rounded-md"
+                  />
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <DialogClose asChild>

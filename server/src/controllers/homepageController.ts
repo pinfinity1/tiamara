@@ -369,12 +369,10 @@ export const getProductCollections = async (
     res.status(200).json({ success: true, collections: finalCollections });
   } catch (error) {
     console.error("Error fetching product collections:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to fetch product collections.",
-      });
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch product collections.",
+    });
   }
 };
 
@@ -383,48 +381,30 @@ export const createProductCollection = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { title, order, type, productIds, brandId, location } = req.body as {
-      title: string;
-      order: string;
-      type: SectionType;
-      productIds: string[];
-      brandId?: string;
-      location?: string;
-    };
+    const { title, type, productIds, brandId, location } = req.body;
+    const file = req.file;
+    let imageUrl: string | undefined = undefined;
 
-    if (!title || !type) {
-      res
-        .status(400)
-        .json({ success: false, message: "Title and type are required." });
-      return;
-    }
-
-    if (type === "MANUAL" && (!productIds || !Array.isArray(productIds))) {
-      res.status(400).json({
-        success: false,
-        message: "Product IDs are required for MANUAL collections.",
+    if (file) {
+      const result = await cloudinary.uploader.upload(file.path, {
+        folder: "tiamara-collections",
       });
-      return;
-    }
-
-    if (type === "BRAND" && !brandId) {
-      res.status(400).json({
-        success: false,
-        message: "Brand ID is required for BRAND collections.",
-      });
-      return;
+      imageUrl = result.secure_url;
+      fs.unlinkSync(file.path); // Clean up temp file
     }
 
     const collection = await prisma.productCollection.create({
       data: {
         title,
-        order: order ? parseInt(order) : 0,
         type,
         location: location || "homepage",
         brandId: type === "BRAND" ? brandId : null,
+        imageUrl,
         products:
-          type === "MANUAL"
-            ? { connect: productIds.map((id: string) => ({ id })) }
+          type === "MANUAL" && productIds
+            ? {
+                connect: (productIds as string[]).map((id: string) => ({ id })),
+              }
             : {},
       },
     });
@@ -447,49 +427,46 @@ export const updateProductCollection = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { title, order, type, productIds, brandId, location } = req.body as {
-      title: string;
-      order: string;
-      type: SectionType;
-      productIds: string[];
-      brandId?: string;
-      location?: string;
-    };
+    const { title, type, productIds, brandId, location, existingImageUrl } =
+      req.body;
+    const file = req.file;
+    let imageUrl: string | undefined = existingImageUrl;
 
-    if (title === undefined || type === undefined) {
-      res
-        .status(400)
-        .json({ success: false, message: "Title and type are required." });
-      return;
-    }
+    const existingCollection = await prisma.productCollection.findUnique({
+      where: { id },
+    });
 
-    if (type === "MANUAL" && !Array.isArray(productIds)) {
-      res.status(400).json({
-        success: false,
-        message: "Product IDs are required for MANUAL collections.",
+    if (file) {
+      // Delete old image from Cloudinary if it exists
+      if (existingCollection?.imageUrl) {
+        const publicId = `tiamara-collections/${
+          existingCollection.imageUrl.split("/").pop()?.split(".")[0]
+        }`;
+        try {
+          await cloudinary.uploader.destroy(publicId);
+        } catch (err) {
+          console.log("Old image not found on Cloudinary, proceeding...");
+        }
+      }
+      // Upload new image
+      const result = await cloudinary.uploader.upload(file.path, {
+        folder: "tiamara-collections",
       });
-      return;
-    }
-
-    if (type === "BRAND" && !brandId) {
-      res.status(400).json({
-        success: false,
-        message: "Brand ID is required for BRAND collections.",
-      });
-      return;
+      imageUrl = result.secure_url;
+      fs.unlinkSync(file.path);
     }
 
     const collection = await prisma.productCollection.update({
       where: { id },
       data: {
         title,
-        order: order ? parseInt(order) : 0,
         type,
         location: location || "homepage",
+        imageUrl,
         brandId: type === "BRAND" ? brandId : null,
         products:
           type === "MANUAL"
-            ? { set: productIds.map((id: string) => ({ id })) }
+            ? { set: (productIds as string[]).map((id: string) => ({ id })) }
             : { set: [] },
       },
     });
@@ -518,12 +495,10 @@ export const deleteProductCollection = async (
       .json({ success: true, message: "Collection deleted successfully." });
   } catch (error) {
     console.error("Error deleting product collection:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to delete product collection.",
-      });
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete product collection.",
+    });
   }
 };
 

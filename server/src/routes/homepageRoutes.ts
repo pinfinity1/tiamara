@@ -67,12 +67,14 @@ router.post(
   "/collections/create",
   authenticateJwt,
   isSuperAdmin,
+  uploadImage.single("image"),
   createProductCollection
 );
 router.put(
   "/collections/update/:id",
   authenticateJwt,
   isSuperAdmin,
+  uploadImage.single("image"),
   updateProductCollection
 );
 router.delete(
