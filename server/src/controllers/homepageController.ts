@@ -6,8 +6,8 @@ import fs from "fs";
 import { Prisma, SectionType } from "@prisma/client";
 
 // --- Type Generation using Prisma GetPayload ---
-const homepageSectionWithRelations =
-  Prisma.validator<Prisma.HomepageSectionDefaultArgs>()({
+const productCollectionWithRelations =
+  Prisma.validator<Prisma.ProductCollectionDefaultArgs>()({
     include: {
       products: {
         include: {
@@ -20,8 +20,8 @@ const homepageSectionWithRelations =
     },
   });
 
-type HomepageSectionWithRelations = Prisma.HomepageSectionGetPayload<
-  typeof homepageSectionWithRelations
+type ProductCollectionWithRelations = Prisma.ProductCollectionGetPayload<
+  typeof productCollectionWithRelations
 >;
 
 // --- Banner Management ---
@@ -50,12 +50,10 @@ export const fetchBannersForClient = async (
   try {
     const { group } = req.query;
     if (!group) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: "Group query parameter is required.",
-        });
+      res.status(400).json({
+        success: false,
+        message: "Group query parameter is required.",
+      });
       return;
     }
 
@@ -64,7 +62,6 @@ export const fetchBannersForClient = async (
       where: {
         group: group as string,
         isActive: true,
-        // Add other conditions like date scheduling if needed
       },
       orderBy: { order: "asc" },
     });
@@ -99,8 +96,6 @@ export const addFeatureBanner = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
-  // This function needs to be adapted for the new features if we continue with it.
-  // For now, let's focus on updating existing banners. A similar logic will apply.
   res.status(501).json({
     message: "Add banner functionality needs to be updated for new features.",
   });
@@ -123,7 +118,6 @@ export const updateFeatureBanner = async (
       imageUrlMobile,
     } = req.body;
 
-    // CORRECTED: req.files is now an object, not an array
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
 
     const desktopFile = files?.["images[desktop]"]?.[0];
@@ -305,19 +299,17 @@ export const deleteBannerGroup = async (
   }
 };
 
-// --- Homepage Section Management (remains unchanged) ---
-export const getHomepageSections = async (
+// --- Product Collection Management ---
+export const getProductCollections = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
     const { location } = req.query;
-    const whereClause = location
-      ? { location: location as string }
-      : { location: "homepage" };
+    const whereClause = location ? { location: location as string } : {}; // Fetch all if no location specified
 
-    const sections: HomepageSectionWithRelations[] =
-      await prisma.homepageSection.findMany({
+    const collections: ProductCollectionWithRelations[] =
+      await prisma.productCollection.findMany({
         where: whereClause,
         orderBy: { order: "asc" },
         include: {
@@ -346,44 +338,47 @@ export const getHomepageSections = async (
       }),
     ]);
 
-    const brandSectionIds = sections
+    const brandCollectionIds = collections
       .filter((s) => s.type === "BRAND" && s.brandId)
       .map((s) => s.brandId!);
 
     const brandProducts = await prisma.product.findMany({
-      where: { brandId: { in: brandSectionIds } },
+      where: { brandId: { in: brandCollectionIds } },
       orderBy: { createdAt: "desc" },
       include: { images: { take: 1 }, brand: true, category: true },
     });
 
-    const finalSections = sections.map((section) => {
-      if (section.type === "DISCOUNTED") {
-        return { ...section, products: discountedProducts };
+    const finalCollections = collections.map((collection) => {
+      if (collection.type === "DISCOUNTED") {
+        return { ...collection, products: discountedProducts };
       }
-      if (section.type === "BEST_SELLING") {
-        return { ...section, products: bestSellingProducts };
+      if (collection.type === "BEST_SELLING") {
+        return { ...collection, products: bestSellingProducts };
       }
-      if (section.type === "BRAND" && section.brandId) {
+      if (collection.type === "BRAND" && collection.brandId) {
         return {
-          ...section,
+          ...collection,
           products: brandProducts
-            .filter((p) => p.brandId === section.brandId)
+            .filter((p) => p.brandId === collection.brandId)
             .slice(0, 10),
         };
       }
-      return section;
+      return collection;
     });
 
-    res.status(200).json({ success: true, sections: finalSections });
+    res.status(200).json({ success: true, collections: finalCollections });
   } catch (error) {
-    console.error("Error fetching homepage sections:", error);
+    console.error("Error fetching product collections:", error);
     res
       .status(500)
-      .json({ success: false, message: "Failed to fetch homepage sections." });
+      .json({
+        success: false,
+        message: "Failed to fetch product collections.",
+      });
   }
 };
 
-export const createHomepageSection = async (
+export const createProductCollection = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
@@ -407,7 +402,7 @@ export const createHomepageSection = async (
     if (type === "MANUAL" && (!productIds || !Array.isArray(productIds))) {
       res.status(400).json({
         success: false,
-        message: "Product IDs are required for MANUAL sections.",
+        message: "Product IDs are required for MANUAL collections.",
       });
       return;
     }
@@ -415,12 +410,12 @@ export const createHomepageSection = async (
     if (type === "BRAND" && !brandId) {
       res.status(400).json({
         success: false,
-        message: "Brand ID is required for BRAND sections.",
+        message: "Brand ID is required for BRAND collections.",
       });
       return;
     }
 
-    const section = await prisma.homepageSection.create({
+    const collection = await prisma.productCollection.create({
       data: {
         title,
         order: order ? parseInt(order) : 0,
@@ -434,16 +429,19 @@ export const createHomepageSection = async (
       },
     });
 
-    res.status(201).json({ success: true, section });
+    res.status(201).json({ success: true, collection });
   } catch (error) {
-    console.error("Error creating homepage section:", error);
+    console.error("Error creating product collection:", error);
     res
       .status(500)
-      .json({ success: false, message: "Failed to create homepage section." });
+      .json({
+        success: false,
+        message: "Failed to create product collection.",
+      });
   }
 };
 
-export const updateHomepageSection = async (
+export const updateProductCollection = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
@@ -468,7 +466,7 @@ export const updateHomepageSection = async (
     if (type === "MANUAL" && !Array.isArray(productIds)) {
       res.status(400).json({
         success: false,
-        message: "Product IDs are required for MANUAL sections.",
+        message: "Product IDs are required for MANUAL collections.",
       });
       return;
     }
@@ -476,12 +474,12 @@ export const updateHomepageSection = async (
     if (type === "BRAND" && !brandId) {
       res.status(400).json({
         success: false,
-        message: "Brand ID is required for BRAND sections.",
+        message: "Brand ID is required for BRAND collections.",
       });
       return;
     }
 
-    const section = await prisma.homepageSection.update({
+    const collection = await prisma.productCollection.update({
       where: { id },
       data: {
         title,
@@ -496,29 +494,69 @@ export const updateHomepageSection = async (
       },
     });
 
-    res.status(200).json({ success: true, section });
+    res.status(200).json({ success: true, collection });
   } catch (error) {
-    console.error("Error updating homepage section:", error);
+    console.error("Error updating product collection:", error);
     res
       .status(500)
-      .json({ success: false, message: "Failed to update homepage section." });
+      .json({
+        success: false,
+        message: "Failed to update product collection.",
+      });
   }
 };
 
-export const deleteHomepageSection = async (
+export const deleteProductCollection = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    await prisma.homepageSection.delete({ where: { id } });
+    await prisma.productCollection.delete({ where: { id } });
     res
       .status(200)
-      .json({ success: true, message: "Section deleted successfully." });
+      .json({ success: true, message: "Collection deleted successfully." });
   } catch (error) {
-    console.error("Error deleting homepage section:", error);
+    console.error("Error deleting product collection:", error);
     res
       .status(500)
-      .json({ success: false, message: "Failed to delete homepage section." });
+      .json({
+        success: false,
+        message: "Failed to delete product collection.",
+      });
+  }
+};
+
+export const reorderProductCollections = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { collectionIds } = req.body;
+
+    if (!collectionIds || !Array.isArray(collectionIds)) {
+      res
+        .status(400)
+        .json({ success: false, message: "Invalid data provided." });
+      return;
+    }
+
+    const updatePromises = collectionIds.map((id, index) =>
+      prisma.productCollection.update({
+        where: { id },
+        data: { order: index }, // Start order from 0
+      })
+    );
+
+    await prisma.$transaction(updatePromises);
+
+    res
+      .status(200)
+      .json({ success: true, message: "Collections reordered successfully." });
+  } catch (e) {
+    console.error("Error reordering collections:", e);
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to reorder collections." });
   }
 };

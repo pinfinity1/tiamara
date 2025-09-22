@@ -25,7 +25,7 @@ export interface FeatureBanner {
   clicks: number;
 }
 
-export interface HomepageSection {
+export interface ProductCollection {
   id: string;
   title: string;
   order: number;
@@ -37,35 +37,38 @@ export interface HomepageSection {
 }
 
 interface HomepageState {
-  banners: FeatureBanner[]; // For admin panel
-  clientBanners: FeatureBanner[]; // For public website
+  banners: FeatureBanner[];
+  clientBanners: FeatureBanner[];
+  collections: ProductCollection[];
   isLoading: boolean;
   error: string | null;
-  // Admin actions
+  // Admin banner actions
   fetchBanners: () => Promise<void>;
   addBanner: (data: FormData) => Promise<boolean>;
   updateBanner: (id: string, data: FormData) => Promise<boolean>;
   deleteBanner: (id: string) => Promise<boolean>;
   reorderBanners: (reorderedBanners: FeatureBanner[]) => Promise<boolean>;
   deleteBannerGroup: (groupName: string) => Promise<boolean>;
-  // Client actions
+  // Client banner actions
   fetchBannersForClient: (group: string) => Promise<void>;
   trackClick: (id: string) => Promise<void>;
-  // Section actions (placeholders)
-  sections: HomepageSection[];
-  fetchSections: (location?: string) => Promise<void>;
-  createSection: (data: FormData) => Promise<HomepageSection | null>;
-  updateSection: (
+  // Collection actions
+  fetchCollections: (location?: string) => Promise<void>;
+  createCollection: (data: any) => Promise<ProductCollection | null>;
+  updateCollection: (
     id: string,
-    data: FormData
-  ) => Promise<HomepageSection | null>;
-  deleteSection: (id: string) => Promise<boolean>;
+    data: any
+  ) => Promise<ProductCollection | null>;
+  deleteCollection: (id: string) => Promise<boolean>;
+  reorderCollections: (
+    reorderedCollections: ProductCollection[]
+  ) => Promise<boolean>;
 }
 
 export const useHomepageStore = create<HomepageState>((set, get) => ({
   banners: [],
   clientBanners: [],
-  sections: [],
+  collections: [],
   isLoading: false,
   error: null,
 
@@ -189,20 +192,92 @@ export const useHomepageStore = create<HomepageState>((set, get) => ({
     }
   },
 
-  // --- Homepage Section Actions (Placeholders) ---
-  fetchSections: async (location = "homepage") => {
-    // Implementation needed
+  // --- Product Collection Actions ---
+  fetchCollections: async (location) => {
+    set({ isLoading: true });
+    try {
+      const url = location
+        ? `/homepage/collections?location=${location}`
+        : "/homepage/collections";
+      const response = await axiosAuth.get(url);
+      if (response.data.success) {
+        set({ collections: response.data.collections, isLoading: false });
+      }
+    } catch (error) {
+      set({ error: "Failed to fetch collections.", isLoading: false });
+    }
   },
-  createSection: async (data) => {
-    // Implementation needed
-    return null;
+  createCollection: async (data) => {
+    set({ isLoading: true });
+    try {
+      const response = await axiosAuth.post(
+        "/homepage/collections/create",
+        data
+      );
+      if (response.data.success) {
+        await get().fetchCollections();
+        toast({ title: "مجموعه با موفقیت ایجاد شد." });
+        return response.data.collection;
+      }
+      return null;
+    } catch (error) {
+      toast({ title: "خطا در ایجاد مجموعه.", variant: "destructive" });
+      return null;
+    } finally {
+      set({ isLoading: false });
+    }
   },
-  updateSection: async (id, data) => {
-    // Implementation needed
-    return null;
+  updateCollection: async (id, data) => {
+    set({ isLoading: true });
+    try {
+      const response = await axiosAuth.put(
+        `/homepage/collections/update/${id}`,
+        data
+      );
+      if (response.data.success) {
+        await get().fetchCollections();
+        toast({ title: "مجموعه با موفقیت ویرایش شد." });
+        return response.data.collection;
+      }
+      return null;
+    } catch (error) {
+      toast({ title: "خطا در ویرایش مجموعه.", variant: "destructive" });
+      return null;
+    } finally {
+      set({ isLoading: false });
+    }
   },
-  deleteSection: async (id) => {
-    // Implementation needed
-    return false;
+  deleteCollection: async (id) => {
+    set({ isLoading: true });
+    try {
+      const response = await axiosAuth.delete(
+        `/homepage/collections/delete/${id}`
+      );
+      if (response.data.success) {
+        await get().fetchCollections();
+        toast({ title: "مجموعه با موفقیت حذف شد." });
+        return true;
+      }
+      return false;
+    } catch (error) {
+      toast({ title: "خطا در حذف مجموعه.", variant: "destructive" });
+      return false;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+  reorderCollections: async (reorderedCollections) => {
+    const originalCollections = get().collections;
+    set({ collections: reorderedCollections }); // Optimistic update
+    try {
+      const collectionIds = reorderedCollections.map((c) => c.id);
+      await axiosAuth.post("/homepage/collections/reorder", { collectionIds });
+      await get().fetchCollections(); // Re-fetch to confirm
+      return true;
+    } catch (error) {
+      set({ collections: originalCollections }); // Revert on error
+      toast({ title: "خطا در مرتب‌سازی مجموعه‌ها", variant: "destructive" });
+      return false;
+    }
   },
 }));

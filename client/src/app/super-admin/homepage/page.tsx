@@ -2,12 +2,9 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import React from "react";
-import BannerManager from "./BannerManager"; // Import the new component
-import SectionManager from "./SectionManager"; // Import the new component
+import BannerManager from "./BannerManager";
+import CollectionManager from "./CollectionManager";
 
-/**
- * Main homepage management page with a tabbed interface.
- */
 function ManageHomepagePage() {
   return (
     <div className="p-6 space-y-6">
@@ -24,7 +21,7 @@ function ManageHomepagePage() {
         </TabsContent>
 
         <TabsContent value="sections" className="mt-6">
-          <SectionManager />
+          <CollectionManager />
         </TabsContent>
       </Tabs>
     </div>

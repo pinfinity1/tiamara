@@ -529,7 +529,7 @@ export const getProductsForClient = async (
 
     const skip = (page - 1) * limit;
 
-    const where: Prisma.productWhereInput = {
+    const where: Prisma.ProductWhereInput = {
       AND: [
         categories.length > 0
           ? {

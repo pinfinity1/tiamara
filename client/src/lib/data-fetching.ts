@@ -1,35 +1,38 @@
 import { axiosPublic } from "@/lib/axios";
-import { FeatureBanner, HomepageSection } from "@/store/useHomepageStore";
+import { FeatureBanner, ProductCollection } from "@/store/useHomepageStore";
 import { Product } from "@/store/useProductStore";
 import { Brand } from "@/store/useBrandStore";
 import { Category } from "@/store/useCategoryStore";
 
-export async function getHomepageData() {
+// Explicitly define the return type for the function
+export async function getHomepageData(): Promise<{
+  banners: FeatureBanner[];
+  collections: ProductCollection[];
+  error: string | null;
+}> {
   try {
-    // We are using the group ID you created: "home-banner"
     const bannerGroup = "home-banner";
 
-    // Only fetch the banners for now
-    const bannersRes = await axiosPublic.get(
-      `/homepage/banners?group=${bannerGroup}`
-    );
+    const [bannersRes, collectionsRes] = await Promise.all([
+      axiosPublic.get(`/homepage/banners?group=${bannerGroup}`),
+      axiosPublic.get("/homepage/collections?location=homepage"),
+    ]);
 
     return {
       banners: bannersRes.data.banners || [],
-      sections: [], // Return an empty array for sections temporarily
+      collections: collectionsRes.data.collections || [],
       error: null,
     };
   } catch (error) {
     console.error("Failed to fetch homepage data:", error);
-    // Return empty arrays on error to prevent the page from crashing.
     return {
       banners: [],
-      sections: [],
+      collections: [],
       error: "Could not load homepage data.",
     };
   }
 }
-// product/[slug] page.tsx
+
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   try {
     const response = await axiosPublic.get(`/products/slug/${slug}`);

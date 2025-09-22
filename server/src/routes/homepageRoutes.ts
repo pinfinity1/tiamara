@@ -1,7 +1,6 @@
 import express from "express";
 import { authenticateJwt, isSuperAdmin } from "../middleware/authMiddleware";
 import { uploadImage } from "../middleware/uploadMiddleware";
-
 import {
   addFeatureBanner,
   updateFeatureBanner,
@@ -11,6 +10,11 @@ import {
   fetchBannersForAdmin,
   fetchBannersForClient,
   trackBannerClick,
+  getProductCollections,
+  createProductCollection,
+  updateProductCollection,
+  deleteProductCollection,
+  reorderProductCollections,
 } from "../controllers/homepageController";
 
 const router = express.Router();
@@ -56,5 +60,32 @@ router.delete(
 // --- Client Routes (for public website) ---
 router.get("/banners", fetchBannersForClient);
 router.post("/banners/track-click/:id", trackBannerClick);
+
+// --- Product Collection Routes ---
+router.get("/collections", getProductCollections);
+router.post(
+  "/collections/create",
+  authenticateJwt,
+  isSuperAdmin,
+  createProductCollection
+);
+router.put(
+  "/collections/update/:id",
+  authenticateJwt,
+  isSuperAdmin,
+  updateProductCollection
+);
+router.delete(
+  "/collections/delete/:id",
+  authenticateJwt,
+  isSuperAdmin,
+  deleteProductCollection
+);
+router.post(
+  "/collections/reorder",
+  authenticateJwt,
+  isSuperAdmin,
+  reorderProductCollections
+);
 
 export default router;

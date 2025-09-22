@@ -10,7 +10,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model product {
+model Product {
   id                 String              @id @default(cuid())
   name               String
   slug               String              @unique
@@ -46,11 +46,11 @@ model product {
   brand              Brand?              @relation(fields: [brandId], references: [id])
   categoryId         String?
   category           Category?           @relation(fields: [categoryId], references: [id])
-  homepageSections   HomepageSection[]
+  productCollections ProductCollection[]
   stockHistory       StockHistory[]
   purchaseOrderItems PurchaseOrderItem[]
   wishlistItems      WishlistItem[]
-  cartItems          CartItem[] 
+  cartItems          CartItem[]
 
   @@map("Product")
 }
@@ -58,7 +58,7 @@ model product {
 model StockHistory {
   id        String          @id @default(cuid())
   productId String
-  product   product         @relation(fields: [productId], references: [id])
+  product   Product         @relation(fields: [productId], references: [id])
   change    Int
   newStock  Int
   type      StockChangeType
@@ -109,7 +109,7 @@ model PurchaseOrderItem {
   purchaseOrderId String
   purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
   productId       String
-  product         product       @relation(fields: [productId], references: [id])
+  product         Product       @relation(fields: [productId], references: [id])
   quantity        Int
   unitPrice       Float
   createdAt       DateTime      @default(now())
@@ -129,21 +129,21 @@ model Image {
   altText   String?
   title     String?
   productId String?
-  product   product? @relation(fields: [productId], references: [id])
+  product   Product? @relation(fields: [productId], references: [id])
   createdAt DateTime @default(now())
 }
 
 model Brand {
-  id               String            @id @default(cuid())
-  name             String            @unique
-  slug             String            @unique
-  logoUrl          String?
-  metaTitle        String?
-  metaDescription  String?
-  products         product[]
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  homepageSections HomepageSection[]
+  id                 String              @id @default(cuid())
+  name               String              @unique
+  slug               String              @unique
+  logoUrl            String?
+  metaTitle          String?
+  metaDescription    String?
+  products           Product[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  productCollections ProductCollection[]
 }
 
 model Category {
@@ -153,29 +153,26 @@ model Category {
   imageUrl        String?
   metaTitle       String?
   metaDescription String?
-  products        product[]
+  products        Product[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 }
 
 model FeatureBanner {
-  id              String    @id @default(cuid())
-  group           String
-  imageUrl        String
-  imageUrlMobile  String?   
-  linkUrl         String?
-  altText         String?
-  order           Int       @default(0)
-  isActive        Boolean   @default(true)
-  
-  startDate       DateTime? 
-  endDate         DateTime? 
-
-  views           Int       @default(0) 
-  clicks          Int       @default(0) 
-
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  group          String
+  imageUrl       String
+  imageUrlMobile String?
+  linkUrl        String?
+  altText        String?
+  order          Int       @default(0)
+  isActive       Boolean   @default(true)
+  startDate      DateTime?
+  endDate        DateTime?
+  views          Int       @default(0)
+  clicks         Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
 enum SectionType {
@@ -185,7 +182,7 @@ enum SectionType {
   BRAND
 }
 
-model HomepageSection {
+model ProductCollection {
   id        String      @id @default(cuid())
   title     String
   order     Int         @default(0)
@@ -193,7 +190,7 @@ model HomepageSection {
   location  String?     @default("homepage")
   brandId   String?
   brand     Brand?      @relation(fields: [brandId], references: [id])
-  products  product[]
+  products  Product[]
   imageUrl  String?
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
@@ -215,7 +212,7 @@ model WishlistItem {
   wishlistId String
   wishlist   Wishlist @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
   productId  String
-  product    product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())
 
   @@unique([wishlistId, productId])
@@ -274,7 +271,7 @@ model CartItem {
   cartId    String
   cart      Cart     @relation(fields: [cartId], references: [id])
   productId String
-  product   product  @relation(fields: [productId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
   quantity  Int
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

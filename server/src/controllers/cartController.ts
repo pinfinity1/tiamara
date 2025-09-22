@@ -1,10 +1,10 @@
 import { Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { prisma } from "../server";
-import { Cart, CartItem, product } from "@prisma/client";
+import { Cart, CartItem, Product } from "@prisma/client";
 
 type CartItemWithProduct = CartItem & {
-  product: product & {
+  product: Product & {
     images: { url: string }[];
   };
 };
