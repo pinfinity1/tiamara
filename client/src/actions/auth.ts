@@ -1,6 +1,36 @@
 "use server";
-import { protectLoginRules, protectSignupRules } from "@/arcjet";
+import {
+  protectLoginRules,
+  protectSignupRules,
+  protectPhoneAuth,
+} from "@/arcjet";
 import { request } from "@arcjet/next";
+
+// ++ ADDED: A new server action to protect phone-based requests
+export const protectPhoneAuthAction = async (phone: string) => {
+  const req = await request();
+  // Pass the phone number as a characteristic for rate limiting
+  const decision = await protectPhoneAuth.protect(req, { phone });
+
+  if (decision.isDenied()) {
+    if (decision.reason.isBot()) {
+      return {
+        error: "فعالیت ربات تشخیص داده شد.",
+        success: false,
+        status: 403,
+      };
+    }
+    if (decision.reason.isRateLimit()) {
+      return {
+        error: "تعداد درخواست‌ها بیش از حد مجاز است. لطفاً بعداً تلاش کنید.",
+        success: false,
+        status: 429,
+      };
+    }
+  }
+
+  return { success: true };
+};
 
 export const protectSignUpAction = async (email: string) => {
   const req = await request();

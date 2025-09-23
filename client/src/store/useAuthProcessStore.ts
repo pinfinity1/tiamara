@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { axiosPublic } from "@/lib/axios";
 import { toast } from "@/hooks/use-toast";
 import { signIn } from "next-auth/react";
+import { protectPhoneAuthAction } from "@/actions/auth";
 
 type AuthStep =
   | "phone"
@@ -40,6 +41,17 @@ export const useAuthProcessStore = create<AuthState>((set, get) => ({
   checkPhone: async (phone) => {
     set({ isLoading: true, phone });
     try {
+      // ++ ADDED: Call Arcjet action before proceeding
+      const protection = await protectPhoneAuthAction(phone);
+      if (!protection.success) {
+        toast({
+          title: "خطا",
+          description: protection.error,
+          variant: "destructive",
+        });
+        return;
+      }
+
       const response = await axiosPublic.post(`/auth/check-phone`, { phone });
       if (response.data.success) {
         set({
@@ -86,8 +98,20 @@ export const useAuthProcessStore = create<AuthState>((set, get) => ({
 
   requestPasswordReset: async () => {
     set({ isLoading: true });
+    const phone = get().phone;
     try {
-      await axiosPublic.post("/auth/forgot-password", { phone: get().phone });
+      // ++ ADDED: Call Arcjet action before proceeding
+      const protection = await protectPhoneAuthAction(phone);
+      if (!protection.success) {
+        toast({
+          title: "خطا",
+          description: protection.error,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      await axiosPublic.post("/auth/forgot-password", { phone });
       toast({ title: "کد بازنشانی رمز عبور برای شما ارسال شد." });
       set({ step: "forgot-password-reset" });
     } catch (error: any) {
@@ -111,7 +135,7 @@ export const useAuthProcessStore = create<AuthState>((set, get) => ({
         password,
       });
       toast({ title: "رمز عبور شما با موفقیت تغییر کرد." });
-      set({ step: "phone", phone: "" });
+      set({ step: "phone", phone: "" }); // Reset to initial state
       return true;
     } catch (error: any) {
       toast({

@@ -2,6 +2,7 @@ import { prisma } from "../server";
 import bcrypt from "bcryptjs";
 
 const OTP_EXPIRATION_MINUTES = 2;
+const MAX_OTP_ATTEMPTS = 3;
 
 export async function generateAndSaveOtp(identifier: string): Promise<string> {
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -11,7 +12,7 @@ export async function generateAndSaveOtp(identifier: string): Promise<string> {
   await prisma.verificationToken.deleteMany({ where: { identifier } });
 
   await prisma.verificationToken.create({
-    data: { identifier, token: hashedOtp, expires },
+    data: { identifier, token: hashedOtp, expires, attempts: 0 },
   });
 
   return otp;
@@ -25,20 +26,31 @@ export async function verifyOtp(
     where: { identifier },
   });
 
-  if (!verificationToken || verificationToken.expires < new Date()) {
+  if (
+    !verificationToken ||
+    verificationToken.expires < new Date() ||
+    verificationToken.attempts >= MAX_OTP_ATTEMPTS
+  ) {
+    if (verificationToken) {
+      await prisma.verificationToken.delete({
+        where: { token: verificationToken.token },
+      });
+    }
     return false;
   }
 
   const isTokenValid = await bcrypt.compare(token, verificationToken.token);
 
   if (isTokenValid) {
-    // در Prisma، مدل VerificationToken کلید منحصر به فرد روی identifier و token دارد
-    // برای حذف، بهتر است از ترکیب آن‌ها یا یک id منحصر به فرد استفاده کنیم.
-    // اگر مدل شما id ندارد، این روش کار می‌کند.
-    await prisma.verificationToken.deleteMany({
-      where: { identifier: identifier, token: verificationToken.token },
+    await prisma.verificationToken.delete({
+      where: { token: verificationToken.token },
     });
+    return true;
+  } else {
+    await prisma.verificationToken.update({
+      where: { token: verificationToken.token },
+      data: { attempts: { increment: 1 } },
+    });
+    return false;
   }
-
-  return isTokenValid;
 }

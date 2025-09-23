@@ -33,7 +33,15 @@ axiosAuth.interceptors.response.use(
     return response;
   },
   async (error) => {
-    if (error.response && error.response.status === 401) {
+    const session = await getSession();
+
+    // If the error is 401 and there's a session error, it means the refresh token failed.
+    // In this case, we sign out the user.
+    if (
+      error.response &&
+      error.response.status === 401 &&
+      session?.error === "RefreshAccessTokenError"
+    ) {
       await signOut({ callbackUrl: "/" });
     }
 

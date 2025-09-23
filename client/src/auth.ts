@@ -10,9 +10,11 @@ declare module "next-auth" {
     phone?: string;
     requiresPasswordSetup?: boolean;
     accessToken?: string;
+    refreshToken?: string;
   }
   interface Session {
     accessToken?: string;
+    error?: "RefreshAccessTokenError";
     user: {
       id: string;
       role?: string;
@@ -29,6 +31,8 @@ declare module "next-auth/jwt" {
     phone?: string;
     requiresPasswordSetup?: boolean;
     accessToken?: string;
+    refreshToken?: string;
+    accessTokenExpires: number;
   }
 }
 
@@ -77,6 +81,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               phone: user.phone,
               requiresPasswordSetup: user.requiresPasswordSetup,
               accessToken: response.data.accessToken,
+              refreshToken: response.data.refreshToken,
             } as User;
           } else {
             throw new Error(response.data.error || "Authentication failed.");
@@ -95,19 +100,41 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     strategy: "jwt",
   },
   callbacks: {
-    async jwt({ token, user }) {
-      // در اولین ورود، user آبجکت را به توکن اضافه می‌کنیم
-      if (user) {
+    async jwt({ token, user, account }) {
+      if (account && user) {
+        token.accessToken = user.accessToken;
+        token.refreshToken = user.refreshToken;
+        token.accessTokenExpires = Date.now() + 15 * 60 * 1000;
         token.id = user.id;
         token.role = user.role;
         token.phone = user.phone;
         token.requiresPasswordSetup = user.requiresPasswordSetup;
-        token.accessToken = user.accessToken;
+        return token;
       }
-      return token;
+
+      if (Date.now() < token.accessTokenExpires) {
+        return token;
+      }
+
+      try {
+        const response = await axiosPublic.post("/auth/refresh-token", {
+          token: token.refreshToken,
+        });
+
+        const { accessToken, refreshToken: newRefreshToken } = response.data;
+
+        return {
+          ...token,
+          accessToken: accessToken,
+          accessTokenExpires: Date.now() + 15 * 60 * 1000,
+          refreshToken: newRefreshToken ?? token.refreshToken,
+        };
+      } catch (error) {
+        console.error("RefreshAccessTokenError", error);
+        return { ...token, error: "RefreshAccessTokenError" };
+      }
     },
     async session({ session, token }) {
-      // اطلاعات را از توکن به session منتقل می‌کنیم
       if (session.user) {
         session.user.id = token.id;
         session.user.role = token.role;
@@ -115,8 +142,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (token.requiresPasswordSetup !== undefined) {
           session.user.requiresPasswordSetup = token.requiresPasswordSetup;
         }
-        session.accessToken = token.accessToken;
       }
+      session.accessToken = token.accessToken;
+      session.error = token.error as "RefreshAccessTokenError" | undefined;
       return session;
     },
   },

@@ -1,13 +1,11 @@
 import HomeBannerCarousel from "@/components/layout/home/HomeBannerCarousel";
-import ProductSection from "@/components/layout/home/ProductSection"; // اصلاح نام کامپوننت
+import ProductSection from "@/components/layout/home/ProductSection";
 import { getHomepageData } from "@/lib/data-fetching";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const { collections } = await getHomepageData();
-
-  console.log(collections);
 
   return (
     <div className="min-h-screen bg-white">

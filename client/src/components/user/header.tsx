@@ -44,6 +44,8 @@ function Header({ isPaneView = false }: { isPaneView?: boolean }) {
   const isAuthenticated = status === "authenticated";
   const isLoading = status === "loading";
 
+  console.log(session, status);
+
   const [mobileView, setMobileView] = useState<"menu" | "account">("menu");
   const [showSheetDialog, setShowSheetDialog] = useState(false);
   const [showCategories, setShowCategories] = useState(true);
@@ -52,6 +54,13 @@ function Header({ isPaneView = false }: { isPaneView?: boolean }) {
 
   const { initializeCart, items, isInitialized } = useCartStore();
   const router = useRouter();
+
+  useEffect(() => {
+    // @ts-ignore
+    if (session?.error === "RefreshAccessTokenError") {
+      signOut({ callbackUrl: "/" });
+    }
+  }, [session]);
 
   useEffect(() => {
     if (!isInitialized) {
@@ -196,10 +205,8 @@ function Header({ isPaneView = false }: { isPaneView?: boolean }) {
       if (Math.abs(scrollContainer.scrollTop - lastScrollY) > scrollThreshold) {
         if (scrollContainer.scrollTop > lastScrollY) {
           setShowCategories(false);
-          console.log("hide");
         } else {
           setShowCategories(true);
-          console.log("show");
         }
         lastScrollY = scrollContainer.scrollTop;
       }

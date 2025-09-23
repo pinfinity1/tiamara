@@ -7,6 +7,7 @@ import {
   logoutController,
   requestPasswordResetController,
   resetPasswordController,
+  refreshTokenController,
 } from "../controllers/authController";
 import { authenticateJwt } from "../middleware/authMiddleware";
 
@@ -23,6 +24,9 @@ router.post("/set-password", authenticateJwt, setPasswordController);
 
 // Step 2 (Option B): Login with password
 router.post("/login-password", loginWithPasswordController);
+
+// Route for refreshing tokens
+router.post("/refresh-token", refreshTokenController);
 
 // Logout
 router.post("/logout", logoutController);
