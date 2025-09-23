@@ -5,6 +5,8 @@ import {
   setPasswordController,
   loginWithPasswordController,
   logoutController,
+  requestPasswordResetController,
+  resetPasswordController,
 } from "../controllers/authController";
 import { authenticateJwt } from "../middleware/authMiddleware";
 
@@ -24,5 +26,9 @@ router.post("/login-password", loginWithPasswordController);
 
 // Logout
 router.post("/logout", logoutController);
+
+// ++ ADDED: Forgot Password Routes
+router.post("/forgot-password", requestPasswordResetController);
+router.post("/reset-password", resetPasswordController);
 
 export default router;

@@ -197,3 +197,75 @@ export const logoutController = async (
     message: "User logged out successfully",
   });
 };
+
+export const requestPasswordResetController = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { phone } = req.body;
+    if (!phone) {
+      res
+        .status(400)
+        .json({ success: false, message: "Phone number is required" });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({ where: { phone } });
+    if (!user) {
+      res.status(404).json({ success: false, message: "User not found" });
+      return;
+    }
+
+    const otp = await generateAndSaveOtp(phone);
+    console.log(`\n\n✅ Password Reset OTP for ${phone}: ${otp}\n\n`);
+
+    res
+      .status(200)
+      .json({ success: true, message: "Password reset OTP sent." });
+  } catch (error) {
+    console.error("Error in requestPasswordResetController:", error);
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to process request" });
+  }
+};
+
+export const resetPasswordController = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { phone, otp, password } = req.body;
+    if (!phone || !otp || !password) {
+      res.status(400).json({
+        success: false,
+        message: "Phone, OTP, and new password are required.",
+      });
+      return;
+    }
+
+    const isOtpValid = await verifyOtp(phone, otp);
+    if (!isOtpValid) {
+      res
+        .status(401)
+        .json({ success: false, message: "Invalid or expired OTP." });
+      return;
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await prisma.user.update({
+      where: { phone },
+      data: { password: hashedPassword },
+    });
+
+    res
+      .status(200)
+      .json({ success: true, message: "Password reset successfully." });
+  } catch (error) {
+    console.error("Error in resetPasswordController:", error);
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to reset password." });
+  }
+};

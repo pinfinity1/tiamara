@@ -1,84 +1,78 @@
 "use client";
 
 import { useState } from "react";
-import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
-import { axiosPublic } from "@/lib/axios";
+import { useAuthProcessStore } from "@/store/useAuthProcessStore";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-
-type AuthStep = "phone" | "password" | "otp";
+import { useToast } from "@/hooks/use-toast";
 
 interface LoginFormProps {
   onSuccess?: () => void;
 }
 
 export default function LoginForm({ onSuccess }: LoginFormProps) {
-  const [step, setStep] = useState<AuthStep>("phone");
-  const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
-  const [otp, setOtp] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [userHasPassword, setUserHasPassword] = useState(false);
-  const { toast } = useToast();
-  const router = useRouter();
+  const {
+    step,
+    phone,
+    isLoading,
+    userHasPassword,
+    setStep,
+    setPhone,
+    checkPhone,
+    finalLogin,
+    requestPasswordReset,
+    resetPassword,
+  } = useAuthProcessStore();
 
-  const handlePhoneSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    try {
-      const response = await axiosPublic.post(`/auth/check-phone`, { phone });
-      if (response.data.success) {
-        setUserHasPassword(response.data.hasPassword);
-        setStep(response.data.hasPassword ? "password" : "otp");
-        toast({ title: "کد یکبار مصرف با موفقیت ارسال شد." });
-      }
-    } catch (error: any) {
-      toast({
-        title: "خطا",
-        description:
-          error.response?.data?.message || "مشکلی در ارسال کد پیش آمده است.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [otp, setOtp] = useState("");
+
+  const router = useRouter();
+  const { toast } = useToast();
+
+  const handleSuccess = () => {
+    if (onSuccess) {
+      onSuccess();
+    } else {
+      router.push("/");
+      router.refresh();
     }
   };
 
-  const handleFinalLogin = async (loginType: "password" | "otp") => {
-    setIsLoading(true);
-    const result = await signIn("credentials", {
-      redirect: false,
-      phone,
-      password: loginType === "password" ? password : undefined,
-      otp: loginType === "otp" ? otp : undefined,
-      loginType,
-    });
-    setIsLoading(false);
-
-    if (result?.error) {
+  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password !== confirmPassword) {
+      toast({ title: "رمزهای عبور یکسان نیستند.", variant: "destructive" });
+      return;
+    }
+    if (password.length < 6) {
       toast({
-        title: "ورود ناموفق",
-        description: result.error,
+        title: "رمز عبور باید حداقل ۶ کاراکتر باشد.",
         variant: "destructive",
       });
-    } else if (result?.ok) {
-      toast({ title: "خوش آمدید!" });
-      if (onSuccess) {
-        onSuccess();
-      } else {
-        router.push("/");
-        router.refresh();
-      }
+      return;
+    }
+    const success = await resetPassword(otp, password);
+    if (success) {
+      setOtp("");
+      setPassword("");
+      setConfirmPassword("");
     }
   };
 
   switch (step) {
     case "phone":
       return (
-        <form onSubmit={handlePhoneSubmit} className="space-y-4">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            checkPhone(phone);
+          }}
+          className="space-y-4"
+        >
           <h2 className="text-center text-xl font-semibold">ورود / ثبت‌نام</h2>
           <div className="space-y-1">
             <Label htmlFor="phone">شماره همراه خود را وارد کنید</Label>
@@ -103,7 +97,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            handleFinalLogin("password");
+            finalLogin("password", { password }, handleSuccess);
           }}
           className="space-y-4"
         >
@@ -122,10 +116,25 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
+          <div className="text-left">
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="p-0 h-auto"
+              onClick={() => {
+                setPhone(phone); // Ensure phone is set before moving
+                setStep("forgot-password-phone");
+              }}
+            >
+              فراموشی رمز عبور
+            </Button>
+          </div>
           <Button type="submit" disabled={isLoading} className="w-full">
             {isLoading ? "در حال ورود..." : "ورود"}
           </Button>
           <Button
+            type="button"
             variant="link"
             size="sm"
             className="w-full"
@@ -141,7 +150,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            handleFinalLogin("otp");
+            finalLogin("otp", { otp }, handleSuccess);
           }}
           className="space-y-4"
         >
@@ -170,6 +179,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
           </Button>
           {userHasPassword && (
             <Button
+              type="button"
               variant="link"
               size="sm"
               className="w-full"
@@ -178,6 +188,97 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
               ورود با رمز عبور
             </Button>
           )}
+        </form>
+      );
+
+    case "forgot-password-phone":
+      return (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            requestPasswordReset();
+          }}
+          className="space-y-4"
+        >
+          <h2 className="text-center text-xl font-semibold">
+            فراموشی رمز عبور
+          </h2>
+          <p className="text-center text-sm text-gray-600">
+            شماره همراهی که با آن ثبت‌نام کرده‌اید را وارد کنید.
+          </p>
+          <div className="space-y-1">
+            <Label htmlFor="phone-forgot">شماره همراه</Label>
+            <Input
+              id="phone-forgot"
+              type="tel"
+              dir="ltr"
+              placeholder="09123456789"
+              required
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+          </div>
+          <Button type="submit" disabled={isLoading} className="w-full">
+            {isLoading ? "در حال ارسال..." : "ارسال کد"}
+          </Button>
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="w-full"
+            onClick={() => setStep("phone")}
+          >
+            بازگشت به صفحه ورود
+          </Button>
+        </form>
+      );
+
+    case "forgot-password-reset":
+      return (
+        <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+          <h2 className="text-center text-xl font-semibold">
+            بازنشانی رمز عبور
+          </h2>
+          <p className="text-center text-sm text-gray-600">
+            کد ارسال شده و رمز عبور جدید خود را وارد کنید.
+          </p>
+          <div className="space-y-1">
+            <Label htmlFor="otp-reset">کد تایید</Label>
+            <Input
+              id="otp-reset"
+              type="text"
+              dir="ltr"
+              maxLength={6}
+              required
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="password-reset">رمز عبور جدید</Label>
+            <Input
+              id="password-reset"
+              type="password"
+              dir="ltr"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="confirm-password-reset">تکرار رمز عبور جدید</Label>
+            <Input
+              id="confirm-password-reset"
+              type="password"
+              dir="ltr"
+              required
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
+          </div>
+          <Button type="submit" disabled={isLoading} className="w-full">
+            {isLoading ? "در حال ذخیره..." : "تغییر رمز عبور"}
+          </Button>
         </form>
       );
   }
