@@ -19,29 +19,47 @@ export default function Pagination({
   if (totalPages <= 1) return null;
 
   const generatePageNumbers = () => {
-    const pages: (number | string)[] = [];
-    const startPage = Math.max(2, currentPage - siblingCount);
-    const endPage = Math.min(totalPages - 1, currentPage + siblingCount);
+    const totalPageNumbers = siblingCount * 2 + 3;
+    const totalBlocks = totalPageNumbers + 2;
 
-    pages.push(1);
+    if (totalPages > totalBlocks) {
+      const startPage = Math.max(2, currentPage - siblingCount);
+      const endPage = Math.min(totalPages - 1, currentPage + siblingCount);
 
-    if (startPage > 2) {
-      pages.push("...");
+      let pages: (number | string)[] = range(startPage, endPage);
+
+      const hasLeftSpill = startPage > 2;
+      const hasRightSpill = totalPages - endPage > 1;
+      const spillOffset = totalPageNumbers - (pages.length + 1);
+
+      switch (true) {
+        // Handle left spill
+        case hasLeftSpill && !hasRightSpill: {
+          const extraPages = range(startPage - spillOffset, startPage - 1);
+          pages = ["...", ...extraPages, ...pages];
+          break;
+        }
+        // Handle right spill
+        case !hasLeftSpill && hasRightSpill: {
+          const extraPages = range(endPage + 1, endPage + spillOffset);
+          pages = [...pages, ...extraPages, "..."];
+          break;
+        }
+        // Handle both
+        case hasLeftSpill && hasRightSpill:
+        default: {
+          pages = ["...", ...pages, "..."];
+          break;
+        }
+      }
+      return [1, ...pages, totalPages];
     }
+    return range(1, totalPages);
+  };
 
-    for (let i = startPage; i <= endPage; i++) {
-      pages.push(i);
-    }
-
-    if (endPage < totalPages - 1) {
-      pages.push("...");
-    }
-
-    if (totalPages > 1) {
-      pages.push(totalPages);
-    }
-
-    return pages;
+  const range = (start: number, end: number) => {
+    let length = end - start + 1;
+    return Array.from({ length }, (_, idx) => idx + start);
   };
 
   return (
@@ -57,7 +75,7 @@ export default function Pagination({
 
       {generatePageNumbers().map((page, idx) =>
         typeof page === "string" ? (
-          <span key={idx} className="px-2 text-gray-500">
+          <span key={`${page}-${idx}`} className="px-2 text-gray-500">
             {page}
           </span>
         ) : (
@@ -67,7 +85,7 @@ export default function Pagination({
             className="w-10"
             onClick={() => onPageChange(page)}
           >
-            {page}
+            {page.toLocaleString("fa-IR")}
           </Button>
         )
       )}
