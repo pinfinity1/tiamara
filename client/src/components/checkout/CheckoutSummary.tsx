@@ -1,8 +1,7 @@
-// client/src/components/checkout/CheckoutSummary.tsx
-
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useCartStore } from "@/store/useCartStore";
 import { useOrderStore } from "@/store/useOrderStore";
 import { useUserStore } from "@/store/useUserStore";
@@ -10,7 +9,6 @@ import { useAddressStore } from "@/store/useAddressStore";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthModalStore } from "@/store/useAuthModalStore";
 import axiosAuth from "@/lib/axios";
-import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -41,7 +39,7 @@ export default function CheckoutSummary({
   const { onOpen: openAuthModal } = useAuthModalStore();
   const { items: cartItems, clearCart } = useCartStore();
   const { createFinalOrder, isPaymentProcessing } = useOrderStore();
-  const userProfile = useUserStore((state) => state.userProfile);
+  const { userProfile, fetchProfile } = useUserStore();
   const selectedAddressId = useAddressStore(
     (state) =>
       state.addresses.find((a) => a.isDefault)?.id || state.addresses[0]?.id
@@ -53,6 +51,12 @@ export default function CheckoutSummary({
   );
   const [couponError, setCouponError] = useState<string | null>(null);
   const [isCouponLoading, setIsCouponLoading] = useState(false);
+
+  useEffect(() => {
+    if (isUserLoggedIn && !userProfile) {
+      fetchProfile();
+    }
+  }, [isUserLoggedIn, userProfile, fetchProfile]);
 
   const cartTotal = useMemo(
     () => cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0),
@@ -97,6 +101,9 @@ export default function CheckoutSummary({
     }
     if (!userProfile?.id) {
       toast({ title: "خطا در شناسایی کاربر.", variant: "destructive" });
+      if (!userProfile) {
+        await fetchProfile();
+      }
       return;
     }
 
@@ -114,11 +121,19 @@ export default function CheckoutSummary({
       total: finalTotal,
     };
 
+    console.log("Data being sent to createFinalOrder:", orderData);
+    if (orderData.total <= 0) {
+      toast({
+        title: "مبلغ سفارش نمی‌تواند صفر یا منفی باشد.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const result = await createFinalOrder(orderData);
     if (result.success && result.paymentUrl) {
       toast({ title: "در حال انتقال به صفحه پرداخت..." });
-      await clearCart();
-      router.push(`/order-success?orderId=${result.order?.id}`);
+      window.location.href = result.paymentUrl;
     } else {
       toast({
         title: "خطا در ثبت سفارش. لطفاً دوباره تلاش کنید.",
@@ -198,7 +213,7 @@ export default function CheckoutSummary({
             {isPaymentProcessing ? (
               <Loader2 className="animate-spin" />
             ) : (
-              "ادامه فرآیند خرید"
+              "پرداخت و ثبت نهایی"
             )}
           </Button>
         ) : (

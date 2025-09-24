@@ -324,8 +324,14 @@ model Address {
   @@index([userId])
 }
 
+model OrderCounter {
+  id              String @id @default("order_counter")
+  lastOrderNumber Int    @default(1000) 
+}
+
 model Order {
   id            String        @id @default(cuid())
+  orderNumber   Int           @unique
   userId        String
   user          User          @relation(fields: [userId], references: [id])
   addressId     String

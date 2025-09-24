@@ -90,6 +90,7 @@ function SuperAdminManageCouponsPage() {
         <form
           onSubmit={handleCouponSubmit}
           className="grid gap-6 md:grid-cols-2 lg:grid-cols-1"
+          noValidate
         >
           <div className="space-y-4">
             <div>

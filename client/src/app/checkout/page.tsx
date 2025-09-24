@@ -3,7 +3,7 @@ import CheckoutClient from "./CheckoutClient";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "سبد خرید و پرداخت | تیامارا",
+  title: "سبد خرید و پرداخت",
   robots: { index: false, follow: false },
 };
 

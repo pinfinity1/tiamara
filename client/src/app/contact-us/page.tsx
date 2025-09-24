@@ -57,7 +57,7 @@ export default function ContactUsPage() {
           {/* بخش فرم تماس */}
           <div className="bg-white p-8 rounded-lg shadow-sm">
             <h2 className="text-2xl font-semibold mb-4">ارسال پیام</h2>
-            <form className="space-y-4">
+            <form className="space-y-4" noValidate>
               <div>
                 <Label htmlFor="name">نام شما</Label>
                 <Input

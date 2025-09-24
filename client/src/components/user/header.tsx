@@ -44,8 +44,6 @@ function Header({ isPaneView = false }: { isPaneView?: boolean }) {
   const isAuthenticated = status === "authenticated";
   const isLoading = status === "loading";
 
-  console.log(session, status);
-
   const [mobileView, setMobileView] = useState<"menu" | "account">("menu");
   const [showSheetDialog, setShowSheetDialog] = useState(false);
   const [showCategories, setShowCategories] = useState(true);

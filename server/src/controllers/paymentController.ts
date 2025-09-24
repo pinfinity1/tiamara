@@ -3,112 +3,63 @@ import axios from "axios";
 import { prisma } from "../server";
 import { PaymentStatus, OrderStatus } from "@prisma/client";
 
-// خواندن متغیرهای محیطی
+// --- Zarinpal Sandbox (Test) Endpoint ---
 const ZARINPAL_MERCHANT_ID = process.env.ZARINPAL_MERCHANT_ID!;
-const ZARINPAL_API_REQUEST = process.env.ZARINPAL_API_REQUEST!;
-const ZARINPAL_API_VERIFY = process.env.ZARINPAL_API_VERIFY!;
-const ZARINPAL_GATEWAY_URL = process.env.ZARINPAL_GATEWAY_URL!;
-const CLIENT_URL = process.env.CLIENT_URL!;
+const ZARINPAL_API_VERIFY =
+  "https://sandbox.zarinpal.com/pg/v4/payment/verify.json";
+const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000";
 
-/**
- * ایجاد درخواست پرداخت و هدایت کاربر به درگاه
- */
-export const requestPaymentController = async (req: Request, res: Response) => {
-  const { orderId } = req.body;
-
-  if (!orderId) {
-    return res
-      .status(400)
-      .json({ success: false, message: "شناسه سفارش الزامی است." });
-  }
-
-  try {
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      include: { user: true },
-    });
-
-    if (!order) {
-      return res
-        .status(404)
-        .json({ success: false, message: "سفارش یافت نشد." });
-    }
-
-    // زرین‌پال مبلغ را به صورت عدد صحیح و به ریال دریافت می‌کند
-    const amount = Math.round(order.total);
-    const callback_url = `http://localhost:${
-      process.env.PORT || 3001
-    }/api/payment/verify`;
-
-    console.log(`درخواست پرداخت برای سفارش ${orderId} با مبلغ ${amount}`);
-
-    const zarinpalRequestData = {
-      merchant_id: ZARINPAL_MERCHANT_ID,
-      amount,
-      callback_url,
-      description: `پرداخت برای سفارش شماره: ${order.id}`,
-      metadata: {
-        mobile: order.user.phone,
+const logStockChange = async (
+  productId: string,
+  change: number,
+  newStock: number,
+  type: "SALE",
+  userId: string | null,
+  notes?: string
+) => {
+  if (change !== 0) {
+    await prisma.stockHistory.create({
+      data: {
+        productId,
+        change,
+        newStock,
+        type,
+        notes: notes || `${type} action`,
+        userId: userId || undefined,
       },
-    };
-
-    const { data } = await axios.post(
-      ZARINPAL_API_REQUEST,
-      zarinpalRequestData
-    );
-
-    // اگر درخواست موفقیت‌آمیز بود و کد 100 دریافت شد
-    if (data.data.code === 100 && data.data.authority) {
-      // ذخیره شناسه تراکنش (authority) در سفارش
-      await prisma.order.update({
-        where: { id: orderId },
-        data: { paymentId: data.data.authority },
-      });
-
-      // ارسال لینک پرداخت به کلاینت
-      const paymentUrl = `${ZARINPAL_GATEWAY_URL}/${data.data.authority}`;
-      return res.status(200).json({ success: true, paymentUrl });
-    } else {
-      console.error("خطا در درخواست از زرین‌پال:", data.errors);
-      return res.status(500).json({
-        success: false,
-        message: "ایجاد درخواست پرداخت ناموفق بود.",
-        details: data.errors,
-      });
-    }
-  } catch (error) {
-    console.error("خطا در requestPaymentController:", error);
-    res.status(500).json({ success: false, message: "خطای داخلی سرور." });
+    });
   }
 };
 
-/**
- * تایید نهایی پرداخت پس از بازگشت کاربر از درگاه
- */
 export const verifyPaymentController = async (req: Request, res: Response) => {
   const { Authority: authority, Status: status } = req.query;
 
   if (!authority || !status) {
     return res.redirect(
-      `${CLIENT_URL}/payment/result?status=failed&message=Invalid_callback`
+      `${CLIENT_URL}/payment-result?status=failed&message=Invalid_callback`
     );
   }
 
   try {
-    // پیدا کردن سفارش بر اساس شناسه تراکنش
-    const order = await prisma.order.findUnique({
+    const order = await prisma.order.findFirst({
       where: { paymentId: authority as string },
+      include: { items: true },
     });
 
     if (!order) {
       return res.redirect(
-        `${CLIENT_URL}/payment/result?status=failed&message=Order_not_found`
+        `${CLIENT_URL}/payment-result?status=failed&message=Order_not_found`
       );
     }
 
-    // اگر پرداخت توسط کاربر با موفقیت انجام شده بود
+    if (order.paymentStatus === "COMPLETED") {
+      return res.redirect(
+        `${CLIENT_URL}/payment-result?status=success&orderId=${order.id}&message=Already_verified`
+      );
+    }
+
     if (status === "OK") {
-      const amount = Math.round(order.total);
+      const amount = Math.round(order.total * 10); // Convert to Rials
       const zarinpalVerifyData = {
         merchant_id: ZARINPAL_MERCHANT_ID,
         authority: authority as string,
@@ -120,46 +71,61 @@ export const verifyPaymentController = async (req: Request, res: Response) => {
         zarinpalVerifyData
       );
 
-      // اگر تراکنش موفقیت‌آمیز و تایید شده بود (کد 100 یا 101)
       if (data.data.code === 100 || data.data.code === 101) {
-        await prisma.order.update({
-          where: { id: order.id },
-          data: {
-            paymentStatus: PaymentStatus.COMPLETED,
-            status: OrderStatus.PROCESSING,
-          },
+        await prisma.$transaction(async (tx) => {
+          for (const item of order.items) {
+            const updatedProduct = await tx.product.update({
+              where: { id: item.productId },
+              data: {
+                stock: { decrement: item.quantity },
+                soldCount: { increment: item.quantity },
+              },
+            });
+
+            await logStockChange(
+              item.productId,
+              -item.quantity,
+              updatedProduct.stock,
+              "SALE",
+              order.userId,
+              `Sale from order ${order.id}`
+            );
+          }
+
+          await tx.order.update({
+            where: { id: order.id },
+            data: {
+              paymentStatus: PaymentStatus.COMPLETED,
+              status: OrderStatus.PROCESSING,
+            },
+          });
         });
+
         return res.redirect(
-          `${CLIENT_URL}/payment/result?status=success&orderId=${order.id}&refId=${data.data.ref_id}`
+          `${CLIENT_URL}/payment-result?status=success&orderId=${order.id}&refId=${data.data.ref_id}`
         );
       } else {
-        // اگر تایید تراکنش ناموفق بود
         await prisma.order.update({
           where: { id: order.id },
-          data: {
-            paymentStatus: PaymentStatus.FAILED,
-          },
+          data: { paymentStatus: PaymentStatus.FAILED },
         });
         return res.redirect(
-          `${CLIENT_URL}/payment/result?status=failed&message=Verification_failed&code=${data.data.code}`
+          `${CLIENT_URL}/payment-result?status=failed&message=Verification_failed&code=${data.data.code}`
         );
       }
     } else {
-      // اگر کاربر پرداخت را لغو کرده بود
       await prisma.order.update({
         where: { id: order.id },
-        data: {
-          paymentStatus: PaymentStatus.CANCELLED,
-        },
+        data: { paymentStatus: PaymentStatus.CANCELLED },
       });
       return res.redirect(
-        `${CLIENT_URL}/payment/result?status=cancelled&orderId=${order.id}`
+        `${CLIENT_URL}/payment-result?status=cancelled&orderId=${order.id}`
       );
     }
   } catch (error) {
     console.error("خطا در verifyPaymentController:", error);
     return res.redirect(
-      `${CLIENT_URL}/payment/result?status=failed&message=Internal_server_error`
+      `${CLIENT_URL}/payment-result?status=failed&message=Internal_server_error`
     );
   }
 };

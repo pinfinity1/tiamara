@@ -11,8 +11,6 @@ import ImagePlaceholder from "../common/ImagePlaceholder";
 export default function CartView() {
   const { items, updateCartItemQuantity, removeFromCart } = useCartStore();
 
-  console.log(items);
-
   if (items.length === 0) {
     return (
       <div className="text-center py-16">

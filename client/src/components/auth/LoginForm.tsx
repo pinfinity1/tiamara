@@ -42,6 +42,17 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
     }
   };
 
+  const handleNumericInputChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setter: (value: string) => void
+  ) => {
+    const value = e.target.value;
+    const englishNumbersRegex = /^[0-9]*$/;
+    if (englishNumbersRegex.test(value)) {
+      setter(value);
+    }
+  };
+
   const handleResetPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirmPassword) {
@@ -72,6 +83,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
             checkPhone(phone);
           }}
           className="space-y-4"
+          noValidate
         >
           <h2 className="text-center text-xl font-semibold">ورود / ثبت‌نام</h2>
           <div className="space-y-1">
@@ -79,11 +91,13 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
             <Input
               id="phone"
               type="tel"
+              inputMode="numeric"
+              pattern="[0-9]*"
               dir="ltr"
               placeholder="09123456789"
               required
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => handleNumericInputChange(e, setPhone)}
             />
           </div>
           <Button type="submit" disabled={isLoading} className="w-full">
@@ -100,6 +114,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
             finalLogin("password", { password }, handleSuccess);
           }}
           className="space-y-4"
+          noValidate
         >
           <h2 className="text-center text-xl font-semibold">رمز عبور</h2>
           <p className="text-center text-sm text-gray-600">
@@ -123,7 +138,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
               size="sm"
               className="p-0 h-auto"
               onClick={() => {
-                setPhone(phone); // Ensure phone is set before moving
+                setPhone(phone);
                 setStep("forgot-password-phone");
               }}
             >
@@ -153,6 +168,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
             finalLogin("otp", { otp }, handleSuccess);
           }}
           className="space-y-4"
+          noValidate
         >
           <h2 className="text-center text-xl font-semibold">کد تایید</h2>
           <p className="text-center text-sm text-gray-600">
@@ -167,11 +183,12 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
             <Input
               id="otp"
               type="text"
+              inputMode="numeric"
               dir="ltr"
               maxLength={6}
               required
               value={otp}
-              onChange={(e) => setOtp(e.target.value)}
+              onChange={(e) => handleNumericInputChange(e, setOtp)}
             />
           </div>
           <Button type="submit" disabled={isLoading} className="w-full">
@@ -199,6 +216,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
             requestPasswordReset();
           }}
           className="space-y-4"
+          noValidate
         >
           <h2 className="text-center text-xl font-semibold">
             فراموشی رمز عبور
@@ -212,6 +230,8 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
               id="phone-forgot"
               type="tel"
               dir="ltr"
+              inputMode="numeric"
+              pattern="[0-9]*"
               placeholder="09123456789"
               required
               value={phone}
@@ -235,7 +255,11 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
 
     case "forgot-password-reset":
       return (
-        <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+        <form
+          onSubmit={handleResetPasswordSubmit}
+          className="space-y-4"
+          noValidate
+        >
           <h2 className="text-center text-xl font-semibold">
             بازنشانی رمز عبور
           </h2>
@@ -247,11 +271,12 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
             <Input
               id="otp-reset"
               type="text"
+              inputMode="numeric"
               dir="ltr"
               maxLength={6}
               required
               value={otp}
-              onChange={(e) => setOtp(e.target.value)}
+              onChange={(e) => handleNumericInputChange(e, setOtp)}
             />
           </div>
           <div className="space-y-1">
