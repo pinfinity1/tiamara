@@ -630,7 +630,6 @@ export const bulkCreateProductsFromExcel = async (
   }
 
   try {
-    const userId = req.user?.userId;
     const workbook = xlsx.readFile(req.file.path);
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
@@ -640,111 +639,83 @@ export const bulkCreateProductsFromExcel = async (
       createdCount: 0,
       updatedCount: 0,
       failedCount: 0,
-      errors: [] as { row: number; name: string; error: string }[],
+      errors: [] as any[],
     };
 
-    const existingBrands = await prisma.brand.findMany({
-      select: { id: true, name: true },
-    });
-    const existingCategories = await prisma.category.findMany({
-      select: { id: true, name: true },
-    });
-
-    for (let i = 0; i < productsData.length; i++) {
-      const row = productsData[i];
-      const rowIndex = i + 2;
-
+    for (const row of productsData) {
       try {
+        const {
+          name,
+          sku,
+          price,
+          stock,
+          brandName,
+          categoryName,
+          description,
+        } = row;
+
         if (
-          !row.name ||
-          !row.brandName ||
-          !row.categoryName ||
-          !row.price ||
-          !row.stock ||
-          !row.sku
+          !name ||
+          !sku ||
+          !price ||
+          stock === undefined ||
+          !brandName ||
+          !categoryName
         ) {
           throw new Error(
-            "تمام فیلدهای SKU، نام، برند، دسته‌بندی، قیمت و موجودی اجباری هستند."
+            "Missing required fields (name, sku, price, stock, brandName, categoryName)."
           );
         }
-        if (isNaN(parseFloat(row.price)) || isNaN(parseInt(row.stock))) {
-          throw new Error("فرمت قیمت یا موجودی نامعتبر است.");
-        }
 
-        const brand = existingBrands.find(
-          (b) =>
-            b.name.trim().toLowerCase() ===
-            (row.brandName as string).trim().toLowerCase()
-        );
+        // Find Brand ID by its Persian name
+        const brand = await prisma.brand.findUnique({
+          where: { name: brandName },
+        });
         if (!brand) {
-          throw new Error(
-            `برند "${row.brandName}" یافت نشد. لطفاً ابتدا آن را در پنل مدیریت ایجاد کنید.`
-          );
+          throw new Error(`Brand '${brandName}' not found.`);
         }
 
-        const category = existingCategories.find(
-          (c) =>
-            c.name.trim().toLowerCase() ===
-            (row.categoryName as string).trim().toLowerCase()
-        );
+        // Find Category ID by its Persian name
+        const category = await prisma.category.findUnique({
+          where: { name: categoryName },
+        });
         if (!category) {
-          throw new Error(
-            `دسته‌بندی "${row.categoryName}" یافت نشد. لطفاً ابتدا آن را در پنل مدیریت ایجاد کنید.`
-          );
+          throw new Error(`Category '${categoryName}' not found.`);
         }
 
-        const newStockAmount = parseInt(row.stock);
-        const productPayload = {
-          name: row.name,
-          slug: generateSlug(row.name),
+        const productData = {
+          name,
+          slug:
+            name.toLowerCase().replace(/\s+/g, "-") + "-" + sku.toLowerCase(),
+          description: description || null,
+          price: parseFloat(price),
+          stock: parseInt(stock, 10),
+          sku,
           brandId: brand.id,
           categoryId: category.id,
-          price: parseFloat(row.price),
-          stock: newStockAmount,
-          sku: row.sku,
-          description: row.description || null,
         };
 
         const existingProduct = await prisma.product.findUnique({
-          where: { sku: productPayload.sku },
+          where: { sku },
         });
 
         if (existingProduct) {
-          const updatedProduct = await prisma.product.update({
-            where: { sku: productPayload.sku },
-            data: productPayload,
+          await prisma.product.update({
+            where: { id: existingProduct.id },
+            data: productData,
           });
           report.updatedCount++;
-
-          const stockChange = newStockAmount - existingProduct.stock;
-          await logStockChange(
-            updatedProduct.id,
-            stockChange,
-            newStockAmount,
-            "ADJUSTMENT",
-            userId || null,
-            "Stock updated via Excel import"
-          );
         } else {
-          const newProduct = await prisma.product.create({
-            data: productPayload,
+          await prisma.product.create({
+            data: productData,
           });
           report.createdCount++;
-
-          await logStockChange(
-            newProduct.id,
-            newStockAmount,
-            newStockAmount,
-            "INITIAL",
-            userId || null,
-            "Initial stock set via Excel import"
-          );
         }
       } catch (e: any) {
         report.failedCount++;
         report.errors.push({
-          row: rowIndex,
-          name: row.name || "نام نامشخص",
+          sku: row.sku || "N/A",
+          name: row.name || "N/A",
           error: e.message,
         });
       }
@@ -752,11 +723,10 @@ export const bulkCreateProductsFromExcel = async (
 
     res.status(201).json({
       success: true,
-      message: "پردازش فایل اکسل کامل شد.",
+      message: "Product import finished.",
       data: report,
     });
   } catch (e) {
-    console.error("Error in bulkCreateProductsFromExcel:", e);
     res
       .status(500)
       .json({ success: false, message: "Failed to process Excel file." });

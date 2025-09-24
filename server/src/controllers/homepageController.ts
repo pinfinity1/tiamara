@@ -96,9 +96,83 @@ export const addFeatureBanner = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
-  res.status(501).json({
-    message: "Add banner functionality needs to be updated for new features.",
-  });
+  try {
+    const { group, bannersData } = req.body;
+    const files = req.files as Express.Multer.File[];
+    const parsedBannersData = JSON.parse(bannersData);
+
+    if (
+      !group ||
+      !files ||
+      files.length === 0 ||
+      files.length !== parsedBannersData.length
+    ) {
+      res
+        .status(400)
+        .json({ success: false, message: "Invalid data provided." });
+      return;
+    }
+
+    const lastBannerInGroup = await prisma.featureBanner.findFirst({
+      where: { group },
+      orderBy: { order: "desc" },
+    });
+
+    let currentOrder = lastBannerInGroup ? lastBannerInGroup.order : 0;
+
+    // Step 1: Handle all file uploads first
+    const uploadResults = await Promise.all(
+      files.map((file) =>
+        cloudinary.uploader.upload(file.path, {
+          folder: "tiamara-banners",
+        })
+      )
+    );
+
+    // Step 2: Clean up local files
+    files.forEach((file) => fs.unlinkSync(file.path));
+
+    // Step 3: Prepare Prisma operations without awaiting them
+    const bannerCreateOperations = uploadResults.map((result, index) => {
+      const metadata = parsedBannersData[index];
+      currentOrder++;
+
+      return prisma.featureBanner.create({
+        data: {
+          group,
+          imageUrl: result.secure_url,
+          imageUrlMobile: result.secure_url, // Or handle separate mobile uploads if needed
+          linkUrl: metadata.linkUrl,
+          altText: metadata.altText,
+          isActive: metadata.isActive,
+          order: currentOrder,
+        },
+      });
+    });
+
+    // Step 4: Execute all Prisma operations in a single transaction
+    await prisma.$transaction(bannerCreateOperations);
+
+    res
+      .status(201)
+      .json({ success: true, message: "Banners added successfully." });
+  } catch (e) {
+    console.error("Error adding feature banners:", e);
+    // Ensure cleanup happens on error too
+    if (req.files) {
+      const files = req.files as Express.Multer.File[];
+      files.forEach((file) => {
+        try {
+          if (fs.existsSync(file.path)) {
+            fs.unlinkSync(file.path);
+          }
+        } catch (unlinkErr) {
+          console.error("Failed to delete temp file on error:", unlinkErr);
+        }
+      });
+    }
+    res.status(500).json({ success: false, message: "Failed to add banners." });
+  }
 };
 
 export const updateFeatureBanner = async (
@@ -412,12 +486,10 @@ export const createProductCollection = async (
     res.status(201).json({ success: true, collection });
   } catch (error) {
     console.error("Error creating product collection:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to create product collection.",
-      });
+    res.status(500).json({
+      success: false,
+      message: "Failed to create product collection.",
+    });
   }
 };
 
@@ -474,12 +546,10 @@ export const updateProductCollection = async (
     res.status(200).json({ success: true, collection });
   } catch (error) {
     console.error("Error updating product collection:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Failed to update product collection.",
-      });
+    res.status(500).json({
+      success: false,
+      message: "Failed to update product collection.",
+    });
   }
 };
 

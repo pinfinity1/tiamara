@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, ChangeEvent } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -33,14 +33,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Category, useCategoryStore } from "@/store/useCategoryStore";
-import { Pencil, PlusCircle, Trash2, UploadCloud } from "lucide-react";
+import { Pencil, PlusCircle, Trash2, UploadCloud, Upload } from "lucide-react";
 import Image from "next/image";
 import { buttonVariants } from "@/components/ui/button";
 
-/**
- * Admin page for managing product categories.
- * Allows creating, reading, updating, and deleting categories.
- */
 function ManageCategoriesPage() {
   const {
     categories,
@@ -48,6 +44,7 @@ function ManageCategoriesPage() {
     createCategory,
     updateCategory,
     deleteCategory,
+    uploadCategoriesFromExcel,
     isLoading,
   } = useCategoryStore();
   const { toast } = useToast();
@@ -58,11 +55,13 @@ function ManageCategoriesPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
+    englishName: "", // فیلد جدید
     metaTitle: "",
     metaDescription: "",
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const excelInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchCategories();
@@ -78,7 +77,12 @@ function ManageCategoriesPage() {
 
   const resetForm = () => {
     setEditingCategory(null);
-    setFormData({ name: "", metaTitle: "", metaDescription: "" });
+    setFormData({
+      name: "",
+      englishName: "",
+      metaTitle: "",
+      metaDescription: "",
+    });
     setImageFile(null);
     setPreviewUrl(null);
     if (fileInputRef.current) {
@@ -96,6 +100,7 @@ function ManageCategoriesPage() {
     setEditingCategory(category);
     setFormData({
       name: category.name,
+      englishName: category.englishName || "", // مقداردهی فیلد جدید
       metaTitle: category.metaTitle || "",
       metaDescription: category.metaDescription || "",
     });
@@ -114,9 +119,41 @@ function ManageCategoriesPage() {
     }
   };
 
+  const handleExcelUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const result = await uploadCategoriesFromExcel(file);
+      if (result.success && result.data) {
+        toast({
+          title: "آپلود با موفقیت انجام شد",
+          description: (
+            <div>
+              <p>{result.data.createdCount} دسته‌بندی جدید ایجاد شد.</p>
+              {result.data.failedCount > 0 && (
+                <p className="text-red-500">
+                  {result.data.failedCount} مورد با خطا مواجه شد.
+                </p>
+              )}
+            </div>
+          ),
+        });
+      } else {
+        toast({
+          title: "خطا در آپلود",
+          description: result.error,
+          variant: "destructive",
+        });
+      }
+      if (excelInputRef.current) {
+        excelInputRef.current.value = "";
+      }
+    }
+  };
+
   const handleSubmit = async () => {
     const data = new FormData();
     data.append("name", formData.name);
+    data.append("englishName", formData.englishName); // ارسال فیلد جدید
     data.append("metaTitle", formData.metaTitle);
     data.append("metaDescription", formData.metaDescription);
     if (imageFile) {
@@ -157,9 +194,25 @@ function ManageCategoriesPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">مدیریت دسته‌بندی‌ها</h1>
-        <Button onClick={handleAddNew}>
-          <PlusCircle className="ml-2" /> افزودن دسته‌بندی جدید
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => excelInputRef.current?.click()}
+            disabled={isLoading}
+          >
+            <Upload className="ml-2 h-4 w-4" /> ایمپورت از اکسل
+            <input
+              type="file"
+              ref={excelInputRef}
+              className="hidden"
+              accept=".xlsx, .xls, .csv"
+              onChange={handleExcelUpload}
+            />
+          </Button>
+          <Button onClick={handleAddNew}>
+            <PlusCircle className="ml-2" /> افزودن دسته‌بندی جدید
+          </Button>
+        </div>
       </div>
 
       <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
@@ -171,13 +224,24 @@ function ManageCategoriesPage() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="name">نام دسته‌بندی</Label>
+              <Label htmlFor="name">نام دسته‌بندی (فارسی)</Label>
               <Input
                 id="name"
                 name="name"
                 value={formData.name}
                 onChange={handleInputChange}
                 placeholder="مثال: مراقبت از پوست"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="englishName">نام دسته‌بندی (انگلیسی)</Label>
+              <Input
+                id="englishName"
+                name="englishName"
+                value={formData.englishName}
+                onChange={handleInputChange}
+                placeholder="Example: Skincare"
+                dir="ltr"
               />
             </div>
             <div className="space-y-2">
@@ -213,9 +277,6 @@ function ManageCategoriesPage() {
                     </span>
                     <p className="pr-1">یا فایل را اینجا بکشید</p>
                   </div>
-                  <p className="text-xs text-gray-500">
-                    PNG, JPG, WEBP - حداکثر ۵ مگابایت
-                  </p>
                 </div>
               </div>
             </div>
@@ -226,7 +287,6 @@ function ManageCategoriesPage() {
                 name="metaTitle"
                 value={formData.metaTitle}
                 onChange={handleInputChange}
-                placeholder="مثال: محصولات مراقبت از پوست | فروشگاه تیامارا"
               />
             </div>
             <div className="space-y-2">
@@ -236,7 +296,6 @@ function ManageCategoriesPage() {
                 name="metaDescription"
                 value={formData.metaDescription}
                 onChange={handleInputChange}
-                placeholder="توضیحات کوتاه برای نمایش در گوگل"
               />
             </div>
           </div>
@@ -258,7 +317,8 @@ function ManageCategoriesPage() {
           <TableHeader>
             <TableRow>
               <TableHead>تصویر</TableHead>
-              <TableHead>نام دسته‌بندی</TableHead>
+              <TableHead>نام (فارسی)</TableHead>
+              <TableHead>نام (انگلیسی)</TableHead>
               <TableHead className="text-left">عملیات</TableHead>
             </TableRow>
           </TableHeader>
@@ -279,6 +339,9 @@ function ManageCategoriesPage() {
                   )}
                 </TableCell>
                 <TableCell className="font-medium">{category.name}</TableCell>
+                <TableCell className="font-mono text-xs">
+                  {category.englishName}
+                </TableCell>
                 <TableCell className="text-left">
                   <Button
                     variant="ghost"
@@ -303,8 +366,7 @@ function ManageCategoriesPage() {
                           آیا کاملا مطمئن هستید؟
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                          این عمل غیرقابل بازگشت است و دسته‌بندی را برای همیشه
-                          حذف خواهد کرد.
+                          این عمل غیرقابل بازگشت است.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>

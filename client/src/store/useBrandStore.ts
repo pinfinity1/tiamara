@@ -4,6 +4,7 @@ import axiosAuth, { axiosPublic } from "@/lib/axios";
 export interface Brand {
   id: string;
   name: string;
+  englishName?: string | null;
   slug: string;
   logoUrl?: string | null;
   metaTitle?: string | null;
@@ -19,9 +20,12 @@ interface BrandState {
   createBrand: (data: FormData) => Promise<Brand | null>;
   updateBrand: (id: string, data: FormData) => Promise<Brand | null>;
   deleteBrand: (id: string) => Promise<boolean>;
+  uploadBrandsFromExcel: (
+    file: File
+  ) => Promise<{ success: boolean; data?: any; error?: string }>;
 }
 
-export const useBrandStore = create<BrandState>((set) => ({
+export const useBrandStore = create<BrandState>((set, get) => ({
   brands: [],
   isLoading: false,
   error: null,
@@ -97,6 +101,26 @@ export const useBrandStore = create<BrandState>((set) => ({
     } catch (e) {
       set({ error: "Failed to delete brand", isLoading: false });
       return false;
+    }
+  },
+
+  uploadBrandsFromExcel: async (file: File) => {
+    set({ isLoading: true, error: null });
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await axiosAuth.post("/brands/upload/excel", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      get().fetchBrands();
+      return { success: true, data: response.data.data };
+    } catch (e: any) {
+      const errorMsg = e.response?.data?.message || "Failed to upload brands.";
+      set({ error: errorMsg });
+      return { success: false, error: errorMsg };
+    } finally {
+      set({ isLoading: false });
     }
   },
 }));

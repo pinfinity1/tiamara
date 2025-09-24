@@ -1,13 +1,17 @@
+// server/src/controllers/brandController.ts
+
 import { Request, Response } from "express";
 import { prisma } from "../server";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import cloudinary from "../config/cloudinary";
 import fs from "fs";
+import * as xlsx from "xlsx";
 
-// Utility function to generate a slug
+// Utility function to generate a slug from an English string
 const generateSlug = (name: string) => {
   return name
     .toLowerCase()
+    .trim()
     .replace(/\s+/g, "-")
     .replace(/[^\w\-]+/g, "");
 };
@@ -18,13 +22,14 @@ export const createBrand = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { name, metaTitle, metaDescription } = req.body;
+    const { name, englishName, metaTitle, metaDescription } = req.body;
     const file = req.file;
 
-    if (!name) {
-      res
-        .status(400)
-        .json({ success: false, message: "Brand name is required." });
+    if (!name || !englishName) {
+      res.status(400).json({
+        success: false,
+        message: "Brand name and English name are required.",
+      });
       return;
     }
 
@@ -35,13 +40,14 @@ export const createBrand = async (
         folder: "tiamara_logos",
       });
       logoUrl = result.secure_url;
-      fs.unlinkSync(file.path); // Clean up the temporary file
+      fs.unlinkSync(file.path);
     }
 
     const brand = await prisma.brand.create({
       data: {
         name,
-        slug: generateSlug(name),
+        englishName,
+        slug: generateSlug(englishName),
         logoUrl,
         metaTitle,
         metaDescription,
@@ -107,11 +113,20 @@ export const updateBrand = async (
     const { id } = req.params;
     const {
       name,
+      englishName,
       metaTitle,
       metaDescription,
       logoUrl: existingLogoUrl,
     } = req.body;
     const file = req.file;
+
+    if (!name || !englishName) {
+      res.status(400).json({
+        success: false,
+        message: "Brand name and English name are required.",
+      });
+      return;
+    }
 
     let newLogoUrl: string | undefined = existingLogoUrl;
 
@@ -127,7 +142,8 @@ export const updateBrand = async (
       where: { id },
       data: {
         name,
-        slug: generateSlug(name),
+        englishName,
+        slug: generateSlug(englishName), // Slug is now generated from englishName
         logoUrl: newLogoUrl,
         metaTitle,
         metaDescription,
@@ -161,5 +177,70 @@ export const deleteBrand = async (
     res
       .status(500)
       .json({ success: false, message: "Failed to delete brand." });
+  }
+};
+
+// Bulk create brands from Excel
+export const bulkCreateBrandsFromExcel = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  if (!req.file) {
+    res
+      .status(400)
+      .json({ success: false, message: "No Excel file provided." });
+    return;
+  }
+
+  try {
+    const workbook = xlsx.readFile(req.file.path);
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const brandsData: any[] = xlsx.utils.sheet_to_json(sheet);
+
+    const report = { createdCount: 0, failedCount: 0, errors: [] as any[] };
+
+    for (const row of brandsData) {
+      try {
+        if (!row.name || !row.englishName) {
+          throw new Error(
+            "Both 'name' and 'englishName' are required for each brand."
+          );
+        }
+
+        const existingBrand = await prisma.brand.findFirst({
+          where: {
+            OR: [{ name: row.name }, { englishName: row.englishName }],
+          },
+        });
+
+        if (!existingBrand) {
+          await prisma.brand.create({
+            data: {
+              name: row.name,
+              englishName: row.englishName,
+              slug: generateSlug(row.englishName),
+              metaTitle: row.metaTitle || row.name,
+              metaDescription: row.metaDescription || null,
+            },
+          });
+          report.createdCount++;
+        }
+      } catch (e: any) {
+        report.failedCount++;
+        report.errors.push({ name: row.name, error: e.message });
+      }
+    }
+    res
+      .status(201)
+      .json({ success: true, message: "Brand import finished.", data: report });
+  } catch (e) {
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to process Excel file." });
+  } finally {
+    if (req.file) {
+      fs.unlinkSync(req.file.path);
+    }
   }
 };

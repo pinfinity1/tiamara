@@ -6,8 +6,9 @@ import {
   getAllBrands,
   updateBrand,
   getBrandBySlug,
+  bulkCreateBrandsFromExcel,
 } from "../controllers/brandController";
-import { uploadImage } from "../middleware/uploadMiddleware";
+import { uploadExcel, uploadImage } from "../middleware/uploadMiddleware";
 
 const router = express.Router();
 
@@ -33,5 +34,13 @@ router.put(
   updateBrand
 );
 router.delete("/delete/:id", authenticateJwt, isSuperAdmin, deleteBrand);
+
+router.post(
+  "/upload/excel",
+  authenticateJwt,
+  isSuperAdmin,
+  uploadExcel.single("file"),
+  bulkCreateBrandsFromExcel
+);
 
 export default router;

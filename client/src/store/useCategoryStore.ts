@@ -8,6 +8,7 @@ import axiosAuth from "@/lib/axios";
 export interface Category {
   id: string;
   name: string;
+  englishName?: string | null;
   slug: string;
   imageUrl: string | null;
   metaTitle: string | null;
@@ -23,9 +24,12 @@ interface CategoryState {
   createCategory: (formData: FormData) => Promise<Category | null>;
   updateCategory: (id: string, formData: FormData) => Promise<Category | null>;
   deleteCategory: (id: string) => Promise<boolean>;
+  uploadCategoriesFromExcel: (
+    file: File
+  ) => Promise<{ success: boolean; data?: any; error?: string }>;
 }
 
-export const useCategoryStore = create<CategoryState>((set) => ({
+export const useCategoryStore = create<CategoryState>((set, get) => ({
   categories: [],
   isLoading: false,
   error: null,
@@ -117,6 +121,31 @@ export const useCategoryStore = create<CategoryState>((set) => ({
       console.error("Failed to delete category:", error);
       set({ error: "Failed to delete category.", isLoading: false });
       return false;
+    }
+  },
+
+  uploadCategoriesFromExcel: async (file: File) => {
+    set({ isLoading: true, error: null });
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await axiosAuth.post(
+        "/categories/upload/excel",
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        }
+      );
+      get().fetchCategories();
+      return { success: true, data: response.data.data };
+    } catch (e: any) {
+      const errorMsg =
+        e.response?.data?.message || "Failed to upload categories.";
+      set({ error: errorMsg });
+      return { success: false, error: errorMsg };
+    } finally {
+      set({ isLoading: false });
     }
   },
 }));

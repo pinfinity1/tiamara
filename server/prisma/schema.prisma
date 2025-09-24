@@ -136,6 +136,7 @@ model Image {
 model Brand {
   id                 String              @id @default(cuid())
   name               String              @unique
+  englishName        String?             @unique
   slug               String              @unique
   logoUrl            String?
   metaTitle          String?
@@ -149,6 +150,7 @@ model Brand {
 model Category {
   id              String    @id @default(cuid())
   name            String    @unique
+  englishName     String?   @unique
   slug            String    @unique
   imageUrl        String?
   metaTitle       String?

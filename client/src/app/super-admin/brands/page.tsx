@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, ChangeEvent } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -28,19 +28,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"; // Import AlertDialog components
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Brand, useBrandStore } from "@/store/useBrandStore";
-import { Pencil, PlusCircle, Trash2, UploadCloud } from "lucide-react";
+import { Pencil, PlusCircle, Trash2, UploadCloud, Upload } from "lucide-react";
 import Image from "next/image";
 import { buttonVariants } from "@/components/ui/button";
 
-/**
- * Admin page for managing product brands.
- * Allows creating, reading, updating, and deleting brands with a custom confirmation dialog.
- */
 function ManageBrandsPage() {
   const {
     brands,
@@ -48,6 +44,7 @@ function ManageBrandsPage() {
     createBrand,
     updateBrand,
     deleteBrand,
+    uploadBrandsFromExcel,
     isLoading,
   } = useBrandStore();
   const { toast } = useToast();
@@ -58,11 +55,13 @@ function ManageBrandsPage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
+    englishName: "",
     metaTitle: "",
     metaDescription: "",
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const excelInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchBrands();
@@ -78,7 +77,12 @@ function ManageBrandsPage() {
 
   const resetForm = () => {
     setEditingBrand(null);
-    setFormData({ name: "", metaTitle: "", metaDescription: "" });
+    setFormData({
+      name: "",
+      englishName: "",
+      metaTitle: "",
+      metaDescription: "",
+    });
     setLogoFile(null);
     setPreviewUrl(null);
     if (fileInputRef.current) {
@@ -96,6 +100,7 @@ function ManageBrandsPage() {
     setEditingBrand(brand);
     setFormData({
       name: brand.name,
+      englishName: brand.englishName || "", // مقداردهی فیلد جدید
       metaTitle: brand.metaTitle || "",
       metaDescription: brand.metaDescription || "",
     });
@@ -114,9 +119,41 @@ function ManageBrandsPage() {
     }
   };
 
+  const handleExcelUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const result = await uploadBrandsFromExcel(file);
+      if (result.success && result.data) {
+        toast({
+          title: "آپلود با موفقیت انجام شد",
+          description: (
+            <div>
+              <p>{result.data.createdCount} برند جدید ایجاد شد.</p>
+              {result.data.failedCount > 0 && (
+                <p className="text-red-500">
+                  {result.data.failedCount} مورد با خطا مواجه شد.
+                </p>
+              )}
+            </div>
+          ),
+        });
+      } else {
+        toast({
+          title: "خطا در آپلود",
+          description: result.error,
+          variant: "destructive",
+        });
+      }
+      if (excelInputRef.current) {
+        excelInputRef.current.value = "";
+      }
+    }
+  };
+
   const handleSubmit = async () => {
     const data = new FormData();
     data.append("name", formData.name);
+    data.append("englishName", formData.englishName); // ارسال فیلد جدید
     data.append("metaTitle", formData.metaTitle);
     data.append("metaDescription", formData.metaDescription);
     if (logoFile) {
@@ -155,12 +192,27 @@ function ManageBrandsPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">مدیریت برندها</h1>
-        <Button onClick={handleAddNew}>
-          <PlusCircle className="ml-2" /> افزودن برند جدید
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => excelInputRef.current?.click()}
+            disabled={isLoading}
+          >
+            <Upload className="ml-2 h-4 w-4" /> ایمپورت از اکسل
+            <input
+              type="file"
+              ref={excelInputRef}
+              className="hidden"
+              accept=".xlsx, .xls, .csv"
+              onChange={handleExcelUpload}
+            />
+          </Button>
+          <Button onClick={handleAddNew}>
+            <PlusCircle className="ml-2" /> افزودن برند جدید
+          </Button>
+        </div>
       </div>
 
-      {/* Form Dialog for Add/Edit */}
       <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -170,13 +222,25 @@ function ManageBrandsPage() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="name">نام برند</Label>
+              <Label htmlFor="name">نام برند (فارسی)</Label>
               <Input
                 id="name"
                 name="name"
                 value={formData.name}
                 onChange={handleInputChange}
                 placeholder="مثال: اوردینری"
+              />
+            </div>
+            {/* فیلد ورودی جدید برای نام انگلیسی */}
+            <div className="space-y-2">
+              <Label htmlFor="englishName">نام برند (انگلیسی)</Label>
+              <Input
+                id="englishName"
+                name="englishName"
+                value={formData.englishName}
+                onChange={handleInputChange}
+                placeholder="Example: The Ordinary"
+                dir="ltr"
               />
             </div>
             <div className="space-y-2">
@@ -212,9 +276,6 @@ function ManageBrandsPage() {
                     </span>
                     <p className="pr-1">یا فایل را اینجا بکشید</p>
                   </div>
-                  <p className="text-xs text-gray-500">
-                    PNG, JPG, WEBP - حداکثر ۵ مگابایت
-                  </p>
                 </div>
               </div>
             </div>
@@ -225,7 +286,6 @@ function ManageBrandsPage() {
                 name="metaTitle"
                 value={formData.metaTitle}
                 onChange={handleInputChange}
-                placeholder="مثال: محصولات اوردینری | فروشگاه تیامارا"
               />
             </div>
             <div className="space-y-2">
@@ -235,7 +295,6 @@ function ManageBrandsPage() {
                 name="metaDescription"
                 value={formData.metaDescription}
                 onChange={handleInputChange}
-                placeholder="توضیحات کوتاه و جذاب برای نمایش در گوگل"
               />
             </div>
           </div>
@@ -252,13 +311,13 @@ function ManageBrandsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Table to display brands */}
       <div className="border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>لوگو</TableHead>
-              <TableHead>نام برند</TableHead>
+              <TableHead>نام برند (فارسی)</TableHead>
+              <TableHead>نام برند (انگلیسی)</TableHead>
               <TableHead className="text-left">عملیات</TableHead>
             </TableRow>
           </TableHeader>
@@ -279,6 +338,9 @@ function ManageBrandsPage() {
                   )}
                 </TableCell>
                 <TableCell className="font-medium">{brand.name}</TableCell>
+                <TableCell className="font-mono text-xs">
+                  {brand.englishName}
+                </TableCell>
                 <TableCell className="text-left">
                   <Button
                     variant="ghost"
@@ -287,7 +349,6 @@ function ManageBrandsPage() {
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  {/* CORRECTED: Using AlertDialog for delete confirmation */}
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button
@@ -304,8 +365,7 @@ function ManageBrandsPage() {
                           آیا کاملا مطمئن هستید؟
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                          این عمل غیرقابل بازگشت است. این کار برند را برای همیشه
-                          حذف خواهد کرد.
+                          این عمل غیرقابل بازگشت است.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>

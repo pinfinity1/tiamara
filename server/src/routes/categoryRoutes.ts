@@ -1,12 +1,13 @@
 import express from "express";
 import { authenticateJwt, isSuperAdmin } from "../middleware/authMiddleware";
-import { uploadImage } from "../middleware/uploadMiddleware";
+import { uploadExcel, uploadImage } from "../middleware/uploadMiddleware";
 import {
   createCategory,
   deleteCategory,
   getAllCategories,
   updateCategory,
   getCategoryBySlug,
+  bulkCreateCategoriesFromExcel,
 } from "../controllers/categoryController";
 
 const router = express.Router();
@@ -35,5 +36,13 @@ router.put(
 );
 
 router.delete("/delete/:id", authenticateJwt, isSuperAdmin, deleteCategory);
+
+router.post(
+  "/upload/excel",
+  authenticateJwt,
+  isSuperAdmin,
+  uploadExcel.single("file"),
+  bulkCreateCategoriesFromExcel
+);
 
 export default router;
