@@ -246,7 +246,7 @@ export const refreshTokenController = async (
 
     if (!storedToken || storedToken.expires < new Date()) {
       res
-        .status(403)
+        .status(401)
         .json({ success: false, message: "Invalid or expired refresh token." });
       return;
     }
@@ -277,7 +277,7 @@ export const refreshTokenController = async (
       .status(200)
       .json({ success: true, accessToken, refreshToken: newRefreshToken });
   } catch (error) {
-    res.status(403).json({ success: false, message: "Invalid refresh token." });
+    res.status(401).json({ success: false, message: "Invalid refresh token." });
   }
 };
 
