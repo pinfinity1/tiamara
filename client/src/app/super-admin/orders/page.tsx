@@ -1,13 +1,13 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
+import { useEffect, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  useOrderStore,
+  Order,
+  OrderStatus,
+  PaymentStatus,
+} from "@/store/useOrderStore";
 import {
   Table,
   TableBody,
@@ -16,123 +16,200 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useToast } from "@/hooks/use-toast";
-import { AdminOrder, useOrderStore } from "@/store/useOrderStore";
-import { useEffect } from "react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Eye, Search, X } from "lucide-react";
+import { format } from "date-fns-jalali";
+import { useDebounce } from "@/hooks/use-debounce";
+import OrderDetailsModal from "./OrderDetailsModal";
 
-type OrderStatus = "PENDING" | "PROCESSING" | "SHIPPED" | "DELIVERED";
+export const statusTranslations: Record<OrderStatus, string> = {
+  PENDING: "در انتظار",
+  PROCESSING: "در حال پردازش",
+  SHIPPED: "ارسال شده",
+  DELIVERED: "تحویل شده",
+};
 
-function SuperAdminManageOrdersPage() {
-  const { getAllOrders, adminOrders, updateOrderStatus } = useOrderStore();
-  const { toast } = useToast();
+export const paymentStatusTranslations: Record<PaymentStatus, string> = {
+  PENDING: "در انتظار پرداخت",
+  COMPLETED: "پرداخت موفق",
+  FAILED: "پرداخت ناموفق",
+  CANCELLED: "لغو شده",
+};
 
-  console.log(adminOrders);
+export const getPaymentStatusVariant = (status: PaymentStatus) => {
+  switch (status) {
+    case "COMPLETED":
+      return "bg-green-100 text-green-800 border-green-300";
+    case "FAILED":
+      return "bg-red-100 text-red-800 border-red-300";
+    case "CANCELLED":
+      return "bg-gray-100 text-gray-800 border-gray-300";
+    default:
+      return "bg-yellow-100 text-yellow-800 border-yellow-300";
+  }
+};
+
+export default function AdminOrdersPage() {
+  // --- START OF CHANGES ---
+  const { adminOrders, isLoading, fetchOrdersForAdmin, setSelectedOrder } =
+    useOrderStore(
+      useShallow((state) => ({
+        adminOrders: state.adminOrders, // Use the correct state property
+        isLoading: state.isLoading,
+        fetchOrdersForAdmin: state.fetchOrdersForAdmin, // Use the new function name
+        setSelectedOrder: state.setSelectedOrder,
+      }))
+    );
+  // --- END OF CHANGES ---
+
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState("");
+  const debouncedSearch = useDebounce(search, 500);
 
   useEffect(() => {
-    getAllOrders();
-  }, [getAllOrders]);
-
-  const getStatusColor = (
-    status: "PENDING" | "PROCESSING" | "SHIPPED" | "DELIVERED"
-  ) => {
-    switch (status) {
-      case "PENDING":
-        return "bg-blue-500";
-
-      case "PROCESSING":
-        return "bg-yellow-500";
-
-      case "SHIPPED":
-        return "bg-purple-500";
-
-      case "DELIVERED":
-        return "bg-green-500";
-
-      default:
-        return "bg-gray-500";
-    }
-  };
-
-  const handleStatusUpdate = async (
-    orderId: string,
-    newStatus: OrderStatus
-  ) => {
-    await updateOrderStatus(orderId, newStatus);
-    toast({
-      title: "Status updated successfully",
+    fetchOrdersForAdmin({
+      status: statusFilter,
+      paymentStatus: paymentStatusFilter,
+      search: debouncedSearch,
     });
+  }, [fetchOrdersForAdmin, statusFilter, paymentStatusFilter, debouncedSearch]);
+
+  const handleClearFilters = () => {
+    setSearch("");
+    setStatusFilter("");
+    setPaymentStatusFilter("");
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">ORDERS LIST</h1>
+    <div className="p-6 space-y-4">
+      <h1 className="text-2xl font-bold">مدیریت سفارشات</h1>
+
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="جستجو (شماره سفارش، نام، ایمیل...)"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="وضعیت سفارش" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">همه وضعیت‌ها</SelectItem>
+            {Object.keys(statusTranslations).map((s) => (
+              <SelectItem key={s} value={s}>
+                {statusTranslations[s as OrderStatus]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={paymentStatusFilter}
+          onValueChange={setPaymentStatusFilter}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="وضعیت پرداخت" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">همه وضعیت‌ها</SelectItem>
+            {Object.keys(paymentStatusTranslations).map((s) => (
+              <SelectItem key={s} value={s}>
+                {paymentStatusTranslations[s as PaymentStatus]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button variant="ghost" onClick={handleClearFilters}>
+          <X className="h-4 w-4 mr-2" />
+          پاک کردن فیلترها
+        </Button>
       </div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Order ID</TableHead>
-            <TableHead>Created At</TableHead>
-            <TableHead>Customer</TableHead>
-            <TableHead>Total</TableHead>
-            <TableHead>Payment Status</TableHead>
-            <TableHead>Items</TableHead>
-            <TableHead>Order Status</TableHead>
-            <TableHead>Action</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {adminOrders.length === 0 ? (
+
+      <div className="border rounded-lg">
+        <Table>
+          <TableHeader>
             <TableRow>
-              <TableCell colSpan={8} className="text-center">
-                No Orders Found
-              </TableCell>
+              <TableHead>شماره سفارش</TableHead>
+              <TableHead>مشتری</TableHead>
+              <TableHead>تاریخ</TableHead>
+              <TableHead>مبلغ کل</TableHead>
+              <TableHead>وضعیت پرداخت</TableHead>
+              <TableHead>وضعیت سفارش</TableHead>
+              <TableHead className="text-left">عملیات</TableHead>
             </TableRow>
-          ) : (
-            adminOrders.map((order) => (
-              <TableRow key={order.id}>
-                <TableCell className="font-semibold">{order.id}</TableCell>
-                <TableCell>
-                  {new Date(order.createdAt).toLocaleDateString()}
-                </TableCell>
-                <TableCell>{order.user.name}</TableCell>
-                <TableCell>{order.total.toFixed(2)}</TableCell>
-                <TableCell>{order.paymentStatus}</TableCell>
-                <TableCell>
-                  {order.items.length}{" "}
-                  {order.items.length > 1 ? "Items" : "Item"}
-                </TableCell>
-                <TableCell>
-                  <Badge className={`${getStatusColor(order.status)}`}>
-                    {order.status.charAt(0).toUpperCase() +
-                      order.status.slice(1)}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Select
-                    defaultValue={order.status}
-                    onValueChange={(value) =>
-                      handleStatusUpdate(order.id, value as OrderStatus)
-                    }
-                  >
-                    <SelectTrigger className="w-[160px]">
-                      <SelectValue placeholder="Update Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="PENDING">Pending</SelectItem>
-                      <SelectItem value="PROCESSING">Processing</SelectItem>
-                      <SelectItem value="SHIPPED">Shipped</SelectItem>
-                      <SelectItem value="DELIVERED">Delivered</SelectItem>
-                    </SelectContent>
-                  </Select>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center">
+                  در حال بارگذاری...
                 </TableCell>
               </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+            ) : adminOrders.length > 0 ? ( // Use adminOrders
+              adminOrders.map(
+                (
+                  order // Use adminOrders
+                ) => (
+                  <TableRow key={order.id}>
+                    <TableCell className="font-mono">
+                      #{order.orderNumber}
+                    </TableCell>
+                    <TableCell>{order.user.name || "کاربر مهمان"}</TableCell>
+                    <TableCell>
+                      {format(new Date(order.createdAt), "yyyy/MM/dd")}
+                    </TableCell>
+                    <TableCell>
+                      {order.total.toLocaleString("fa-IR")} تومان
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        className={getPaymentStatusVariant(order.paymentStatus)}
+                      >
+                        {paymentStatusTranslations[order.paymentStatus]}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {statusTranslations[order.status]}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-left">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setSelectedOrder(order)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                )
+              )
+            ) : (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center">
+                  سفارشی یافت نشد.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+      <OrderDetailsModal />
     </div>
   );
 }
-
-export default SuperAdminManageOrdersPage;

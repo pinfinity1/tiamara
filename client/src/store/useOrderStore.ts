@@ -1,163 +1,176 @@
-import axiosAuth from "@/lib/axios";
 import { create } from "zustand";
+import axiosAuth from "@/lib/axios";
+import { Address } from "./useAddressStore";
+import { Coupon } from "./useCouponStore";
 
-interface OrderItem {
+// --- All type definitions remain the same ---
+export type OrderStatus = "PENDING" | "PROCESSING" | "SHIPPED" | "DELIVERED";
+export type PaymentStatus = "PENDING" | "COMPLETED" | "FAILED" | "CANCELLED";
+
+export const statusTranslations: Record<OrderStatus, string> = {
+  PENDING: "در انتظار",
+  PROCESSING: "در حال پردازش",
+  SHIPPED: "ارسال شده",
+  DELIVERED: "تحویل شده",
+};
+
+export interface OrderItem {
   id: string;
-  productId: string;
   productName: string;
-  productCategory: string;
   quantity: number;
-  size?: string;
-  color?: string;
   price: number;
+  product: {
+    id: string;
+    slug: string;
+    images: { url: string }[];
+  };
 }
 
 export interface Order {
   id: string;
-  userId: string;
-  addressId: string;
-  items: OrderItem[];
-  couponId?: string;
+  orderNumber: number;
   total: number;
-  status: "PENDING" | "PROCESSING" | "SHIPPED" | "DELIVERED";
-  paymentMethod: "CREDIT_CARD";
-  paymentStatus: "PENDING" | "COMPLETED";
-  paymentId?: string;
+  status: OrderStatus;
+  paymentStatus: PaymentStatus;
   createdAt: string;
-  updatedAt: string;
-}
-
-export interface AdminOrder extends Order {
+  items: OrderItem[];
+  address: Address;
   user: {
     id: string;
-    name: string;
-    email: string;
+    name: string | null;
+    email: string | null;
+    phone?: string | null;
   };
+  coupon?: Coupon | null;
 }
 
 interface CreateOrderData {
-  userId: string;
   addressId: string;
-  items: Omit<OrderItem, "id" | "productName" | "productCategory">[];
   couponId?: string;
-  total: number;
 }
 
 interface OrderStore {
-  currentOrder: Order | null;
-  isLoading: boolean;
-  isPaymentProcessing: boolean;
   userOrders: Order[];
-  adminOrders: AdminOrder[];
+  adminOrders: Order[];
+  selectedOrder: Order | null;
+  isLoading: boolean;
   error: string | null;
   createFinalOrder: (
     orderData: CreateOrderData
-  ) => Promise<{ success: boolean; paymentUrl?: string; order?: Order }>;
-  getOrder: (orderId: string) => Promise<Order | null>;
-  updateOrderStatus: (
-    orderId: string,
-    status: Order["status"]
-  ) => Promise<boolean>;
-  getAllOrders: () => Promise<AdminOrder[] | null>;
-  getOrdersByUserId: () => Promise<Order[] | null>;
-  setCurrentOrder: (order: Order | null) => void;
+  ) => Promise<{ success: boolean; paymentUrl?: string }>;
+  getOrdersByUserId: () => Promise<void>;
+  fetchOrdersForAdmin: (filters: {
+    status?: string;
+    paymentStatus?: string;
+    search?: string;
+  }) => Promise<void>;
+  fetchSingleOrderForAdmin: (orderId: string) => Promise<void>;
+  updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<boolean>;
+  setSelectedOrder: (order: Order | null) => void;
 }
 
 export const useOrderStore = create<OrderStore>((set, get) => ({
-  currentOrder: null,
-  isLoading: true,
-  error: null,
-  isPaymentProcessing: false,
   userOrders: [],
   adminOrders: [],
+  selectedOrder: null,
+  isLoading: false,
+  error: null,
 
   createFinalOrder: async (orderData) => {
-    set({ isLoading: true, error: null, isPaymentProcessing: true });
+    set({ isLoading: true });
     try {
+      // Corrected Path
       const response = await axiosAuth.post(
-        `/order/create-final-order`,
+        "/order/create-final-order",
         orderData
       );
-      set({
-        isLoading: false,
-        isPaymentProcessing: false,
-        currentOrder: response.data.order,
-      });
-      return {
-        success: true,
-        paymentUrl: response.data.paymentUrl,
-        order: response.data.order,
-      };
+      return { success: true, paymentUrl: response.data.paymentUrl };
     } catch (error) {
-      set({
-        error: "Failed to create final order",
-        isLoading: false,
-        isPaymentProcessing: false,
-      });
+      console.error("Failed to create final order", error);
       return { success: false };
-    }
-  },
-
-  updateOrderStatus: async (orderId, status) => {
-    set({ isLoading: true, error: null });
-    try {
-      await axiosAuth.put(`/order/${orderId}/status`, { status });
-      set((state) => ({
-        isLoading: false,
-        adminOrders: state.adminOrders.map((item) =>
-          item.id === orderId
-            ? {
-                ...item,
-                status,
-              }
-            : item
-        ),
-      }));
-      get().getOrdersByUserId();
-      return true;
-    } catch (error) {
-      set({ error: "Failed to update order status", isLoading: false });
-      return false;
-    }
-  },
-
-  getAllOrders: async () => {
-    set({ isLoading: true, error: null });
-    try {
-      const response = await axiosAuth.get(`/order/get-all-orders-for-admin`);
-      set({ isLoading: false, adminOrders: response.data });
-      return response.data;
-    } catch (error) {
-      set({ error: "Failed to fetch all orders for admin", isLoading: false });
-      return null;
+    } finally {
+      set({ isLoading: false });
     }
   },
 
   getOrdersByUserId: async () => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true });
     try {
-      const response = await axiosAuth.get(`/order/get-order-by-user-id`);
-      set({ isLoading: false, userOrders: response.data });
-      return response.data;
+      // Corrected Path
+      const response = await axiosAuth.get("/order/get-order-by-user-id");
+      set({ userOrders: response.data });
     } catch (error) {
-      set({ error: "Failed to fetch orders for user", isLoading: false });
-      return null;
+      console.error("Failed to fetch user orders", error);
+    } finally {
+      set({ isLoading: false });
     }
   },
 
-  setCurrentOrder: (order) => set({ currentOrder: order }),
+  setSelectedOrder: (order) => {
+    set({ selectedOrder: order });
+    if (order) {
+      get().fetchSingleOrderForAdmin(order.id);
+    }
+  },
 
-  getOrder: async (orderId) => {
+  fetchOrdersForAdmin: async (filters) => {
     set({ isLoading: true, error: null });
     try {
+      const params = new URLSearchParams();
+      if (filters.status && filters.status !== "ALL")
+        params.append("status", filters.status);
+      if (filters.paymentStatus && filters.paymentStatus !== "ALL")
+        params.append("paymentStatus", filters.paymentStatus);
+      if (filters.search) params.append("search", filters.search);
+      // Corrected Path
+      const response = await axiosAuth.get(`/order/get-all-orders-for-admin`, {
+        params,
+      });
+      set({ adminOrders: response.data, isLoading: false });
+    } catch (e) {
+      set({ error: "Failed to fetch orders for admin", isLoading: false });
+    }
+  },
+
+  fetchSingleOrderForAdmin: async (orderId) => {
+    set({ isLoading: true });
+    try {
+      // Corrected Path
       const response = await axiosAuth.get(
-        `/order/get-single-order/${orderId}`
+        `/order/admin/get-single-order/${orderId}`
       );
-      set({ isLoading: false, currentOrder: response.data });
-      return response.data;
+      if (response.data.success) {
+        set({ selectedOrder: response.data.order, isLoading: false });
+      } else {
+        throw new Error(response.data.message);
+      }
+    } catch (e) {
+      set({ error: "Failed to fetch single order", isLoading: false });
+    }
+  },
+
+  updateOrderStatus: async (orderId, status) => {
+    try {
+      // Corrected Path
+      const response = await axiosAuth.put(`/order/${orderId}/status`, {
+        status,
+      });
+      if (response.data.success) {
+        set((state) => ({
+          adminOrders: state.adminOrders.map((order) =>
+            order.id === orderId ? { ...order, status } : order
+          ),
+          selectedOrder:
+            state.selectedOrder && state.selectedOrder.id === orderId
+              ? { ...state.selectedOrder, status }
+              : state.selectedOrder,
+        }));
+        return true;
+      }
+      return false;
     } catch (error) {
-      set({ error: "Failed to fetch order", isLoading: false });
-      return null;
+      console.error("Failed to update order status", error);
+      return false;
     }
   },
 }));

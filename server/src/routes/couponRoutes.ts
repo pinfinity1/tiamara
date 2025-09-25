@@ -1,20 +1,26 @@
 import express from "express";
-import { authenticateJwt, isSuperAdmin } from "../middleware/authMiddleware";
 import {
   createCoupon,
+  getAllCoupons, // Corrected from fetchAllCoupons
+  getCouponById,
+  updateCoupon,
   deleteCoupon,
-  fetchAllCoupons,
   validateCoupon,
 } from "../controllers/couponController";
+import { authenticateJwt, isSuperAdmin } from "../middleware/authMiddleware";
 
 const router = express.Router();
 
-router.use(authenticateJwt);
+// Route to validate a coupon (for users)
+router.post("/validate", authenticateJwt, validateCoupon);
 
-router.get("/fetch-all-coupons", isSuperAdmin, fetchAllCoupons);
-router.post("/create-coupon", isSuperAdmin, createCoupon);
-router.delete("/:id", isSuperAdmin, deleteCoupon);
+// All routes below are for super admin only
+router.use(authenticateJwt, isSuperAdmin);
 
-router.post("/validate", validateCoupon);
+router.post("/", createCoupon);
+router.get("/", getAllCoupons);
+router.get("/:id", getCouponById);
+router.put("/:id", updateCoupon);
+router.delete("/:id", deleteCoupon);
 
 export default router;

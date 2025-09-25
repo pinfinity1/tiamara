@@ -1,13 +1,13 @@
-// client/src/store/useAddressStore.ts
-
-import axiosAuth from "@/lib/axios"; // استفاده از axiosAuth به جای axios و API_ROUTES
+import axiosAuth from "@/lib/axios";
 import { create } from "zustand";
 
 export interface Address {
   id: string;
   name: string;
-  address: string;
+  addressLine1: string;
+  addressLine2?: string | null;
   city: string;
+  province: string;
   country: string;
   postalCode: string;
   phone: string;
@@ -34,6 +34,7 @@ export const useAddressStore = create<AddressStore>((set, get) => ({
   fetchAddresses: async () => {
     set({ isLoading: true, error: null });
     try {
+      // The API endpoint in your project is singular 'address', which is correct.
       const response = await axiosAuth.get(`/address/get-address`);
       set({ addresses: response.data.address, isLoading: false });
     } catch (e) {
@@ -44,11 +45,10 @@ export const useAddressStore = create<AddressStore>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await axiosAuth.post(`/address/add-address`, address);
-      const newAddress = response.data.address;
       // Fetch all addresses again to ensure the default status is updated correctly everywhere
       await get().fetchAddresses();
       set({ isLoading: false });
-      return newAddress;
+      return response.data.address;
     } catch (e) {
       set({ isLoading: false, error: "Failed to create address" });
       return null;

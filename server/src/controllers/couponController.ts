@@ -1,144 +1,172 @@
-import { Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
+import { Response, NextFunction } from "express";
 import { prisma } from "../server";
 
 export const createCoupon = async (
   req: AuthenticatedRequest,
-  res: Response
+  res: Response,
+  next: NextFunction
 ): Promise<void> => {
   try {
-    const { code, discountPercent, startDate, endDate, usageLimit } = req.body;
+    const {
+      code,
+      discountType,
+      discountValue,
+      expireDate,
+      usageLimit,
+      isActive,
+    } = req.body;
 
-    const newlyCreatedCoupon = await prisma.coupon.create({
+    const newCoupon = await prisma.coupon.create({
       data: {
         code,
-        discountPercent: parseInt(discountPercent),
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
+        discountType,
+        discountValue: parseFloat(discountValue),
+        expireDate: new Date(expireDate),
         usageLimit: parseInt(usageLimit),
-        usageCount: 0,
+        isActive,
       },
     });
 
-    res.status(201).json({
-      success: true,
-      message: "Coupon created successfully!",
-      coupon: newlyCreatedCoupon,
-    });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({
-      success: false,
-      message: "Failed to created coupon",
-    });
+    res.status(201).json({ success: true, coupon: newCoupon });
+  } catch (error) {
+    next(error);
   }
 };
 
-export const fetchAllCoupons = async (
+export const getAllCoupons = async (
   req: AuthenticatedRequest,
-  res: Response
+  res: Response,
+  next: NextFunction
 ): Promise<void> => {
   try {
-    const fetchAllCouponsList = await prisma.coupon.findMany({
-      orderBy: { createdAt: "asc" },
+    const coupons = await prisma.coupon.findMany();
+    res.status(200).json({ success: true, coupons });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getCouponById = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const coupon = await prisma.coupon.findUnique({ where: { id } });
+    if (!coupon) {
+      res.status(404).json({ success: false, message: "Coupon not found" });
+      return;
+    }
+    res.status(200).json({ success: true, coupon });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateCoupon = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const {
+      code,
+      discountType,
+      discountValue,
+      expireDate,
+      usageLimit,
+      isActive,
+    } = req.body;
+
+    const updatedCoupon = await prisma.coupon.update({
+      where: { id },
+      data: {
+        code,
+        discountType,
+        discountValue: parseFloat(discountValue),
+        expireDate: new Date(expireDate),
+        usageLimit: parseInt(usageLimit),
+        isActive,
+      },
     });
-    res.status(201).json({
-      success: true,
-      message: "Coupon created successfully!",
-      couponList: fetchAllCouponsList,
-    });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch coupon list",
-    });
+
+    res.status(200).json({ success: true, coupon: updatedCoupon });
+  } catch (error) {
+    next(error);
   }
 };
 
 export const deleteCoupon = async (
   req: AuthenticatedRequest,
-  res: Response
+  res: Response,
+  next: NextFunction
 ): Promise<void> => {
   try {
     const { id } = req.params;
-
-    await prisma.coupon.delete({
-      where: { id },
-    });
-
-    res.status(201).json({
-      success: true,
-      message: "Coupon deleted successfully!",
-      id: id,
-    });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({
-      success: false,
-      message: "Failed to delete coupon",
-    });
+    await prisma.coupon.delete({ where: { id } });
+    res
+      .status(200)
+      .json({ success: true, message: "Coupon deleted successfully" });
+  } catch (error) {
+    next(error);
   }
 };
 
 export const validateCoupon = async (
   req: AuthenticatedRequest,
-  res: Response
+  res: Response,
+  next: NextFunction
 ): Promise<void> => {
-  try {
-    const { code } = req.body;
-    if (!code) {
-      res.status(400).json({ success: false, message: "کد تخفیف الزامی است." });
-      return;
-    }
+  const { code } = req.body;
+  const now = new Date();
 
+  try {
     const coupon = await prisma.coupon.findUnique({
       where: { code },
     });
 
     if (!coupon) {
-      res.status(404).json({ success: false, message: "کد تخفیف یافت نشد." });
+      res
+        .status(404)
+        .json({ isValid: false, message: "کد تخفیف نامعتبر است." });
       return;
     }
 
-    const now = new Date();
-    if (now < coupon.startDate) {
-      res
-        .status(400)
-        .json({ success: false, message: "این کد تخفیف هنوز فعال نشده است." });
+    if (!coupon.isActive) {
+      res.status(400).json({ isValid: false, message: "کد تخفیف فعال نیست." });
       return;
     }
 
-    if (now > coupon.endDate) {
+    // Use the correct 'expireDate' field
+    if (now > coupon.expireDate) {
       res
         .status(400)
-        .json({ success: false, message: "این کد تخفیف منقضی شده است." });
+        .json({ isValid: false, message: "کد تخفیف منقضی شده است." });
       return;
     }
 
     if (coupon.usageCount >= coupon.usageLimit) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: "ظرفیت استفاده از این کد تخفیف به اتمام رسیده است.",
-        });
+      res.status(400).json({
+        isValid: false,
+        message: "ظرفیت استفاده از این کد تخفیف به اتمام رسیده است.",
+      });
       return;
     }
 
     res.status(200).json({
-      success: true,
-      message: "کد تخفیف معتبر است.",
+      isValid: true,
+      message: "کد تخفیف با موفقیت اعمال شد.",
       coupon: {
         id: coupon.id,
         code: coupon.code,
-        discountPercent: coupon.discountPercent,
+        discountType: coupon.discountType,
+        discountValue: coupon.discountValue,
       },
     });
-  } catch (e) {
-    console.error(e);
-    res
-      .status(500)
-      .json({ success: false, message: "خطا در اعتبارسنجی کد تخفیف." });
+  } catch (error) {
+    next(error);
   }
 };

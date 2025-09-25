@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import CommonLayout from "@/components/common/layout";
-import { NextAuthProvider } from "@/components/common/NextAuthProvider";
 import Script from "next/script";
+import NextAuthProvider from "@/components/common/NextAuthProvider";
 
 export const metadata: Metadata = {
   title: {

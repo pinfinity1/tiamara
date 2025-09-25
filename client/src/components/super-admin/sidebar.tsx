@@ -67,7 +67,7 @@ const menuItems: MenuItem[] = [
   {
     name: "کوپن‌ها",
     icon: Ticket,
-    href: "/super-admin/coupons/list",
+    href: "/super-admin/coupons",
     group: "بازاریابی",
   },
   {
