@@ -1,15 +1,12 @@
-// server/src/controllers/aiController.ts
-
 import { Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { prisma } from "../server";
-import Groq from "groq-sdk";
+import OpenAI from "openai";
 import { Order } from "@prisma/client";
-// 1. Import the specific type for chat messages from the Groq SDK
-import { ChatCompletionMessageParam } from "groq-sdk/resources/chat/completions";
+import { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 type OrderWithItems = Order & {
@@ -108,7 +105,7 @@ export const handleChat = async (
       1.  **Suggestion Rule**: ONLY populate the "suggestions" array if the user's LATEST message is EXACTLY "پیشنهاد بده". In all other cases, the "suggestions" array MUST be empty ([]).
       2.  **Product Recommendation**: When recommending a product, use the tag \`[PRODUCT_RECOMMENDATION:product-slug-here]\` in the "response" string. ONLY use slugs from the provided catalog.
       3.  **Natural Persona**: NEVER list the user's profile. Use it naturally in your sentences. AVOID being repetitive or robotic.
-      4.  **Order Queries**: If the user asks about an order, use the provided "Order Information".
+      4.  **Order Queries**: If the user asks about an order, use the provided "Order Information". Translate the order status from English to Persian (PENDING -> در انتظار, PROCESSING -> در حال پردازش, SHIPPED -> ارسال شده, DELIVERED -> تحویل شده).
       5.  **Safety First**: For health issues, always advise consulting a doctor.
 
       **User Info (Full Profile)**:
@@ -140,8 +137,8 @@ export const handleChat = async (
       { role: "user", content: message },
     ];
 
-    const chatCompletion = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
+    const chatCompletion = await openai.chat.completions.create({
+      model: "gpt-4o",
       messages: conversationMessages,
       temperature: 0.7,
       max_tokens: 1024,
@@ -155,7 +152,7 @@ export const handleChat = async (
     res.status(200).json({ success: true, reply });
   } catch (error: any) {
     console.error(
-      "Error in AI chat handler (Groq):",
+      "Error in AI chat handler (OpenAI):",
       error.response?.data || error.message
     );
     res.status(500).json({ success: false, message: "خطایی در سرور رخ داد." });

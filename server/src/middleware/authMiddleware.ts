@@ -18,10 +18,7 @@ export const authenticateJwt = (
   const accessToken = authHeader && authHeader.split(" ")[1];
 
   if (!accessToken) {
-    res
-      .status(401)
-      .json({ success: false, error: "Access token is not present" });
-    return;
+    return next();
   }
 
   jwtVerify(accessToken, new TextEncoder().encode(process.env.JWT_SECRET))
@@ -40,10 +37,8 @@ export const authenticateJwt = (
       next();
     })
     .catch((e) => {
-      console.error(e);
-      res
-        .status(401)
-        .json({ success: false, error: "Invalid or expired access token" });
+      console.error("Invalid token:", e.message);
+      return next();
     });
 };
 

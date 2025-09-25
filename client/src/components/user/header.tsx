@@ -123,7 +123,7 @@ function Header({ isPaneView = false }: { isPaneView?: boolean }) {
           >
             <div className="flex items-center gap-2">
               <Link className="text-2xl font-bold" href="/">
-                <div className="overflow-hidden w-[100px] h-[60px] relative">
+                <div className="overflow-hidden w-[100px] h-[56px] relative">
                   <Image
                     src={logo}
                     fill
@@ -143,6 +143,16 @@ function Header({ isPaneView = false }: { isPaneView?: boolean }) {
             </div>
 
             <div className="flex items-center gap-2">
+              {session?.user?.role === "SUPER_ADMIN" && (
+                <Button
+                  size="icon"
+                  variant={"ghost"}
+                  className="relative group w-fit px-2"
+                  onClick={() => router.push("/super-admin")}
+                >
+                  بخش مدیریت
+                </Button>
+              )}
               <div className="lg:hidden">
                 <Button
                   size="icon"
@@ -152,7 +162,7 @@ function Header({ isPaneView = false }: { isPaneView?: boolean }) {
                   <Search className="size-5" />
                 </Button>
               </div>
-              <div className="hidden lg:flex items-center gap-4">
+              <div className="flex items-center gap-2">
                 <CartModal />
                 {isAuthenticated ? (
                   <>
@@ -179,16 +189,6 @@ function Header({ isPaneView = false }: { isPaneView?: boolean }) {
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                    {session.user?.role === "SUPER_ADMIN" && (
-                      <Button
-                        size="icon"
-                        variant={"ghost"}
-                        className="relative group w-fit px-2"
-                        onClick={() => router.push("/super-admin")}
-                      >
-                        بخش مدیریت
-                      </Button>
-                    )}
                   </>
                 ) : (
                   !isLoading && (
