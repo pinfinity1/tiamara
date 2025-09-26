@@ -1,7 +1,6 @@
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { NextFunction, Response } from "express";
 import { prisma } from "../server";
-// Import PaymentMethod along with other types
 import {
   OrderStatus,
   PaymentStatus,
@@ -10,11 +9,11 @@ import {
 } from "@prisma/client";
 import axios from "axios";
 
-// Zarinpal Configuration (no changes)
 const ZARINPAL_MERCHANT_ID = process.env.ZARINPAL_MERCHANT_ID!;
-const ZARINPAL_API_REQUEST = process.env.ZARINPAL_API_REQUEST!;
-const ZARINPAL_GATEWAY_URL = process.env.ZARINPAL_GATEWAY_URL!;
-const CLIENT_URL = process.env.CLIENT_URL!;
+const ZARINPAL_API_REQUEST =
+  "https://sandbox.zarinpal.com/pg/v4/payment/request.json";
+const ZARINPAL_GATEWAY_URL = "https://sandbox.zarinpal.com/pg/StartPay";
+const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000";
 
 export const createFinalOrder = async (
   req: AuthenticatedRequest,
@@ -36,17 +35,13 @@ export const createFinalOrder = async (
   try {
     const cart = await prisma.cart.findFirst({
       where: { userId },
-      include: {
-        items: {
-          include: {
-            product: true,
-          },
-        },
-      },
+      include: { items: { include: { product: true } } },
     });
 
     if (!cart || cart.items.length === 0) {
-      res.status(400).json({ success: false, message: "Cart is empty" });
+      res
+        .status(400)
+        .json({ success: false, message: "سبد خرید شما خالی است." });
       return;
     }
 
@@ -55,60 +50,43 @@ export const createFinalOrder = async (
       0
     );
 
-    let couponDiscount = 0;
     if (couponId) {
       const coupon = await prisma.coupon.findUnique({
         where: { id: couponId },
       });
-
       if (
         coupon &&
         coupon.isActive &&
-        new Date(coupon.expireDate) >= new Date()
+        new Date(coupon.expireDate) > new Date()
       ) {
         if (coupon.discountType === "FIXED") {
-          couponDiscount = coupon.discountValue;
+          total = Math.max(0, total - coupon.discountValue);
         } else {
-          // PERCENTAGE
-          couponDiscount = (total * coupon.discountValue) / 100;
+          const discount = (total * coupon.discountValue) / 100;
+          total -= discount;
         }
-        total -= couponDiscount;
       }
     }
 
     const newOrder = await prisma.$transaction(async (tx) => {
       const orderCounter = await tx.orderCounter.update({
         where: { id: "order_counter" },
-        data: {
-          lastOrderNumber: {
-            increment: 1,
-          },
-        },
+        data: { lastOrderNumber: { increment: 1 } },
       });
-      const newOrderNumber = orderCounter.lastOrderNumber;
-
-      const orderData = {
-        orderNumber: newOrderNumber,
-        userId,
-        addressId,
-        couponId,
-        total,
-        // --- START OF THE FIX ---
-        // Explicitly use the PaymentMethod enum
-        paymentMethod: PaymentMethod.CREDIT_CARD,
-        // --- END OF THE FIX ---
-        paymentStatus: PaymentStatus.PENDING,
-        status: OrderStatus.PENDING,
-      };
 
       const order = await tx.order.create({
         data: {
-          ...orderData,
+          orderNumber: orderCounter.lastOrderNumber,
+          userId,
+          addressId,
+          couponId,
+          total,
+          paymentMethod: PaymentMethod.CREDIT_CARD,
+          paymentStatus: PaymentStatus.PENDING,
+          status: OrderStatus.PENDING,
           items: {
             create: cart.items.map((item) => ({
-              product: {
-                connect: { id: item.productId },
-              },
+              productId: item.productId,
               productName: item.product.name,
               productCategory: item.product.categoryId || "N/A",
               quantity: item.quantity,
@@ -118,21 +96,17 @@ export const createFinalOrder = async (
         },
       });
 
-      await tx.cartItem.deleteMany({
-        where: { cartId: cart.id },
-      });
-
       return order;
     });
 
     const paymentData = {
       merchant_id: ZARINPAL_MERCHANT_ID,
       amount: Math.round(total),
-      currency: "IRT",
-      callback_url: `${CLIENT_URL}/payment-result?orderId=${newOrder.id}`,
+      callback_url: `${CLIENT_URL}/payment-result`,
       description: `سفارش شماره #${newOrder.orderNumber}`,
       metadata: {
         email: req.user?.email,
+        mobile: req.user?.phone,
       },
     };
 
@@ -141,23 +115,22 @@ export const createFinalOrder = async (
       paymentData
     );
 
-    if (paymentRes.data.code === 100 && paymentRes.data.authority) {
+    if (paymentRes.data && paymentRes.data.code === 100) {
       await prisma.order.update({
         where: { id: newOrder.id },
         data: { paymentId: paymentRes.data.authority },
       });
       const paymentUrl = `${ZARINPAL_GATEWAY_URL}/${paymentRes.data.authority}`;
-      res.status(200).json({ success: true, paymentUrl, order: newOrder });
+      res.status(200).json({ success: true, paymentUrl });
     } else {
-      throw new Error("Failed to get payment authority from Zarinpal");
+      throw new Error("خطا در ارتباط با درگاه پرداخت");
     }
   } catch (error) {
     console.error("Error in createFinalOrder:", error);
-    res.status(500).json({ success: false, message: "Internal server error" });
+    res.status(500).json({ success: false, message: "خطای داخلی سرور" });
   }
 };
 
-// ... (Rest of the controller functions remain unchanged)
 export const getOrder = async (
   req: AuthenticatedRequest,
   res: Response,

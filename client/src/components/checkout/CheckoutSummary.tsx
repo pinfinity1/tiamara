@@ -24,9 +24,10 @@ import { Label } from "@/components/ui/label";
 import { CheckCircle, Loader2, PercentSquare } from "lucide-react";
 
 interface AppliedCoupon {
-  code: string;
-  discountPercent: number;
   id: string;
+  code: string;
+  discountType: "PERCENTAGE" | "FIXED";
+  discountValue: number;
 }
 
 export default function CheckoutSummary({
@@ -38,7 +39,7 @@ export default function CheckoutSummary({
   const { toast } = useToast();
   const { onOpen: openAuthModal } = useAuthModalStore();
   const { items: cartItems, clearCart } = useCartStore();
-  const { createFinalOrder, isPaymentProcessing } = useOrderStore();
+  const { createFinalOrder, isLoading: isPaymentProcessing } = useOrderStore();
   const { userProfile, fetchProfile } = useUserStore();
   const selectedAddressId = useAddressStore(
     (state) =>
@@ -65,7 +66,10 @@ export default function CheckoutSummary({
 
   const finalTotal = useMemo(() => {
     if (appliedCoupon) {
-      const discountAmount = cartTotal * (appliedCoupon.discountPercent / 100);
+      if (appliedCoupon.discountType === "FIXED") {
+        return Math.max(0, cartTotal - appliedCoupon.discountValue);
+      }
+      const discountAmount = cartTotal * (appliedCoupon.discountValue / 100);
       return Math.round(cartTotal - discountAmount);
     }
     return cartTotal;
@@ -79,9 +83,12 @@ export default function CheckoutSummary({
       const response = await axiosAuth.post("/coupon/validate", {
         code: couponCode,
       });
-      if (response.data.success) {
+      if (response.data.isValid) {
         setAppliedCoupon(response.data.coupon);
         toast({ title: "کد تخفیف با موفقیت اعمال شد." });
+      } else {
+        setCouponError(response.data.message || "کد تخفیف نامعتبر است.");
+        setAppliedCoupon(null);
       }
     } catch (error: any) {
       setCouponError(error.response?.data?.message || "کد تخفیف نامعتبر است.");
@@ -99,36 +106,11 @@ export default function CheckoutSummary({
       });
       return;
     }
-    if (!userProfile?.id) {
-      toast({ title: "خطا در شناسایی کاربر.", variant: "destructive" });
-      if (!userProfile) {
-        await fetchProfile();
-      }
-      return;
-    }
 
     const orderData = {
-      userId: userProfile.id,
       addressId: selectedAddressId,
-      items: cartItems.map((item) => ({
-        productId: item.productId,
-        quantity: item.quantity,
-        price: item.price,
-        productName: item.name,
-        productCategory: "Default",
-      })),
       couponId: appliedCoupon?.id,
-      total: finalTotal,
     };
-
-    console.log("Data being sent to createFinalOrder:", orderData);
-    if (orderData.total <= 0) {
-      toast({
-        title: "مبلغ سفارش نمی‌تواند صفر یا منفی باشد.",
-        variant: "destructive",
-      });
-      return;
-    }
 
     const result = await createFinalOrder(orderData);
     if (result.success && result.paymentUrl) {
@@ -154,7 +136,7 @@ export default function CheckoutSummary({
         </div>
         {appliedCoupon && (
           <div className="flex justify-between text-sm text-green-600 font-medium">
-            <span>تخفیف ({appliedCoupon.discountPercent}%)</span>
+            <span>تخفیف ({appliedCoupon.code})</span>
             <span>
               - {(cartTotal - finalTotal).toLocaleString("fa-IR")} تومان
             </span>

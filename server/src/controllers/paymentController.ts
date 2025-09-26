@@ -3,7 +3,6 @@ import axios from "axios";
 import { prisma } from "../server";
 import { PaymentStatus, OrderStatus } from "@prisma/client";
 
-// --- Zarinpal Sandbox (Test) Endpoint ---
 const ZARINPAL_MERCHANT_ID = process.env.ZARINPAL_MERCHANT_ID!;
 const ZARINPAL_API_VERIFY =
   "https://sandbox.zarinpal.com/pg/v4/payment/verify.json";
@@ -91,6 +90,18 @@ export const verifyPaymentController = async (req: Request, res: Response) => {
               `Sale from order ${order.id}`
             );
           }
+
+          // ++ این بلوک کد اضافه شده است ++
+          const cart = await tx.cart.findFirst({
+            where: { userId: order.userId },
+          });
+
+          if (cart) {
+            await tx.cartItem.deleteMany({
+              where: { cartId: cart.id },
+            });
+          }
+          // ++ پایان بلوک اضافه شده ++
 
           await tx.order.update({
             where: { id: order.id },

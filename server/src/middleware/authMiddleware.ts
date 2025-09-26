@@ -5,6 +5,7 @@ export interface AuthenticatedRequest extends Request {
   user?: {
     userId: string;
     email: string;
+    phone: string;
     role: string;
   };
 }
@@ -21,23 +22,23 @@ export const authenticateJwt = (
     return next();
   }
 
-  jwtVerify(accessToken, new TextEncoder().encode(process.env.JWT_SECRET))
+  jwtVerify(accessToken, new TextEncoder().encode(process.env.JWT_SECRET!))
     .then((result) => {
       const payload = result.payload as JWTPayload & {
         userId: string;
         email: string;
+        phone: string;
         role: string;
       };
-
       req.user = {
         userId: payload.userId,
         email: payload.email,
+        phone: payload.phone,
         role: payload.role,
       };
       next();
     })
-    .catch((e) => {
-      console.error("Invalid token:", e.message);
+    .catch(() => {
       return next();
     });
 };

@@ -1,18 +1,12 @@
 import { create } from "zustand";
 import axiosAuth from "@/lib/axios";
+import { useCartStore } from "./useCartStore";
 import { Address } from "./useAddressStore";
 import { Coupon } from "./useCouponStore";
 
-// --- All type definitions remain the same ---
+// --- انواع داده‌ها ---
 export type OrderStatus = "PENDING" | "PROCESSING" | "SHIPPED" | "DELIVERED";
 export type PaymentStatus = "PENDING" | "COMPLETED" | "FAILED" | "CANCELLED";
-
-export const statusTranslations: Record<OrderStatus, string> = {
-  PENDING: "در انتظار",
-  PROCESSING: "در حال پردازش",
-  SHIPPED: "ارسال شده",
-  DELIVERED: "تحویل شده",
-};
 
 export interface OrderItem {
   id: string;
@@ -44,20 +38,30 @@ export interface Order {
   coupon?: Coupon | null;
 }
 
+// رابط داده‌های ارسالی به سرور
 interface CreateOrderData {
   addressId: string;
   couponId?: string;
 }
 
+// رابط پاسخ دریافتی از سرور
+interface CreateOrderResponse {
+  success: boolean;
+  paymentUrl?: string;
+  message?: string;
+}
+
+// --- تعریف Store ---
 interface OrderStore {
   userOrders: Order[];
   adminOrders: Order[];
   selectedOrder: Order | null;
   isLoading: boolean;
+  isPaymentProcessing: boolean;
   error: string | null;
   createFinalOrder: (
     orderData: CreateOrderData
-  ) => Promise<{ success: boolean; paymentUrl?: string }>;
+  ) => Promise<CreateOrderResponse>;
   getOrdersByUserId: () => Promise<void>;
   fetchOrdersForAdmin: (filters: {
     status?: string;
@@ -74,43 +78,47 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
   adminOrders: [],
   selectedOrder: null,
   isLoading: false,
+  isPaymentProcessing: false, // مقداردهی اولیه شد
   error: null,
 
   createFinalOrder: async (orderData) => {
-    set({ isLoading: true });
+    set({ isPaymentProcessing: true, error: null }); // شروع فرآیند پرداخت
     try {
-      // Corrected Path
-      const response = await axiosAuth.post(
+      const response = await axiosAuth.post<CreateOrderResponse>(
         "/order/create-final-order",
         orderData
       );
-      return { success: true, paymentUrl: response.data.paymentUrl };
-    } catch (error) {
-      console.error("Failed to create final order", error);
-      return { success: false };
+
+      if (response.data.success && response.data.paymentUrl) {
+        useCartStore.getState().clearCart(); // پاک کردن سبد خرید در کلاینت
+        return { success: true, paymentUrl: response.data.paymentUrl };
+      }
+      // اگر عملیات موفق نبود ولی پیام داشت
+      return { success: false, message: response.data.message };
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message || "خطا در ایجاد سفارش";
+      set({ error: errorMessage });
+      return { success: false, message: errorMessage };
     } finally {
-      set({ isLoading: false });
+      set({ isPaymentProcessing: false }); // پایان فرآیند پرداخت
     }
   },
 
   getOrdersByUserId: async () => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
     try {
-      // Corrected Path
-      const response = await axiosAuth.get("/order/get-order-by-user-id");
-      set({ userOrders: response.data });
+      const response = await axiosAuth.get("/order/my-orders");
+      set({ userOrders: response.data, isLoading: false });
     } catch (error) {
-      console.error("Failed to fetch user orders", error);
-    } finally {
-      set({ isLoading: false });
+      const errorMessage = "خطا در دریافت سفارشات کاربر";
+      set({ error: errorMessage, isLoading: false });
+      console.error(errorMessage, error);
     }
   },
 
   setSelectedOrder: (order) => {
     set({ selectedOrder: order });
-    if (order) {
-      get().fetchSingleOrderForAdmin(order.id);
-    }
   },
 
   fetchOrdersForAdmin: async (filters) => {
@@ -122,10 +130,8 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
       if (filters.paymentStatus && filters.paymentStatus !== "ALL")
         params.append("paymentStatus", filters.paymentStatus);
       if (filters.search) params.append("search", filters.search);
-      // Corrected Path
-      const response = await axiosAuth.get(`/order/get-all-orders-for-admin`, {
-        params,
-      });
+
+      const response = await axiosAuth.get(`/order/admin/all`, { params });
       set({ adminOrders: response.data, isLoading: false });
     } catch (e) {
       set({ error: "Failed to fetch orders for admin", isLoading: false });
@@ -133,36 +139,33 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
   },
 
   fetchSingleOrderForAdmin: async (orderId) => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
     try {
-      // Corrected Path
-      const response = await axiosAuth.get(
-        `/order/admin/get-single-order/${orderId}`
-      );
+      const response = await axiosAuth.get(`/order/admin/single/${orderId}`);
       if (response.data.success) {
         set({ selectedOrder: response.data.order, isLoading: false });
       } else {
         throw new Error(response.data.message);
       }
-    } catch (e) {
-      set({ error: "Failed to fetch single order", isLoading: false });
+    } catch (e: any) {
+      const errorMessage = e.message || "Failed to fetch single order";
+      set({ error: errorMessage, isLoading: false });
     }
   },
 
   updateOrderStatus: async (orderId, status) => {
     try {
-      // Corrected Path
-      const response = await axiosAuth.put(`/order/${orderId}/status`, {
+      const response = await axiosAuth.put(`/order/admin/status/${orderId}`, {
         status,
       });
       if (response.data.success) {
         set((state) => ({
           adminOrders: state.adminOrders.map((order) =>
-            order.id === orderId ? { ...order, status } : order
+            order.id === orderId ? response.data.order : order
           ),
           selectedOrder:
             state.selectedOrder && state.selectedOrder.id === orderId
-              ? { ...state.selectedOrder, status }
+              ? response.data.order
               : state.selectedOrder,
         }));
         return true;
