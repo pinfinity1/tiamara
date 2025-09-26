@@ -1,12 +1,19 @@
 import { create } from "zustand";
 import axiosAuth from "@/lib/axios";
-import { useCartStore } from "./useCartStore";
 import { Address } from "./useAddressStore";
 import { Coupon } from "./useCouponStore";
+import { useCartStore } from "./useCartStore";
 
-// --- انواع داده‌ها ---
+// --- انواع داده‌ها (بدون تغییر) ---
 export type OrderStatus = "PENDING" | "PROCESSING" | "SHIPPED" | "DELIVERED";
 export type PaymentStatus = "PENDING" | "COMPLETED" | "FAILED" | "CANCELLED";
+
+export const statusTranslations: Record<OrderStatus, string> = {
+  PENDING: "در انتظار",
+  PROCESSING: "در حال پردازش",
+  SHIPPED: "ارسال شده",
+  DELIVERED: "تحویل شده",
+};
 
 export interface OrderItem {
   id: string;
@@ -38,13 +45,11 @@ export interface Order {
   coupon?: Coupon | null;
 }
 
-// رابط داده‌های ارسالی به سرور
 interface CreateOrderData {
   addressId: string;
   couponId?: string;
 }
 
-// رابط پاسخ دریافتی از سرور
 interface CreateOrderResponse {
   success: boolean;
   paymentUrl?: string;
@@ -78,11 +83,11 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
   adminOrders: [],
   selectedOrder: null,
   isLoading: false,
-  isPaymentProcessing: false, // مقداردهی اولیه شد
+  isPaymentProcessing: false,
   error: null,
 
   createFinalOrder: async (orderData) => {
-    set({ isPaymentProcessing: true, error: null }); // شروع فرآیند پرداخت
+    set({ isPaymentProcessing: true, error: null });
     try {
       const response = await axiosAuth.post<CreateOrderResponse>(
         "/order/create-final-order",
@@ -90,10 +95,8 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
       );
 
       if (response.data.success && response.data.paymentUrl) {
-        useCartStore.getState().clearCart(); // پاک کردن سبد خرید در کلاینت
         return { success: true, paymentUrl: response.data.paymentUrl };
       }
-      // اگر عملیات موفق نبود ولی پیام داشت
       return { success: false, message: response.data.message };
     } catch (error: any) {
       const errorMessage =
@@ -101,7 +104,7 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
       set({ error: errorMessage });
       return { success: false, message: errorMessage };
     } finally {
-      set({ isPaymentProcessing: false }); // پایان فرآیند پرداخت
+      set({ isPaymentProcessing: false });
     }
   },
 
@@ -131,6 +134,7 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
         params.append("paymentStatus", filters.paymentStatus);
       if (filters.search) params.append("search", filters.search);
 
+      // ❗️ **اصلاح شد**
       const response = await axiosAuth.get(`/order/admin/all`, { params });
       set({ adminOrders: response.data, isLoading: false });
     } catch (e) {
@@ -141,6 +145,7 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
   fetchSingleOrderForAdmin: async (orderId) => {
     set({ isLoading: true, error: null });
     try {
+      // ❗️ **اصلاح شد**
       const response = await axiosAuth.get(`/order/admin/single/${orderId}`);
       if (response.data.success) {
         set({ selectedOrder: response.data.order, isLoading: false });
@@ -155,6 +160,7 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
 
   updateOrderStatus: async (orderId, status) => {
     try {
+      // ❗️ **اصلاح شد**
       const response = await axiosAuth.put(`/order/admin/status/${orderId}`, {
         status,
       });

@@ -6,11 +6,14 @@ import { CheckCircle, XCircle, AlertTriangle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
+import { useCartStore } from "@/store/useCartStore";
 
 // کامپوننت اصلی که منطق را در خود دارد
 const PaymentResultContent = () => {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { clearCart } = useCartStore();
+
   const [status, setStatus] = useState<string | null>(null);
   const [message, setMessage] = useState<string>(
     "در حال بررسی وضعیت پرداخت..."
@@ -30,6 +33,7 @@ const PaymentResultContent = () => {
 
     if (paymentStatus === "success") {
       setMessage("پرداخت شما با موفقیت انجام شد. از خرید شما سپاسگزاریم.");
+      clearCart();
     } else if (paymentStatus === "failed") {
       setMessage(
         paymentMessage === "Verification_failed"
@@ -41,7 +45,7 @@ const PaymentResultContent = () => {
     } else {
       setMessage("وضعیت پرداخت نامشخص است.");
     }
-  }, [searchParams]);
+  }, [searchParams, clearCart]);
 
   const renderIcon = () => {
     if (status === "success") {

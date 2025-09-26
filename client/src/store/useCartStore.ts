@@ -1,29 +1,28 @@
-// client/src/store/useCartStore.ts
-
 import { create } from "zustand";
 import axiosAuth from "@/lib/axios";
 import { useUserStore } from "./useUserStore";
-// 1. Import the standalone `toast` function directly
 import { toast } from "@/hooks/use-toast";
 
 export interface CartItem {
   id: string;
   productId: string;
   name: string;
+  original_price: number;
   price: number;
   image: string;
   quantity: number;
   slug: string;
   stock: number;
 }
-
 interface CartState {
   items: CartItem[];
   cartId: string | null;
   isLoading: boolean;
   isInitialized: boolean;
   initializeCart: () => Promise<void>;
-  addToCart: (product: Omit<CartItem, "id">) => Promise<void>;
+  addToCart: (
+    product: Omit<CartItem, "id" | "original_price">
+  ) => Promise<void>;
   updateCartItemQuantity: (itemId: string, quantity: number) => Promise<void>;
   removeFromCart: (itemId: string) => Promise<void>;
   clearCart: () => Promise<void>;

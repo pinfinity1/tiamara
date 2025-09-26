@@ -35,7 +35,13 @@ export const createFinalOrder = async (
   try {
     const cart = await prisma.cart.findFirst({
       where: { userId },
-      include: { items: { include: { product: true } } },
+      include: {
+        items: {
+          include: {
+            product: true,
+          },
+        },
+      },
     });
 
     if (!cart || cart.items.length === 0) {
@@ -45,10 +51,12 @@ export const createFinalOrder = async (
       return;
     }
 
-    let total = cart.items.reduce(
-      (acc, item) => acc + item.product.price * item.quantity,
-      0
-    );
+    // !! **تغییر اصلی و حیاتی اینجاست** !!
+    // منطق محاسبه قیمت نهایی با در نظر گرفتن تخفیف محصول اصلاح شد
+    let total = cart.items.reduce((acc, item) => {
+      const price = item.product.discount_price ?? item.product.price;
+      return acc + price * item.quantity;
+    }, 0);
 
     if (couponId) {
       const coupon = await prisma.coupon.findUnique({
@@ -57,21 +65,35 @@ export const createFinalOrder = async (
       if (
         coupon &&
         coupon.isActive &&
-        new Date(coupon.expireDate) > new Date()
+        new Date(coupon.expireDate) > new Date() &&
+        coupon.usageCount < coupon.usageLimit
       ) {
         if (coupon.discountType === "FIXED") {
           total = Math.max(0, total - coupon.discountValue);
         } else {
-          const discount = (total * coupon.discountValue) / 100;
-          total -= discount;
+          // PERCENTAGE
+          const discountAmount = (total * coupon.discountValue) / 100;
+          total -= discountAmount;
         }
       }
     }
 
+    total = Math.round(total);
+
+    // حداقل مبلغ تراکنش در بسیاری از درگاه‌ها ۱۰۰۰ تومان است
+    if (total < 1000) {
+      res.status(400).json({
+        success: false,
+        message: "مبلغ سفارش کمتر از حد مجاز درگاه پرداخت است.",
+      });
+      return;
+    }
+
     const newOrder = await prisma.$transaction(async (tx) => {
-      const orderCounter = await tx.orderCounter.update({
+      const orderCounter = await tx.orderCounter.upsert({
         where: { id: "order_counter" },
-        data: { lastOrderNumber: { increment: 1 } },
+        update: { lastOrderNumber: { increment: 1 } },
+        create: { id: "order_counter", lastOrderNumber: 1001 },
       });
 
       const order = await tx.order.create({
@@ -90,7 +112,7 @@ export const createFinalOrder = async (
               productName: item.product.name,
               productCategory: item.product.categoryId || "N/A",
               quantity: item.quantity,
-              price: item.product.price,
+              price: item.product.discount_price ?? item.product.price,
             })),
           },
         },
@@ -101,7 +123,7 @@ export const createFinalOrder = async (
 
     const paymentData = {
       merchant_id: ZARINPAL_MERCHANT_ID,
-      amount: Math.round(total),
+      amount: total, // مبلغ به تومان و بدون ضرب اضافه ارسال می‌شود
       callback_url: `${CLIENT_URL}/payment-result`,
       description: `سفارش شماره #${newOrder.orderNumber}`,
       metadata: {
@@ -123,7 +145,8 @@ export const createFinalOrder = async (
       const paymentUrl = `${ZARINPAL_GATEWAY_URL}/${paymentRes.data.authority}`;
       res.status(200).json({ success: true, paymentUrl });
     } else {
-      throw new Error("خطا در ارتباط با درگاه پرداخت");
+      console.error("Zarinpal error:", paymentRes.errors);
+      throw new Error("خطا در ارتباط با درگاه پرداخت زرین‌پال");
     }
   } catch (error) {
     console.error("Error in createFinalOrder:", error);

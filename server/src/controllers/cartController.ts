@@ -16,6 +16,7 @@ const formatCartItemResponse = (cartItem: CartItemWithProduct) => {
     productId: cartItem.productId,
     name: product?.name ?? "محصول نامشخص",
     slug: product?.slug ?? "",
+    original_price: product?.price ?? 0,
     price: product?.discount_price ?? product?.price ?? 0,
     image: product?.images?.[0]?.url ?? "/images/placeholder.png",
     quantity: cartItem.quantity,
@@ -47,7 +48,7 @@ export const addToCart = async (
 ): Promise<void> => {
   try {
     const userId = req.user?.userId;
-    const { productId, quantity, guestCartId, slug } = req.body;
+    const { productId, quantity, guestCartId } = req.body;
 
     if (!productId || !quantity) {
       res
@@ -113,11 +114,7 @@ export const getCart = async (
       include: {
         items: {
           orderBy: { createdAt: "asc" },
-          include: {
-            product: {
-              include: { images: { take: 1 } },
-            },
-          },
+          include: { product: { include: { images: { take: 1 } } } },
         },
       },
     });
