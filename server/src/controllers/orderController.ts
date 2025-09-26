@@ -1,3 +1,5 @@
+// server/src/controllers/orderController.ts
+
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { NextFunction, Response } from "express";
 import { prisma } from "../server";
@@ -9,12 +11,18 @@ import {
 } from "@prisma/client";
 import axios from "axios";
 
+// Environment variables for Zarinpal
 const ZARINPAL_MERCHANT_ID = process.env.ZARINPAL_MERCHANT_ID!;
 const ZARINPAL_API_REQUEST =
   "https://sandbox.zarinpal.com/pg/v4/payment/request.json";
 const ZARINPAL_GATEWAY_URL = "https://sandbox.zarinpal.com/pg/StartPay";
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000";
 
+// Define Server URL for callback
+const SERVER_URL = process.env.SERVER_URL || "http://localhost:3001";
+
+/**
+ * Creates the final order, calculates the total price, and generates a payment link.
+ */
 export const createFinalOrder = async (
   req: AuthenticatedRequest,
   res: Response
@@ -26,70 +34,48 @@ export const createFinalOrder = async (
   }
 
   const { addressId, couponId } = req.body;
-
   if (!addressId) {
     res.status(400).json({ success: false, message: "Address ID is required" });
     return;
   }
 
   try {
-    const cart = await prisma.cart.findFirst({
-      where: { userId },
-      include: {
-        items: {
-          include: {
-            product: true,
-          },
-        },
-      },
-    });
-
-    if (!cart || cart.items.length === 0) {
-      res
-        .status(400)
-        .json({ success: false, message: "سبد خرید شما خالی است." });
-      return;
-    }
-
-    // !! **تغییر اصلی و حیاتی اینجاست** !!
-    // منطق محاسبه قیمت نهایی با در نظر گرفتن تخفیف محصول اصلاح شد
-    let total = cart.items.reduce((acc, item) => {
-      const price = item.product.discount_price ?? item.product.price;
-      return acc + price * item.quantity;
-    }, 0);
-
-    if (couponId) {
-      const coupon = await prisma.coupon.findUnique({
-        where: { id: couponId },
+    const newOrder = await prisma.$transaction(async (tx) => {
+      const cart = await tx.cart.findFirst({
+        where: { userId },
+        include: { items: { include: { product: true } } },
       });
-      if (
-        coupon &&
-        coupon.isActive &&
-        new Date(coupon.expireDate) > new Date() &&
-        coupon.usageCount < coupon.usageLimit
-      ) {
-        if (coupon.discountType === "FIXED") {
-          total = Math.max(0, total - coupon.discountValue);
-        } else {
-          // PERCENTAGE
-          const discountAmount = (total * coupon.discountValue) / 100;
-          total -= discountAmount;
+
+      if (!cart || cart.items.length === 0) {
+        throw new Error("سبد خرید شما خالی است.");
+      }
+
+      let total = cart.items.reduce((acc, item) => {
+        const price = item.product.discount_price ?? item.product.price;
+        return acc + price * item.quantity;
+      }, 0);
+
+      if (couponId) {
+        const coupon = await tx.coupon.findUnique({ where: { id: couponId } });
+        if (
+          coupon &&
+          coupon.isActive &&
+          new Date(coupon.expireDate) > new Date() &&
+          coupon.usageCount < coupon.usageLimit
+        ) {
+          if (coupon.discountType === "FIXED") {
+            total = Math.max(0, total - coupon.discountValue);
+          } else {
+            total -= (total * coupon.discountValue) / 100;
+          }
         }
       }
-    }
+      total = Math.round(total);
 
-    total = Math.round(total);
+      if (total < 1000) {
+        throw new Error("مبلغ سفارش کمتر از حد مجاز درگاه پرداخت است.");
+      }
 
-    // حداقل مبلغ تراکنش در بسیاری از درگاه‌ها ۱۰۰۰ تومان است
-    if (total < 1000) {
-      res.status(400).json({
-        success: false,
-        message: "مبلغ سفارش کمتر از حد مجاز درگاه پرداخت است.",
-      });
-      return;
-    }
-
-    const newOrder = await prisma.$transaction(async (tx) => {
       const orderCounter = await tx.orderCounter.upsert({
         where: { id: "order_counter" },
         update: { lastOrderNumber: { increment: 1 } },
@@ -118,18 +104,17 @@ export const createFinalOrder = async (
         },
       });
 
+      await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+
       return order;
     });
 
     const paymentData = {
       merchant_id: ZARINPAL_MERCHANT_ID,
-      amount: total, // مبلغ به تومان و بدون ضرب اضافه ارسال می‌شود
-      callback_url: `${CLIENT_URL}/payment-result`,
+      amount: newOrder.total,
+      callback_url: `${SERVER_URL}/api/payment/verify`,
       description: `سفارش شماره #${newOrder.orderNumber}`,
-      metadata: {
-        email: req.user?.email,
-        mobile: req.user?.phone,
-      },
+      metadata: { email: req.user?.email, mobile: req.user?.phone },
     };
 
     const { data: paymentRes } = await axios.post(
@@ -137,7 +122,7 @@ export const createFinalOrder = async (
       paymentData
     );
 
-    if (paymentRes.data && paymentRes.data.code === 100) {
+    if (paymentRes.data?.code === 100) {
       await prisma.order.update({
         where: { id: newOrder.id },
         data: { paymentId: paymentRes.data.authority },
@@ -145,72 +130,59 @@ export const createFinalOrder = async (
       const paymentUrl = `${ZARINPAL_GATEWAY_URL}/${paymentRes.data.authority}`;
       res.status(200).json({ success: true, paymentUrl });
     } else {
-      console.error("Zarinpal error:", paymentRes.errors);
-      throw new Error("خطا در ارتباط با درگاه پرداخت زرین‌پال");
+      throw new Error("خطا در ارتباط با درگاه پرداخت زرین‌پال.");
     }
-  } catch (error) {
-    console.error("Error in createFinalOrder:", error);
-    res.status(500).json({ success: false, message: "خطای داخلی سرور" });
+  } catch (error: any) {
+    console.error("Error in createFinalOrder:", error.message);
+    res
+      .status(500)
+      .json({ success: false, message: error.message || "خطای داخلی سرور" });
   }
 };
 
-export const getOrder = async (
+/**
+ * ✅ [NEW] Fetches a single order for the currently authenticated user.
+ */
+export const getSingleOrderForUser = async (
   req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  const { orderId } = req.params;
-  const userId = req.user?.userId;
+  res: Response
+) => {
   try {
-    const order = await prisma.order.findFirst({
-      where: {
-        id: orderId,
-        userId: userId,
-      },
+    const userId = req.user?.userId;
+    const { orderId } = req.params;
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
       include: {
         items: true,
         address: true,
-        user: true,
       },
     });
+
     if (!order) {
-      res.status(404).json({
-        success: false,
-        message: "Order not found",
-      });
-      return;
+      return res
+        .status(404)
+        .json({ success: false, message: "سفارش یافت نشد." });
     }
-    res.status(200).json(order);
+
+    // Security check: ensure the user is requesting their own order
+    if (order.userId !== userId) {
+      return res
+        .status(403)
+        .json({
+          success: false,
+          message: "شما مجاز به دیدن این سفارش نیستید.",
+        });
+    }
+
+    res.status(200).json({ success: true, order });
   } catch (e) {
-    next(e);
+    console.error("Error fetching single order for user:", e);
+    res.status(500).json({ success: false, message: "خطای داخلی سرور." });
   }
 };
 
-export const updateOrderStatus = async (
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  const { orderId } = req.params;
-  const { status } = req.body;
-  try {
-    const updatedOrder = await prisma.order.update({
-      where: {
-        id: orderId,
-      },
-      data: {
-        status: status,
-      },
-    });
-    res.status(200).json({
-      success: true,
-      order: updatedOrder,
-    });
-  } catch (e) {
-    next(e);
-  }
-};
-
+// ... (سایر توابع کنترلر سفارشات بدون تغییر باقی می‌مانند)
 export const getAllOrdersForAdmin = async (
   req: AuthenticatedRequest,
   res: Response,
@@ -218,7 +190,6 @@ export const getAllOrdersForAdmin = async (
 ): Promise<void> => {
   try {
     const { status, paymentStatus, search } = req.query;
-
     const where: Prisma.OrderWhereInput = {};
 
     if (status && status !== "ALL") {
@@ -239,8 +210,6 @@ export const getAllOrdersForAdmin = async (
     const orders = await prisma.order.findMany({
       where,
       include: {
-        items: true,
-        address: true,
         user: {
           select: {
             id: true,
@@ -333,6 +302,57 @@ export const getOrdersByUserId = async (
       },
     });
     res.status(200).json(orders);
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const updateOrderStatus = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const { orderId } = req.params;
+  const { status } = req.body;
+  try {
+    const updatedOrder = await prisma.order.update({
+      where: {
+        id: orderId,
+      },
+      data: {
+        status: status,
+      },
+      include: {
+        items: {
+          include: {
+            product: {
+              select: {
+                id: true,
+                slug: true,
+                images: {
+                  take: 1,
+                  select: { url: true },
+                },
+              },
+            },
+          },
+        },
+        address: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+          },
+        },
+        coupon: true,
+      },
+    });
+    res.status(200).json({
+      success: true,
+      order: updatedOrder,
+    });
   } catch (e) {
     next(e);
   }

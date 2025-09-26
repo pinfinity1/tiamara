@@ -1,5 +1,5 @@
 import express from "express";
-import { authenticateJwt } from "../middleware/authMiddleware";
+import { authenticateUser } from "../middleware/authMiddleware";
 import {
   getUserProfile,
   updateUserProfile,
@@ -7,7 +7,7 @@ import {
 
 const router = express.Router();
 
-router.use(authenticateJwt);
+router.use(authenticateUser);
 
 router.get("/profile", getUserProfile);
 router.put("/profile", updateUserProfile);

@@ -1,3 +1,5 @@
+// client/src/app/checkout/CheckoutClient.tsx
+
 "use client";
 
 import { useEffect } from "react";
@@ -17,31 +19,23 @@ export default function CheckoutClient({
   isUserLoggedIn,
 }: CheckoutClientProps) {
   const router = useRouter();
-  const {
-    items: cartItems,
-    isInitialized,
-    initializeCart,
-  } = useCartStore(
-    useShallow((state) => ({
-      items: state.items,
-      isInitialized: state.isInitialized,
-      initializeCart: state.initializeCart,
-    }))
-  );
+
+  // Use a simple selector, no need for useShallow if selecting single properties
+  const { items: cartItems, initializeCart, isLoading } = useCartStore();
 
   useEffect(() => {
-    if (!isInitialized) {
-      initializeCart();
-    }
-  }, [isInitialized, initializeCart]);
+    // ✅ ALWAYS fetch the latest cart state when the checkout page is loaded.
+    initializeCart();
+  }, [initializeCart]);
 
+  // This effect handles redirecting if the cart becomes empty AFTER initialization
   useEffect(() => {
-    if (isInitialized && cartItems.length === 0) {
+    if (!isLoading && cartItems.length === 0) {
       router.replace("/products");
     }
-  }, [isInitialized, cartItems, router]);
+  }, [isLoading, cartItems, router]);
 
-  if (!isInitialized || (isInitialized && cartItems.length === 0)) {
+  if (isLoading || cartItems.length === 0) {
     return <CheckoutSkeleton />;
   }
 
@@ -56,7 +50,6 @@ export default function CheckoutClient({
             <CartView />
             {isUserLoggedIn && <CheckoutView />}
           </div>
-
           <div className="lg:col-span-1 lg:sticky top-3">
             <CheckoutSummary isUserLoggedIn={isUserLoggedIn} />
           </div>

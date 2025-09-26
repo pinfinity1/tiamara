@@ -1,3 +1,5 @@
+// client/src/store/useCartStore.ts
+
 import { create } from "zustand";
 import axiosAuth from "@/lib/axios";
 import { useUserStore } from "./useUserStore";
@@ -14,11 +16,12 @@ export interface CartItem {
   slug: string;
   stock: number;
 }
+
 interface CartState {
   items: CartItem[];
   cartId: string | null;
   isLoading: boolean;
-  isInitialized: boolean;
+  error: string | null; // ✅  ویژگی `error` به اینترفیس اضافه شد
   initializeCart: () => Promise<void>;
   addToCart: (
     product: Omit<CartItem, "id" | "original_price">
@@ -43,13 +46,12 @@ export const useCartStore = create<CartState>((set, get) => ({
   items: [],
   cartId: null,
   isLoading: false,
-  isInitialized: false,
+  error: null, // ✅ مقداردهی اولیه برای `error`
 
   setItems: (items) => set({ items }),
 
   initializeCart: async () => {
-    if (get().isInitialized) return;
-    set({ isLoading: true });
+    set({ isLoading: true, error: null }); // ✅ ریست کردن خطا در ابتدای هر درخواست
 
     const isLoggedIn = !!useUserStore.getState().userProfile;
     const guestCartId = getGuestCartId();
@@ -60,46 +62,30 @@ export const useCartStore = create<CartState>((set, get) => ({
     try {
       const response = await axiosAuth.get(url);
       const { data: items, cartId } = response.data;
-      set({ items, cartId, isInitialized: true });
+      set({ items, cartId });
       if (!isLoggedIn && cartId) {
         setGuestCartId(cartId);
       }
     } catch (error) {
-      console.error("Failed to initialize cart:", error);
+      const errorMessage = "خطا در بارگذاری سبد خرید.";
+      console.error(errorMessage, error);
+      set({ error: errorMessage }); // ✅ ثبت خطا در استیت
     } finally {
-      set({ isLoading: false, isInitialized: true });
+      set({ isLoading: false });
     }
   },
 
   addToCart: async (product) => {
     try {
-      const response = await axiosAuth.post("/cart/add", {
+      // ✅ با فراخوانی `initializeCart`، دیگر نیازی به منطق پیچیده در اینجا نیست
+      await axiosAuth.post("/cart/add", {
         ...product,
         guestCartId: getGuestCartId(),
       });
-      const { data: newItem, cartId } = response.data;
-
-      set((state) => {
-        const existingItemIndex = state.items.findIndex(
-          (i) => i.productId === newItem.productId
-        );
-        if (existingItemIndex > -1) {
-          const newItems = [...state.items];
-          newItems[existingItemIndex] = newItem;
-          return { items: newItems };
-        }
-        return { items: [...state.items, newItem] };
-      });
-
-      if (!useUserStore.getState().userProfile) {
-        setGuestCartId(cartId);
-      }
-      set({ cartId });
-      // 2. Use the imported `toast` function directly
+      await get().initializeCart(); // ✅ پس از افزودن، کل سبد را مجددا از سرور میخوانیم تا همگام شود
       toast({ title: "محصول به سبد خرید اضافه شد." });
     } catch (error) {
       console.error("Failed to add to cart:", error);
-      // 3. Use the imported `toast` function here as well
       toast({
         title: "خطا در افزودن محصول",
         variant: "destructive",
@@ -109,9 +95,6 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   updateCartItemQuantity: async (itemId, quantity) => {
     const originalItems = get().items;
-    const itemToUpdate = originalItems.find((item) => item.id === itemId);
-
-    if (!itemToUpdate) return;
 
     // Optimistic UI update
     set((state) => ({
@@ -131,19 +114,16 @@ export const useCartStore = create<CartState>((set, get) => ({
         guestCartId: getGuestCartId(),
       });
     } catch (error: any) {
-      // Revert UI on error and show a simple toast
+      // Revert UI on error
       set({ items: originalItems });
-
       const stock = error.response?.data?.stock;
       if (stock !== undefined) {
-        // If server tells us the max stock, update the cart to that value
         set((state) => ({
           items: state.items.map((item) =>
             item.id === itemId ? { ...item, quantity: stock } : item
           ),
         }));
       }
-
       toast({
         title: "موجودی محصول کافی نیست.",
         variant: "destructive",
@@ -152,6 +132,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 
   removeFromCart: async (itemId: string) => {
+    const originalItems = get().items;
     set((state) => ({
       items: state.items.filter((item) => item.id !== itemId),
     }));
@@ -161,14 +142,13 @@ export const useCartStore = create<CartState>((set, get) => ({
         guestCartId ? `?guestCartId=${guestCartId}` : ""
       }`;
       await axiosAuth.delete(url);
-      // 4. And here
       toast({
         title: "محصول از سبد خرید حذف شد.",
         variant: "destructive",
       });
     } catch (error) {
       console.error("Failed to remove item:", error);
-      get().initializeCart();
+      set({ items: originalItems }); // ✅ بازگرداندن به حالت قبل در صورت خطا
     }
   },
 
@@ -178,6 +158,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       await axiosAuth.post("/cart/clear", { guestCartId: getGuestCartId() });
     } catch (error) {
       console.error("Failed to clear cart:", error);
+      await get().initializeCart(); // ✅ در صورت خطا، سبد را مجددا از سرور بخوان
     }
   },
 
@@ -187,7 +168,6 @@ export const useCartStore = create<CartState>((set, get) => ({
     try {
       await axiosAuth.post("/cart/merge", { guestCartId });
       removeGuestCartId();
-      set({ isInitialized: false });
       await get().initializeCart();
     } catch (error) {
       console.error("Failed to merge carts:", error);

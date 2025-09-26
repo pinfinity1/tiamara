@@ -1,5 +1,5 @@
 import express from "express";
-import { authenticateJwt, isSuperAdmin } from "../middleware/authMiddleware";
+import { authenticateUser, authorizeAdmin } from "../middleware/authMiddleware";
 import {
   createSupplier,
   deleteSupplier,
@@ -10,7 +10,7 @@ import {
 const router = express.Router();
 
 // All supplier routes require admin access
-router.use(authenticateJwt, isSuperAdmin);
+router.use(authenticateUser, authorizeAdmin);
 
 router.get("/", getAllSuppliers);
 router.post("/create", createSupplier);

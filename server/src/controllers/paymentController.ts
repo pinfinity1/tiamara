@@ -1,3 +1,5 @@
+// server/src/controllers/paymentController.ts
+
 import { Request, Response } from "express";
 import axios from "axios";
 import { prisma } from "../server";
@@ -8,7 +10,11 @@ const ZARINPAL_API_VERIFY =
   "https://sandbox.zarinpal.com/pg/v4/payment/verify.json";
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000";
 
+/**
+ * A helper function to log stock changes.
+ */
 const logStockChange = async (
+  tx: any, // Prisma transaction client
   productId: string,
   change: number,
   newStock: number,
@@ -17,7 +23,7 @@ const logStockChange = async (
   notes?: string
 ) => {
   if (change !== 0) {
-    await prisma.stockHistory.create({
+    await tx.stockHistory.create({
       data: {
         productId,
         change,
@@ -30,9 +36,13 @@ const logStockChange = async (
   }
 };
 
+/**
+ * Verifies the payment with Zarinpal after the user returns from the gateway.
+ */
 export const verifyPaymentController = async (req: Request, res: Response) => {
   const { Authority: authority, Status: status } = req.query;
 
+  // Redirect to a generic failure page if callback parameters are missing
   if (!authority || !status) {
     return res.redirect(
       `${CLIENT_URL}/payment-result?status=failed&message=Invalid_callback`
@@ -51,6 +61,7 @@ export const verifyPaymentController = async (req: Request, res: Response) => {
       );
     }
 
+    // If order is already completed, just redirect to success page
     if (order.paymentStatus === "COMPLETED") {
       return res.redirect(
         `${CLIENT_URL}/payment-result?status=success&orderId=${order.id}&message=Already_verified`
@@ -58,20 +69,28 @@ export const verifyPaymentController = async (req: Request, res: Response) => {
     }
 
     if (status === "OK") {
-      const amount = Math.round(order.total * 10); // Convert to Rials
-      const zarinpalVerifyData = {
+      const amount = Math.round(order.total); // ✅ Correct amount in Toman for sandbox
+      const verificationData = {
         merchant_id: ZARINPAL_MERCHANT_ID,
         authority: authority as string,
         amount,
       };
 
-      const { data } = await axios.post(
+      const { data: verifyResponse } = await axios.post(
         ZARINPAL_API_VERIFY,
-        zarinpalVerifyData
+        verificationData
       );
 
-      if (data.data.code === 100 || data.data.code === 101) {
+      const verificationDataResult = verifyResponse.data;
+
+      // Zarinpal codes 100 (success) and 101 (already verified) are considered success
+      if (
+        verificationDataResult?.code === 100 ||
+        verificationDataResult?.code === 101
+      ) {
+        // Use a transaction to update stock and order status atomically
         await prisma.$transaction(async (tx) => {
+          // 1. Decrease stock for each item in the order
           for (const item of order.items) {
             const updatedProduct = await tx.product.update({
               where: { id: item.productId },
@@ -81,28 +100,19 @@ export const verifyPaymentController = async (req: Request, res: Response) => {
               },
             });
 
+            // 2. Log the stock change
             await logStockChange(
+              tx,
               item.productId,
               -item.quantity,
               updatedProduct.stock,
               "SALE",
               order.userId,
-              `Sale from order ${order.id}`
+              `Sale from order #${order.orderNumber}`
             );
           }
 
-          // ++ این بلوک کد اضافه شده است ++
-          const cart = await tx.cart.findFirst({
-            where: { userId: order.userId },
-          });
-
-          if (cart) {
-            await tx.cartItem.deleteMany({
-              where: { cartId: cart.id },
-            });
-          }
-          // ++ پایان بلوک اضافه شده ++
-
+          // 3. Update the order status to COMPLETED and PROCESSING
           await tx.order.update({
             where: { id: order.id },
             data: {
@@ -113,18 +123,20 @@ export const verifyPaymentController = async (req: Request, res: Response) => {
         });
 
         return res.redirect(
-          `${CLIENT_URL}/payment-result?status=success&orderId=${order.id}&refId=${data.data.ref_id}`
+          `${CLIENT_URL}/payment-result?status=success&orderId=${order.id}&refId=${verificationDataResult.ref_id}`
         );
       } else {
+        // If verification fails
         await prisma.order.update({
           where: { id: order.id },
           data: { paymentStatus: PaymentStatus.FAILED },
         });
         return res.redirect(
-          `${CLIENT_URL}/payment-result?status=failed&message=Verification_failed&code=${data.data.code}`
+          `${CLIENT_URL}/payment-result?status=failed&message=Verification_failed&code=${verificationDataResult.code}`
         );
       }
     } else {
+      // If user cancelled the payment
       await prisma.order.update({
         where: { id: order.id },
         data: { paymentStatus: PaymentStatus.CANCELLED },
@@ -134,7 +146,7 @@ export const verifyPaymentController = async (req: Request, res: Response) => {
       );
     }
   } catch (error) {
-    console.error("خطا در verifyPaymentController:", error);
+    console.error("Error in verifyPaymentController:", error);
     return res.redirect(
       `${CLIENT_URL}/payment-result?status=failed&message=Internal_server_error`
     );

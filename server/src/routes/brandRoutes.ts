@@ -1,5 +1,5 @@
 import express from "express";
-import { authenticateJwt, isSuperAdmin } from "../middleware/authMiddleware";
+import { authenticateUser, authorizeAdmin } from "../middleware/authMiddleware";
 import {
   createBrand,
   deleteBrand,
@@ -21,24 +21,24 @@ router.get("/slug/:slug", getBrandBySlug);
 // Admin routes - protected
 router.post(
   "/create",
-  authenticateJwt,
-  isSuperAdmin,
+  authenticateUser,
+  authorizeAdmin,
   uploadImage.single("logo"),
   createBrand
 );
 router.put(
   "/update/:id",
-  authenticateJwt,
-  isSuperAdmin,
+  authenticateUser,
+  authorizeAdmin,
   uploadImage.single("logo"),
   updateBrand
 );
-router.delete("/delete/:id", authenticateJwt, isSuperAdmin, deleteBrand);
+router.delete("/delete/:id", authenticateUser, authorizeAdmin, deleteBrand);
 
 router.post(
   "/upload/excel",
-  authenticateJwt,
-  isSuperAdmin,
+  authenticateUser,
+  authorizeAdmin,
   uploadExcel.single("file"),
   bulkCreateBrandsFromExcel
 );

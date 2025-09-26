@@ -1,7 +1,7 @@
 // server/src/routes/cartRoutes.ts
 
 import express from "express";
-import { authenticateJwt } from "../middleware/authMiddleware";
+import { authenticateUser } from "../middleware/authMiddleware";
 import {
   addToCart,
   clearEntireCart,
@@ -18,6 +18,6 @@ router.post("/add", addToCart); // 2. آدرس به 'add' تغییر کرد
 router.delete("/remove/:id", removeFromCart);
 router.put("/update/:id", updateCartItemQuantity);
 router.post("/clear", clearEntireCart); // 3. آدرس به 'clear' تغییر کرد
-router.post("/merge", authenticateJwt, mergeCarts); // 4. روت merge اضافه شد
+router.post("/merge", authenticateUser, mergeCarts); // 4. روت merge اضافه شد
 
 export default router;

@@ -1,5 +1,5 @@
 import express from "express";
-import { authenticateJwt } from "../middleware/authMiddleware";
+import { authenticateUser } from "../middleware/authMiddleware";
 import {
   getWishlist,
   toggleWishlistItem,
@@ -8,7 +8,7 @@ import {
 const router = express.Router();
 
 // تمام روت‌های این بخش نیاز به احراز هویت کاربر دارند
-router.use(authenticateJwt);
+router.use(authenticateUser);
 
 // GET /api/wishlist -> دریافت لیست علاقه‌مندی‌ها
 router.get("/", getWishlist);

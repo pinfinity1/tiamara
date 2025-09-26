@@ -7,15 +7,15 @@ import {
   deleteCoupon,
   validateCoupon,
 } from "../controllers/couponController";
-import { authenticateJwt, isSuperAdmin } from "../middleware/authMiddleware";
+import { authenticateUser, authorizeAdmin } from "../middleware/authMiddleware";
 
 const router = express.Router();
 
 // Route to validate a coupon (for users)
-router.post("/validate", authenticateJwt, validateCoupon);
+router.post("/validate", authenticateUser, validateCoupon);
 
 // All routes below are for super admin only
-router.use(authenticateJwt, isSuperAdmin);
+router.use(authenticateUser, authorizeAdmin);
 
 router.post("/", createCoupon);
 router.get("/", getAllCoupons);

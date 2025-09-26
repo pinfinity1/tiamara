@@ -1,5 +1,5 @@
 import express from "express";
-import { authenticateJwt, isSuperAdmin } from "../middleware/authMiddleware";
+import { authenticateUser, authorizeAdmin } from "../middleware/authMiddleware";
 import { uploadExcel, uploadImage } from "../middleware/uploadMiddleware";
 import {
   createCategory,
@@ -21,26 +21,26 @@ router.get("/slug/:slug", getCategoryBySlug);
 // Protected admin routes
 router.post(
   "/create",
-  authenticateJwt,
-  isSuperAdmin,
+  authenticateUser,
+  authorizeAdmin,
   uploadImage.single("image"),
   createCategory
 );
 
 router.put(
   "/update/:id",
-  authenticateJwt,
-  isSuperAdmin,
+  authenticateUser,
+  authorizeAdmin,
   uploadImage.single("image"),
   updateCategory
 );
 
-router.delete("/delete/:id", authenticateJwt, isSuperAdmin, deleteCategory);
+router.delete("/delete/:id", authenticateUser, authorizeAdmin, deleteCategory);
 
 router.post(
   "/upload/excel",
-  authenticateJwt,
-  isSuperAdmin,
+  authenticateUser,
+  authorizeAdmin,
   uploadExcel.single("file"),
   bulkCreateCategoriesFromExcel
 );

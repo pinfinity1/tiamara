@@ -1,5 +1,5 @@
 import express from "express";
-import { authenticateJwt, isSuperAdmin } from "../middleware/authMiddleware";
+import { authenticateUser, authorizeAdmin } from "../middleware/authMiddleware";
 import { uploadImage } from "../middleware/uploadMiddleware";
 import {
   addFeatureBanner,
@@ -22,21 +22,21 @@ const router = express.Router();
 // --- Admin Routes (for management panel) ---
 router.get(
   "/banners/admin",
-  authenticateJwt,
-  isSuperAdmin,
+  authenticateUser,
+  authorizeAdmin,
   fetchBannersForAdmin
 );
 router.post(
   "/banners/add",
-  authenticateJwt,
-  isSuperAdmin,
+  authenticateUser,
+  authorizeAdmin,
   uploadImage.array("images", 10),
   addFeatureBanner
 );
 router.put(
   "/banners/update/:id",
-  authenticateJwt,
-  isSuperAdmin,
+  authenticateUser,
+  authorizeAdmin,
   uploadImage.fields([
     { name: "images[desktop]", maxCount: 1 },
     { name: "images[mobile]", maxCount: 1 },
@@ -45,15 +45,20 @@ router.put(
 );
 router.delete(
   "/banners/delete/:id",
-  authenticateJwt,
-  isSuperAdmin,
+  authenticateUser,
+  authorizeAdmin,
   deleteFeatureBanner
 );
-router.post("/banners/reorder", authenticateJwt, isSuperAdmin, reorderBanners);
+router.post(
+  "/banners/reorder",
+  authenticateUser,
+  authorizeAdmin,
+  reorderBanners
+);
 router.delete(
   "/banners/group/:groupName",
-  authenticateJwt,
-  isSuperAdmin,
+  authenticateUser,
+  authorizeAdmin,
   deleteBannerGroup
 );
 
@@ -65,28 +70,28 @@ router.post("/banners/track-click/:id", trackBannerClick);
 router.get("/collections", getProductCollections);
 router.post(
   "/collections/create",
-  authenticateJwt,
-  isSuperAdmin,
+  authenticateUser,
+  authorizeAdmin,
   uploadImage.single("image"),
   createProductCollection
 );
 router.put(
   "/collections/update/:id",
-  authenticateJwt,
-  isSuperAdmin,
+  authenticateUser,
+  authorizeAdmin,
   uploadImage.single("image"),
   updateProductCollection
 );
 router.delete(
   "/collections/delete/:id",
-  authenticateJwt,
-  isSuperAdmin,
+  authenticateUser,
+  authorizeAdmin,
   deleteProductCollection
 );
 router.post(
   "/collections/reorder",
-  authenticateJwt,
-  isSuperAdmin,
+  authenticateUser,
+  authorizeAdmin,
   reorderProductCollections
 );
 

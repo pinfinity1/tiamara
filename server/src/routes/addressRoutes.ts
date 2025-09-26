@@ -1,5 +1,5 @@
 import express from "express";
-import { authenticateJwt } from "../middleware/authMiddleware";
+import { authenticateUser } from "../middleware/authMiddleware";
 import {
   createAddress,
   deleteAddress,
@@ -9,7 +9,7 @@ import {
 
 const router = express.Router();
 
-router.use(authenticateJwt);
+router.use(authenticateUser);
 
 router.post("/add-address", createAddress);
 router.get("/get-address", getAddresses);

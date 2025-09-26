@@ -9,7 +9,7 @@ import {
   resetPasswordController,
   refreshTokenController,
 } from "../controllers/authController";
-import { authenticateJwt } from "../middleware/authMiddleware";
+import { authenticateUser } from "../middleware/authMiddleware";
 
 const router = express.Router();
 
@@ -20,7 +20,7 @@ router.post("/check-phone", checkPhoneAndSendOtpController);
 router.post("/login-otp", loginWithOtpController);
 
 // After first login user should set password
-router.post("/set-password", authenticateJwt, setPasswordController);
+router.post("/set-password", authenticateUser, setPasswordController);
 
 // Step 2 (Option B): Login with password
 router.post("/login-password", loginWithPasswordController);

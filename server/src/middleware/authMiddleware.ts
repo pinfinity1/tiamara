@@ -1,59 +1,81 @@
-import { NextFunction, Request, Response } from "express";
-import { jwtVerify, JWTPayload } from "jose";
+// server/src/middleware/authMiddleware.ts
 
+import { Request, Response, NextFunction } from "express";
+import jwt, { JwtPayload } from "jsonwebtoken";
+import { prisma } from "../server";
+
+// اینترفیس را گسترش می‌دهیم تا اطلاعات کاربر را شامل شود
 export interface AuthenticatedRequest extends Request {
   user?: {
     userId: string;
     email: string;
     phone: string;
-    role: string;
+    role: "USER" | "SUPER_ADMIN";
   };
 }
 
-export const authenticateJwt = (
+const JWT_SECRET = process.env.JWT_SECRET!;
+
+/**
+ * Middleware برای احراز هویت کاربر بر اساس توکن JWT.
+ */
+export const authenticateUser = async (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ) => {
   const authHeader = req.headers.authorization;
-  const accessToken = authHeader && authHeader.split(" ")[1];
 
-  if (!accessToken) {
-    return next();
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res
+      .status(401)
+      .json({ success: false, message: "توکن ارائه نشده است." });
   }
 
-  jwtVerify(accessToken, new TextEncoder().encode(process.env.JWT_SECRET!))
-    .then((result) => {
-      const payload = result.payload as JWTPayload & {
-        userId: string;
-        email: string;
-        phone: string;
-        role: string;
-      };
-      req.user = {
-        userId: payload.userId,
-        email: payload.email,
-        phone: payload.phone,
-        role: payload.role,
-      };
-      next();
-    })
-    .catch(() => {
-      return next();
+  const token = authHeader.split(" ")[1];
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: { id: true, email: true, phone: true, role: true },
     });
+
+    if (!user) {
+      return res
+        .status(401)
+        .json({ success: false, message: "کاربر یافت نشد." });
+    }
+
+    req.user = {
+      userId: user.id,
+      // ✅ این خط اصلاح شد. اگر ایمیل null بود، رشته خالی جایگزین می‌شود.
+      email: user.email ?? "",
+      phone: user.phone || "",
+      role: user.role as "USER" | "SUPER_ADMIN",
+    };
+
+    next();
+  } catch (error) {
+    return res
+      .status(401)
+      .json({ success: false, message: "توکن نامعتبر است." });
+  }
 };
 
-export const isSuperAdmin = (
+/**
+ * Middleware برای بررسی دسترسی ادمین.
+ */
+export const authorizeAdmin = (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ) => {
-  if (req.user && req.user.role === "SUPER_ADMIN") {
-    next();
-  } else {
-    res.status(403).json({
-      success: false,
-      error: "Access denied! Super admin access required",
-    });
+  if (req.user?.role !== "SUPER_ADMIN") {
+    return res
+      .status(403)
+      .json({ success: false, message: "شما دسترسی ادمین ندارید." });
   }
+  next();
 };

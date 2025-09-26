@@ -1,5 +1,5 @@
 import express from "express";
-import { authenticateJwt, isSuperAdmin } from "../middleware/authMiddleware";
+import { authenticateUser, authorizeAdmin } from "../middleware/authMiddleware";
 import {
   createPurchaseOrder,
   getAllPurchaseOrders,
@@ -8,7 +8,7 @@ import {
 
 const router = express.Router();
 
-router.use(authenticateJwt, isSuperAdmin);
+router.use(authenticateUser, authorizeAdmin);
 
 router.get("/", getAllPurchaseOrders);
 router.post("/create", createPurchaseOrder);

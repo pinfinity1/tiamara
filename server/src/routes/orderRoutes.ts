@@ -1,29 +1,42 @@
+// server/src/routes/orderRoutes.ts
+
 import express from "express";
-import { authenticateJwt, isSuperAdmin } from "../middleware/authMiddleware";
 import {
   createFinalOrder,
-  getOrder,
   getOrdersByUserId,
-  getAllOrdersForAdmin,
   updateOrderStatus,
+  getAllOrdersForAdmin,
   getSingleOrderForAdmin,
+  getSingleOrderForUser, // ✅ تابع صحیح وارد شده است
 } from "../controllers/orderController";
+import { authenticateUser, authorizeAdmin } from "../middleware/authMiddleware";
 
 const router = express.Router();
 
-router.use(authenticateJwt);
+// === User Routes ===
+router.post("/create-final-order", authenticateUser, createFinalOrder);
+router.get("/my-orders", authenticateUser, getOrdersByUserId);
+// ✅ مسیر از تابع صحیح استفاده می‌کند
+router.get("/:orderId", authenticateUser, getSingleOrderForUser);
 
-router.post("/create-final-order", createFinalOrder);
-router.get("/get-single-order/:orderId", getOrder);
-router.get("/get-order-by-user-id", getOrdersByUserId);
-router.get("/get-all-orders-for-admin", isSuperAdmin, getAllOrdersForAdmin);
+// === Admin Routes ===
 router.get(
-  "/admin/get-single-order/:orderId",
-  isSuperAdmin,
+  "/get-all-orders-for-admin",
+  authenticateUser,
+  authorizeAdmin,
+  getAllOrdersForAdmin
+);
+router.get(
+  "/get-single-order-for-admin/:orderId",
+  authenticateUser,
+  authorizeAdmin,
   getSingleOrderForAdmin
 );
-router.put("/:orderId/status", isSuperAdmin, updateOrderStatus);
-
-// ما در آینده یک مسیر جدید برای تایید پرداخت (callback) از درگاه به اینجا اضافه خواهیم کرد
+router.put(
+  "/update-order-status/:orderId",
+  authenticateUser,
+  authorizeAdmin,
+  updateOrderStatus
+);
 
 export default router;

@@ -1,14 +1,20 @@
+// server/src/controllers/cartController.ts
+
 import { Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { prisma } from "../server";
 import { Cart, CartItem, Product } from "@prisma/client";
 
+// Define a more detailed type for cart items with product info
 type CartItemWithProduct = CartItem & {
   product: Product & {
     images: { url: string }[];
   };
 };
 
+/**
+ * A helper function to format cart items for a consistent client-side response.
+ */
 const formatCartItemResponse = (cartItem: CartItemWithProduct) => {
   const { product } = cartItem;
   return {
@@ -16,7 +22,6 @@ const formatCartItemResponse = (cartItem: CartItemWithProduct) => {
     productId: cartItem.productId,
     name: product?.name ?? "محصول نامشخص",
     slug: product?.slug ?? "",
-    original_price: product?.price ?? 0,
     price: product?.discount_price ?? product?.price ?? 0,
     image: product?.images?.[0]?.url ?? "/images/placeholder.png",
     quantity: cartItem.quantity,
@@ -24,24 +29,36 @@ const formatCartItemResponse = (cartItem: CartItemWithProduct) => {
   };
 };
 
+/**
+ * Finds an existing cart or creates a new one for a user or a guest.
+ * This is the core logic for cart management.
+ */
 const findOrCreateCart = async (
   userId?: string,
   guestCartId?: string
 ): Promise<Cart> => {
+  // If user is logged in, prioritize their cart
   if (userId) {
     const userCart = await prisma.cart.findFirst({ where: { userId } });
     if (userCart) return userCart;
     return prisma.cart.create({ data: { userId } });
   }
+
+  // If it's a guest with a cart ID, try to find it
   if (guestCartId) {
     const guestCart = await prisma.cart.findFirst({
-      where: { id: guestCartId, userId: null },
+      where: { id: guestCartId, userId: null }, // Ensure it's a guest cart
     });
     if (guestCart) return guestCart;
   }
+
+  // If no cart is found, create a new empty cart for a guest
   return prisma.cart.create({ data: {} });
 };
 
+/**
+ * Adds an item to the cart or increments its quantity if it already exists.
+ */
 export const addToCart = async (
   req: AuthenticatedRequest,
   res: Response
@@ -69,16 +86,19 @@ export const addToCart = async (
     res.status(201).json({
       success: true,
       data: formatCartItemResponse(cartItem as CartItemWithProduct),
-      cartId: cart.id,
+      cartId: cart.id, // Return the cartId for guest users
     });
   } catch (e) {
-    console.error(e);
+    console.error("Error in addToCart:", e);
     res
       .status(500)
       .json({ success: false, message: "خطا در افزودن به سبد خرید." });
   }
 };
 
+/**
+ * Fetches the complete cart details for the current user or guest.
+ */
 export const getCart = async (
   req: AuthenticatedRequest,
   res: Response
@@ -87,27 +107,10 @@ export const getCart = async (
     const userId = req.user?.userId;
     const { guestCartId } = req.query;
 
-    let cart;
-    if (userId) {
-      cart = await prisma.cart.findFirst({ where: { userId } });
-      if (!cart) {
-        cart = await prisma.cart.create({ data: { userId } });
-      }
-    } else if (
-      guestCartId &&
-      typeof guestCartId === "string" &&
-      guestCartId.length > 0
-    ) {
-      cart = await prisma.cart.findFirst({
-        where: { id: guestCartId, userId: null },
-      });
-    }
-
-    if (!cart) {
-      const newCart = await prisma.cart.create({ data: {} });
-      res.json({ success: true, data: [], cartId: newCart.id });
-      return;
-    }
+    const cart = await findOrCreateCart(
+      userId,
+      guestCartId as string | undefined
+    );
 
     const cartWithDetails = await prisma.cart.findUnique({
       where: { id: cart.id },
@@ -123,15 +126,19 @@ export const getCart = async (
       cartWithDetails?.items.map((item) =>
         formatCartItemResponse(item as CartItemWithProduct)
       ) ?? [];
+
     res.json({ success: true, data: formattedItems, cartId: cart.id });
   } catch (e) {
-    console.error(e);
+    console.error("Error in getCart:", e);
     res
       .status(500)
       .json({ success: false, message: "خطا در دریافت سبد خرید." });
   }
 };
 
+/**
+ * Merges a guest cart with a user's cart upon login.
+ */
 export const mergeCarts = async (
   req: AuthenticatedRequest,
   res: Response
@@ -143,7 +150,10 @@ export const mergeCarts = async (
     if (!userId || !guestCartId) {
       res
         .status(400)
-        .json({ success: false, message: "شناسه کاربر و مهمان الزامی است." });
+        .json({
+          success: false,
+          message: "شناسه کاربر و سبد مهمان الزامی است.",
+        });
       return;
     }
 
@@ -174,17 +184,21 @@ export const mergeCarts = async (
           },
         });
       }
+      // Delete the guest cart after merging
       await prisma.cart.delete({ where: { id: guestCartId } });
     }
     res
       .status(200)
       .json({ success: true, message: "سبد خرید با موفقیت ادغام شد." });
   } catch (e) {
-    console.error(e);
+    console.error("Error in mergeCarts:", e);
     res.status(500).json({ success: false, message: "خطا در ادغام سبد خرید." });
   }
 };
 
+/**
+ * Updates the quantity of a specific item in the cart.
+ */
 export const updateCartItemQuantity = async (
   req: AuthenticatedRequest,
   res: Response
@@ -206,30 +220,9 @@ export const updateCartItemQuantity = async (
       return;
     }
 
-    const cartItem = await prisma.cartItem.findFirst({
-      where: { id, cartId: cart.id },
-      include: { product: true },
-    });
-
-    if (!cartItem) {
-      res
-        .status(404)
-        .json({ success: false, message: "محصول در سبد خرید یافت نشد." });
-      return;
-    }
-
-    // *** Check stock availability ***
-    if (quantity > cartItem.product.stock) {
-      res.status(400).json({
-        success: false,
-        message: `موجودی انبار کافی نیست. تنها ${cartItem.product.stock} عدد موجود است.`,
-        stock: cartItem.product.stock,
-      });
-      return;
-    }
-
+    // If quantity is 0, remove the item
     if (quantity === 0) {
-      await prisma.cartItem.delete({ where: { id } });
+      await prisma.cartItem.deleteMany({ where: { id, cartId: cart.id } });
       res.status(200).json({ success: true, removed: true, id });
       return;
     }
@@ -252,12 +245,15 @@ export const updateCartItemQuantity = async (
   }
 };
 
+/**
+ * Removes an item completely from the cart.
+ */
 export const removeFromCart = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params; // This is CartItem ID
     const { guestCartId } = req.query;
     const userId = req.user?.userId;
 
@@ -266,7 +262,7 @@ export const removeFromCart = async (
       guestCartId as string | undefined
     );
 
-    await prisma.cartItem.delete({
+    await prisma.cartItem.deleteMany({
       where: { id, cartId: cart.id },
     });
 
@@ -274,11 +270,14 @@ export const removeFromCart = async (
       .status(200)
       .json({ success: true, message: "محصول از سبد خرید حذف شد." });
   } catch (e) {
-    console.error(e);
+    console.error("Error in removeFromCart:", e);
     res.status(500).json({ success: false, message: "خطا در حذف محصول." });
   }
 };
 
+/**
+ * Clears all items from the user's or guest's cart.
+ */
 export const clearEntireCart = async (
   req: AuthenticatedRequest,
   res: Response
@@ -297,7 +296,7 @@ export const clearEntireCart = async (
       .status(200)
       .json({ success: true, message: "سبد خرید با موفقیت خالی شد." });
   } catch (e) {
-    console.error(e);
+    console.error("Error in clearEntireCart:", e);
     res
       .status(500)
       .json({ success: false, message: "خطا در خالی کردن سبد خرید." });

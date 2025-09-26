@@ -134,8 +134,10 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
         params.append("paymentStatus", filters.paymentStatus);
       if (filters.search) params.append("search", filters.search);
 
-      // ❗️ **اصلاح شد**
-      const response = await axiosAuth.get(`/order/admin/all`, { params });
+      // ✅ **اصلاح شد**
+      const response = await axiosAuth.get(`/order/get-all-orders-for-admin`, {
+        params,
+      });
       set({ adminOrders: response.data, isLoading: false });
     } catch (e) {
       set({ error: "Failed to fetch orders for admin", isLoading: false });

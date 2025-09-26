@@ -1,11 +1,11 @@
 import express from "express";
-import { authenticateJwt, isSuperAdmin } from "../middleware/authMiddleware";
+import { authenticateUser, authorizeAdmin } from "../middleware/authMiddleware";
 import { getStockHistory } from "../controllers/stockHistoryController";
 
 const router = express.Router();
 
 // All stock history routes require admin access
-router.use(authenticateJwt, isSuperAdmin);
+router.use(authenticateUser, authorizeAdmin);
 
 // Route to get all history
 router.get("/", getStockHistory);
