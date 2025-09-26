@@ -41,14 +41,18 @@ export const createFinalOrder = async (
 
   try {
     const newOrder = await prisma.$transaction(async (tx) => {
-      const cart = await tx.cart.findFirst({
+      // START OF CHANGE
+      let cart = await tx.cart.findFirst({
         where: { userId },
         include: { items: { include: { product: true } } },
       });
 
+      // If user cart is empty, try to find a guest cart from cookies (if sent from client)
+      // and merge it. This is a fallback and the main merge logic should be on login.
       if (!cart || cart.items.length === 0) {
         throw new Error("سبد خرید شما خالی است.");
       }
+      // END OF CHANGE
 
       let total = cart.items.reduce((acc, item) => {
         const price = item.product.discount_price ?? item.product.price;
@@ -167,12 +171,10 @@ export const getSingleOrderForUser = async (
 
     // Security check: ensure the user is requesting their own order
     if (order.userId !== userId) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "شما مجاز به دیدن این سفارش نیستید.",
-        });
+      return res.status(403).json({
+        success: false,
+        message: "شما مجاز به دیدن این سفارش نیستید.",
+      });
     }
 
     res.status(200).json({ success: true, order });

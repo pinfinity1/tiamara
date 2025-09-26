@@ -148,12 +148,10 @@ export const mergeCarts = async (
     const { guestCartId } = req.body;
 
     if (!userId || !guestCartId) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: "شناسه کاربر و سبد مهمان الزامی است.",
-        });
+      res.status(400).json({
+        success: false,
+        message: "شناسه کاربر و سبد مهمان الزامی است.",
+      });
       return;
     }
 
@@ -184,6 +182,11 @@ export const mergeCarts = async (
           },
         });
       }
+      // START OF CHANGE
+      // Delete items from the guest cart before deleting the cart itself
+      await prisma.cartItem.deleteMany({ where: { cartId: guestCartId } });
+      // END OF CHANGE
+
       // Delete the guest cart after merging
       await prisma.cart.delete({ where: { id: guestCartId } });
     }
