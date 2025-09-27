@@ -1,3 +1,5 @@
+// client/src/store/useAuthProcessStore.ts
+
 import { create } from "zustand";
 import { axiosPublic } from "@/lib/axios";
 import { toast } from "@/hooks/use-toast";
@@ -19,8 +21,6 @@ interface AuthState {
   userHasPassword: boolean;
   setStep: (step: AuthStep) => void;
   setPhone: (phone: string) => void;
-
-  // Actions
   checkPhone: (phone: string) => Promise<void>;
   finalLogin: (
     loginType: "password" | "otp",
@@ -42,7 +42,6 @@ export const useAuthProcessStore = create<AuthState>((set, get) => ({
   checkPhone: async (phone) => {
     set({ isLoading: true, phone });
     try {
-      // ++ ADDED: Call Arcjet action before proceeding
       const protection = await protectPhoneAuthAction(phone);
       if (!protection.success) {
         toast({
@@ -59,7 +58,9 @@ export const useAuthProcessStore = create<AuthState>((set, get) => ({
           userHasPassword: response.data.hasPassword,
           step: response.data.hasPassword ? "password" : "otp",
         });
-        toast({ title: "کد یکبار مصرف با موفقیت ارسال شد." });
+        if (!response.data.hasPassword || response.data.userExists === false) {
+          toast({ title: "کد یکبار مصرف با موفقیت ارسال شد." });
+        }
       }
     } catch (error: any) {
       toast({
@@ -76,6 +77,8 @@ export const useAuthProcessStore = create<AuthState>((set, get) => ({
   finalLogin: async (loginType, data, onSuccess) => {
     set({ isLoading: true });
     const phone = get().phone;
+
+    // 1. Attempt to sign in
     const result = await signIn("credentials", {
       redirect: false,
       phone,
@@ -83,7 +86,6 @@ export const useAuthProcessStore = create<AuthState>((set, get) => ({
       otp: data.otp,
       loginType,
     });
-    set({ isLoading: false });
 
     if (result?.error) {
       toast({
@@ -91,19 +93,24 @@ export const useAuthProcessStore = create<AuthState>((set, get) => ({
         description: result.error,
         variant: "destructive",
       });
+      set({ isLoading: false });
     } else if (result?.ok) {
       toast({ title: "خوش آمدید!" });
+
+      // 2. **CRITICAL STEP**: Merge carts BEFORE doing anything else
       await useCartStore.getState().mergeCartsOnLogin();
+
+      // 3. Now, call the success callback (which will close modal/redirect)
       onSuccess();
-      window.location.reload();
+      set({ isLoading: false });
     }
   },
 
+  // ... (requestPasswordReset and resetPassword functions remain the same)
   requestPasswordReset: async () => {
     set({ isLoading: true });
     const phone = get().phone;
     try {
-      // ++ ADDED: Call Arcjet action before proceeding
       const protection = await protectPhoneAuthAction(phone);
       if (!protection.success) {
         toast({
@@ -113,7 +120,6 @@ export const useAuthProcessStore = create<AuthState>((set, get) => ({
         });
         return;
       }
-
       await axiosPublic.post("/auth/forgot-password", { phone });
       toast({ title: "کد بازنشانی رمز عبور برای شما ارسال شد." });
       set({ step: "forgot-password-reset" });
@@ -138,7 +144,7 @@ export const useAuthProcessStore = create<AuthState>((set, get) => ({
         password,
       });
       toast({ title: "رمز عبور شما با موفقیت تغییر کرد." });
-      set({ step: "phone", phone: "" }); // Reset to initial state
+      set({ step: "phone", phone: "" });
       return true;
     } catch (error: any) {
       toast({

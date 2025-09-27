@@ -120,6 +120,12 @@ export const verifyPaymentController = async (req: Request, res: Response) => {
               status: OrderStatus.PROCESSING,
             },
           });
+          const cart = await tx.cart.findFirst({
+            where: { userId: order.userId },
+          });
+          if (cart) {
+            await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+          }
         });
 
         return res.redirect(

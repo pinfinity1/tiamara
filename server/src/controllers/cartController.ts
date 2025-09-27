@@ -37,22 +37,22 @@ const findOrCreateCart = async (
   userId?: string,
   guestCartId?: string
 ): Promise<Cart> => {
-  // If user is logged in, prioritize their cart
+  // اگر کاربر لاگین کرده باشد، سبد خرید او در اولویت است
   if (userId) {
-    const userCart = await prisma.cart.findFirst({ where: { userId } });
+    const userCart = await prisma.cart.findUnique({ where: { userId } });
     if (userCart) return userCart;
     return prisma.cart.create({ data: { userId } });
   }
 
-  // If it's a guest with a cart ID, try to find it
+  // اگر کاربر مهمان با یک شناسه سبد خرید باشد، آن را پیدا می‌کنیم
   if (guestCartId) {
     const guestCart = await prisma.cart.findFirst({
-      where: { id: guestCartId, userId: null }, // Ensure it's a guest cart
+      where: { id: guestCartId, userId: null }, // اطمینان از اینکه سبد خرید مهمان است
     });
     if (guestCart) return guestCart;
   }
 
-  // If no cart is found, create a new empty cart for a guest
+  // اگر هیچ سبد خریدی یافت نشد، یک سبد جدید برای مهمان می‌سازیم
   return prisma.cart.create({ data: {} });
 };
 
@@ -75,6 +75,16 @@ export const addToCart = async (
     }
 
     const cart = await findOrCreateCart(userId, guestCartId);
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+    });
+
+    if (!product || product.stock < quantity) {
+      res
+        .status(400)
+        .json({ success: false, message: "موجودی محصول کافی نیست." });
+      return;
+    }
 
     const cartItem = await prisma.cartItem.upsert({
       where: { cartId_productId: { cartId: cart.id, productId } },
@@ -86,7 +96,7 @@ export const addToCart = async (
     res.status(201).json({
       success: true,
       data: formatCartItemResponse(cartItem as CartItemWithProduct),
-      cartId: cart.id, // Return the cartId for guest users
+      cartId: cart.id, // شناسه سبد خرید را برای کاربران مهمان برمی‌گردانیم
     });
   } catch (e) {
     console.error("Error in addToCart:", e);
@@ -107,10 +117,22 @@ export const getCart = async (
     const userId = req.user?.userId;
     const { guestCartId } = req.query;
 
-    const cart = await findOrCreateCart(
-      userId,
-      guestCartId as string | undefined
-    );
+    // --- START OF THE FIX ---
+
+    let cart;
+    // If the user is logged in, ALWAYS use their user ID to find/create the cart.
+    // Ignore any guestCartId that might be present in the query.
+    if (userId) {
+      cart = await findOrCreateCart(userId);
+    } else {
+      // Only use guestCartId if the user is NOT logged in.
+      cart = await findOrCreateCart(
+        undefined,
+        guestCartId as string | undefined
+      );
+    }
+
+    // --- END OF THE FIX ---
 
     const cartWithDetails = await prisma.cart.findUnique({
       where: { id: cart.id },
@@ -166,6 +188,7 @@ export const mergeCarts = async (
       guestCart.id !== userCart.id &&
       guestCart.items.length > 0
     ) {
+      // آیتم‌های سبد مهمان را به سبد کاربر منتقل کن
       for (const guestItem of guestCart.items) {
         await prisma.cartItem.upsert({
           where: {
@@ -182,12 +205,10 @@ export const mergeCarts = async (
           },
         });
       }
-      // START OF CHANGE
-      // Delete items from the guest cart before deleting the cart itself
-      await prisma.cartItem.deleteMany({ where: { cartId: guestCartId } });
-      // END OF CHANGE
 
-      // Delete the guest cart after merging
+      // آیتم‌های سبد مهمان را حذف کن
+      await prisma.cartItem.deleteMany({ where: { cartId: guestCartId } });
+      // سبد مهمان را حذف کن
       await prisma.cart.delete({ where: { id: guestCartId } });
     }
     res

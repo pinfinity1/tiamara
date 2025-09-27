@@ -104,15 +104,15 @@ export const createFinalOrder = async (
         },
       });
 
-      await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
-
       return order;
     });
+
+    const callback_url = `${process.env.SERVER_URL}/api/payment/verify?orderId=${newOrder.id}`;
 
     const paymentData = {
       merchant_id: ZARINPAL_MERCHANT_ID,
       amount: newOrder.total,
-      callback_url: `${SERVER_URL}/api/payment/verify`,
+      callback_url,
       description: `سفارش شماره #${newOrder.orderNumber}`,
       metadata: { email: req.user?.email, mobile: req.user?.phone },
     };

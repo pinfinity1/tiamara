@@ -1,7 +1,7 @@
 import { create } from "zustand";
-import axiosAuth from "@/lib/axios";
-import { useUserStore } from "./useUserStore";
+import axiosAuth, { axiosPublic } from "@/lib/axios";
 import { toast } from "@/hooks/use-toast";
+import { getSession } from "next-auth/react";
 
 export interface CartItem {
   id: string;
@@ -29,7 +29,6 @@ interface CartState {
   removeFromCart: (itemId: string) => Promise<void>;
   clearCart: () => Promise<void>;
   mergeCartsOnLogin: () => Promise<void>;
-  setItems: (items: CartItem[]) => void;
 }
 
 const getGuestCartId = () =>
@@ -48,17 +47,18 @@ export const useCartStore = create<CartState>((set, get) => ({
   error: null,
   isInitialized: false,
 
-  setItems: (items) => set({ items }),
-
   initializeCart: async () => {
     if (get().isInitialized) return;
     set({ isLoading: true, error: null });
 
-    const isLoggedIn = !!useUserStore.getState().userProfile;
+    const session = await getSession();
+    const isLoggedIn = !!session?.user;
     const guestCartId = getGuestCartId();
-    const url = isLoggedIn
-      ? "/cart/fetch-cart"
-      : `/cart/fetch-cart?guestCartId=${guestCartId || ""}`;
+
+    // از axiosAuth استفاده می‌کنیم که توکن را در صورت وجود ارسال کند
+    const url = `/cart/fetch-cart${
+      !isLoggedIn && guestCartId ? `?guestCartId=${guestCartId}` : ""
+    }`;
 
     try {
       const response = await axiosAuth.get(url);
@@ -81,12 +81,20 @@ export const useCartStore = create<CartState>((set, get) => ({
     );
 
     if (existingItem) {
-      await updateCartItemQuantity(existingItem.id, existingItem.quantity + 1);
+      if (existingItem.quantity < product.stock) {
+        await updateCartItemQuantity(
+          existingItem.id,
+          existingItem.quantity + 1
+        );
+      } else {
+        toast({ title: "موجودی محصول کافی نیست.", variant: "destructive" });
+      }
       return;
     }
 
     set({ isLoading: true });
     try {
+      const session = await getSession();
       const response = await axiosAuth.post("/cart/add", {
         ...product,
         guestCartId: getGuestCartId(),
@@ -98,17 +106,18 @@ export const useCartStore = create<CartState>((set, get) => ({
           cartId: response.data.cartId,
           isLoading: false,
         }));
-        if (!useUserStore.getState().userProfile && response.data.cartId) {
+        if (!session?.user && response.data.cartId) {
           setGuestCartId(response.data.cartId);
         }
         toast({ title: "محصول به سبد خرید اضافه شد." });
       } else {
-        throw new Error("Failed to add product");
+        throw new Error(response.data.message || "Failed to add product");
       }
-    } catch (error) {
-      console.error("Failed to add to cart:", error);
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message || "خطا در افزودن محصول";
       toast({
-        title: "خطا در افزودن محصول",
+        title: errorMessage,
         variant: "destructive",
       });
       set({ isLoading: false });
@@ -122,6 +131,12 @@ export const useCartStore = create<CartState>((set, get) => ({
     }
 
     const originalItems = get().items;
+    const itemToUpdate = originalItems.find((item) => item.id === itemId);
+    if (itemToUpdate && quantity > itemToUpdate.stock) {
+      toast({ title: "موجودی محصول کافی نیست.", variant: "destructive" });
+      return;
+    }
+
     set((state) => ({
       items: state.items.map((item) =>
         item.id === itemId ? { ...item, quantity } : item
@@ -134,11 +149,12 @@ export const useCartStore = create<CartState>((set, get) => ({
         guestCartId: getGuestCartId(),
       });
       if (!response.data.success) {
+        // بازگرداندن به حالت قبل در صورت خطا
         set({ items: originalItems });
       }
     } catch (error: any) {
       toast({
-        title: "موجودی محصول کافی نیست.",
+        title: error.response?.data?.message || "خطا در به‌روزرسانی",
         variant: "destructive",
       });
       set({ items: originalItems });
@@ -172,6 +188,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       await axiosAuth.post("/cart/clear", { guestCartId: getGuestCartId() });
     } catch (error) {
       console.error("Failed to clear cart:", error);
+      // در صورت خطا، سبد خرید را از سرور مجدداً بارگذاری می‌کنیم
       await get().initializeCart();
     }
   },
