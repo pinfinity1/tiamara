@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  ArrowLeft,
-  Menu,
-  Search,
-  ShoppingBag,
-  ShoppingCart,
-  User,
-} from "lucide-react";
+import { Search, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -17,7 +10,6 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import { Button } from "../ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../ui/sheet";
 import { useEffect, useState } from "react";
 import { useCartStore } from "@/store/useCartStore";
 import logo from "../../../public/images/Logo/tiamara-logo.png";
@@ -27,6 +19,7 @@ import GlobalSearch from "../common/search/GlobalSearch";
 import CartModal from "../common/modal/CartModal";
 import SearchModal from "../common/search/SearchModal";
 import { cn } from "@/lib/utils";
+import { useShallow } from "zustand/react/shallow";
 
 const navItems = [
   {
@@ -48,7 +41,12 @@ function Header({ isPaneView = false }: { isPaneView?: boolean }) {
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isDesktopSearchFocused, setIsDesktopSearchFocused] = useState(false);
 
-  const { initializeCart, items, isInitialized } = useCartStore();
+  const { initializeCart, isInitialized } = useCartStore(
+    useShallow((state) => ({
+      initializeCart: state.initializeCart,
+      isInitialized: state.isInitialized,
+    }))
+  );
   const router = useRouter();
 
   useEffect(() => {

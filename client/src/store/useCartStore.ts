@@ -1,5 +1,3 @@
-// client/src/store/useCartStore.ts
-
 import { create } from "zustand";
 import axiosAuth from "@/lib/axios";
 import { useUserStore } from "./useUserStore";
@@ -22,6 +20,7 @@ interface CartState {
   cartId: string | null;
   isLoading: boolean;
   error: string | null;
+  isInitialized: boolean;
   initializeCart: () => Promise<void>;
   addToCart: (
     product: Omit<CartItem, "id" | "original_price">
@@ -47,11 +46,12 @@ export const useCartStore = create<CartState>((set, get) => ({
   cartId: null,
   isLoading: false,
   error: null,
+  isInitialized: false,
 
   setItems: (items) => set({ items }),
 
   initializeCart: async () => {
-    // برای جلوگیری از درخواست‌های تکراری، در ابتدای لود صفحه، isLoading را true می‌کنیم
+    if (get().isInitialized) return;
     set({ isLoading: true, error: null });
 
     const isLoggedIn = !!useUserStore.getState().userProfile;
@@ -63,93 +63,106 @@ export const useCartStore = create<CartState>((set, get) => ({
     try {
       const response = await axiosAuth.get(url);
       const { data: items, cartId } = response.data;
-      set({ items, cartId, isLoading: false });
+      set({ items, cartId, isLoading: false, isInitialized: true });
       if (!isLoggedIn && cartId) {
         setGuestCartId(cartId);
       }
     } catch (error) {
       const errorMessage = "خطا در بارگذاری سبد خرید.";
       console.error(errorMessage, error);
-      set({ error: errorMessage, isLoading: false });
+      set({ error: errorMessage, isLoading: false, isInitialized: true });
     }
   },
 
   addToCart: async (product) => {
-    const { items, updateCartItemQuantity, initializeCart } = get();
+    const { items, updateCartItemQuantity } = get();
     const existingItem = items.find(
       (item) => item.productId === product.productId
     );
 
-    // اگر محصول از قبل وجود دارد، فقط تعداد آن را زیاد می‌کنیم
     if (existingItem) {
       await updateCartItemQuantity(existingItem.id, existingItem.quantity + 1);
       return;
     }
 
-    // در غیر این صورت، محصول جدید را اضافه می‌کنیم
     set({ isLoading: true });
     try {
-      await axiosAuth.post("/cart/add", {
+      const response = await axiosAuth.post("/cart/add", {
         ...product,
         guestCartId: getGuestCartId(),
       });
-      // **نکته کلیدی:** پس از موفقیت، کل سبد خرید را مجدداً از سرور می‌خوانیم
-      await initializeCart();
-      toast({ title: "محصول به سبد خرید اضافه شد." });
+      if (response.data.success) {
+        const newItem = response.data.data;
+        set((state) => ({
+          items: [...state.items, newItem],
+          cartId: response.data.cartId,
+          isLoading: false,
+        }));
+        if (!useUserStore.getState().userProfile && response.data.cartId) {
+          setGuestCartId(response.data.cartId);
+        }
+        toast({ title: "محصول به سبد خرید اضافه شد." });
+      } else {
+        throw new Error("Failed to add product");
+      }
     } catch (error) {
       console.error("Failed to add to cart:", error);
       toast({
         title: "خطا در افزودن محصول",
         variant: "destructive",
       });
-      // در صورت خطا، isLoading را false می‌کنیم
       set({ isLoading: false });
     }
   },
 
   updateCartItemQuantity: async (itemId, quantity) => {
-    // اگر تعداد به صفر برسد، آیتم را حذف می‌کنیم
     if (quantity === 0) {
       await get().removeFromCart(itemId);
       return;
     }
 
-    set({ isLoading: true });
+    const originalItems = get().items;
+    set((state) => ({
+      items: state.items.map((item) =>
+        item.id === itemId ? { ...item, quantity } : item
+      ),
+    }));
+
     try {
-      await axiosAuth.put(`/cart/update/${itemId}`, {
+      const response = await axiosAuth.put(`/cart/update/${itemId}`, {
         quantity,
         guestCartId: getGuestCartId(),
       });
-      // **نکته کلیدی:** پس از موفقیت، کل سبد خرید را مجدداً از سرور می‌خوانیم
-      await get().initializeCart();
+      if (!response.data.success) {
+        set({ items: originalItems });
+      }
     } catch (error: any) {
       toast({
         title: "موجودی محصول کافی نیست.",
         variant: "destructive",
       });
-      // در صورت خطا نیز سبد خرید را مجدداً می‌خوانیم تا به حالت صحیح برگردد
-      await get().initializeCart();
+      set({ items: originalItems });
     }
   },
 
   removeFromCart: async (itemId: string) => {
-    set({ isLoading: true });
+    const originalItems = get().items;
+    set((state) => ({
+      items: state.items.filter((item) => item.id !== itemId),
+    }));
     try {
       const guestCartId = getGuestCartId();
       const url = `/cart/remove/${itemId}${
         guestCartId ? `?guestCartId=${guestCartId}` : ""
       }`;
       await axiosAuth.delete(url);
-      // **نکته کلیدی:** پس از موفقیت، کل سبد خرید را مجدداً از سرور می‌خوانیم
-      await get().initializeCart();
       toast({
         title: "محصول از سبد خرید حذف شد.",
         variant: "destructive",
       });
     } catch (error) {
       console.error("Failed to remove item:", error);
-      // در صورت خطا نیز سبد خرید را مجدداً می‌خوانیم
-      await get().initializeCart();
+      set({ items: originalItems });
     }
   },
 
@@ -169,6 +182,7 @@ export const useCartStore = create<CartState>((set, get) => ({
     try {
       await axiosAuth.post("/cart/merge", { guestCartId });
       removeGuestCartId();
+      set({ isInitialized: false }); // برای فراخوانی مجدد و به‌روزرسانی سبد خرید
       await get().initializeCart();
     } catch (error) {
       console.error("Failed to merge carts:", error);
