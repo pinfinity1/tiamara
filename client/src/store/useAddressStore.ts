@@ -4,10 +4,8 @@ import { create } from "zustand";
 export interface Address {
   id: string;
   name: string;
-  addressLine1: string;
-  addressLine2?: string | null;
+  address: string;
   city: string;
-  province: string;
   country: string;
   postalCode: string;
   phone: string;
@@ -34,7 +32,6 @@ export const useAddressStore = create<AddressStore>((set, get) => ({
   fetchAddresses: async () => {
     set({ isLoading: true, error: null });
     try {
-      // The API endpoint in your project is singular 'address', which is correct.
       const response = await axiosAuth.get(`/address/get-address`);
       set({ addresses: response.data.address, isLoading: false });
     } catch (e) {
@@ -45,7 +42,6 @@ export const useAddressStore = create<AddressStore>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await axiosAuth.post(`/address/add-address`, address);
-      // Fetch all addresses again to ensure the default status is updated correctly everywhere
       await get().fetchAddresses();
       set({ isLoading: false });
       return response.data.address;
@@ -61,7 +57,6 @@ export const useAddressStore = create<AddressStore>((set, get) => ({
         `/address/update-address/${id}`,
         address
       );
-      // Fetch all addresses again to ensure the default status is updated correctly everywhere
       await get().fetchAddresses();
       set({ isLoading: false });
       return response.data.address;

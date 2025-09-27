@@ -41,18 +41,14 @@ export const createFinalOrder = async (
 
   try {
     const newOrder = await prisma.$transaction(async (tx) => {
-      // START OF CHANGE
       let cart = await tx.cart.findFirst({
         where: { userId },
         include: { items: { include: { product: true } } },
       });
 
-      // If user cart is empty, try to find a guest cart from cookies (if sent from client)
-      // and merge it. This is a fallback and the main merge logic should be on login.
       if (!cart || cart.items.length === 0) {
         throw new Error("سبد خرید شما خالی است.");
       }
-      // END OF CHANGE
 
       let total = cart.items.reduce((acc, item) => {
         const price = item.product.discount_price ?? item.product.price;
@@ -144,9 +140,6 @@ export const createFinalOrder = async (
   }
 };
 
-/**
- * ✅ [NEW] Fetches a single order for the currently authenticated user.
- */
 export const getSingleOrderForUser = async (
   req: AuthenticatedRequest,
   res: Response
@@ -169,7 +162,6 @@ export const getSingleOrderForUser = async (
         .json({ success: false, message: "سفارش یافت نشد." });
     }
 
-    // Security check: ensure the user is requesting their own order
     if (order.userId !== userId) {
       return res.status(403).json({
         success: false,
@@ -184,7 +176,6 @@ export const getSingleOrderForUser = async (
   }
 };
 
-// ... (سایر توابع کنترلر سفارشات بدون تغییر باقی می‌مانند)
 export const getAllOrdersForAdmin = async (
   req: AuthenticatedRequest,
   res: Response,
@@ -219,6 +210,8 @@ export const getAllOrdersForAdmin = async (
             email: true,
           },
         },
+        address: true,
+        items: true,
       },
       orderBy: {
         createdAt: "desc",

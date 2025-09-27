@@ -134,8 +134,8 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
         params.append("paymentStatus", filters.paymentStatus);
       if (filters.search) params.append("search", filters.search);
 
-      // ✅ **اصلاح شد**
-      const response = await axiosAuth.get(`/order/get-all-orders-for-admin`, {
+      const response = await axiosAuth.get(`/order/admin/all`, {
+        // ✅ Corrected Path
         params,
       });
       set({ adminOrders: response.data, isLoading: false });
@@ -147,8 +147,7 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
   fetchSingleOrderForAdmin: async (orderId) => {
     set({ isLoading: true, error: null });
     try {
-      // ❗️ **اصلاح شد**
-      const response = await axiosAuth.get(`/order/admin/single/${orderId}`);
+      const response = await axiosAuth.get(`/order/admin/single/${orderId}`); // ✅ Corrected Path
       if (response.data.success) {
         set({ selectedOrder: response.data.order, isLoading: false });
       } else {
@@ -162,8 +161,8 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
 
   updateOrderStatus: async (orderId, status) => {
     try {
-      // ❗️ **اصلاح شد**
       const response = await axiosAuth.put(`/order/admin/status/${orderId}`, {
+        // ✅ Corrected Path
         status,
       });
       if (response.data.success) {

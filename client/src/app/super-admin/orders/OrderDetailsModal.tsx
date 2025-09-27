@@ -123,9 +123,9 @@ export default function OrderDetailsModal() {
                   <CardTitle className="text-lg">آدرس ارسال</CardTitle>
                 </CardHeader>
                 <CardContent className="text-sm space-y-1">
-                  <p>{selectedOrder.address.addressLine1}</p>
+                  <p>{selectedOrder.address.address}</p>
                   <p>
-                    استان {selectedOrder.address.province}، شهر{" "}
+                    استان {selectedOrder.address.country}، شهر{" "}
                     {selectedOrder.address.city}
                   </p>
                   <p>کد پستی: {selectedOrder.address.postalCode}</p>
@@ -150,7 +150,7 @@ export default function OrderDetailsModal() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {selectedOrder.items.map((item) => (
+                    {selectedOrder.items?.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell>
                           <Image

@@ -7,36 +7,35 @@ import {
   updateOrderStatus,
   getAllOrdersForAdmin,
   getSingleOrderForAdmin,
-  getSingleOrderForUser, // ✅ تابع صحیح وارد شده است
+  getSingleOrderForUser,
 } from "../controllers/orderController";
 import { authenticateUser, authorizeAdmin } from "../middleware/authMiddleware";
 
 const router = express.Router();
 
-// === User Routes ===
-router.post("/create-final-order", authenticateUser, createFinalOrder);
-router.get("/my-orders", authenticateUser, getOrdersByUserId);
-// ✅ مسیر از تابع صحیح استفاده می‌کند
-router.get("/:orderId", authenticateUser, getSingleOrderForUser);
-
-// === Admin Routes ===
+// === Admin Routes (More specific paths to avoid conflicts) ===
 router.get(
-  "/get-all-orders-for-admin",
+  "/admin/all", // Corrected path
   authenticateUser,
   authorizeAdmin,
   getAllOrdersForAdmin
 );
 router.get(
-  "/get-single-order-for-admin/:orderId",
+  "/admin/single/:orderId", // Corrected path
   authenticateUser,
   authorizeAdmin,
   getSingleOrderForAdmin
 );
 router.put(
-  "/update-order-status/:orderId",
+  "/admin/status/:orderId", // Corrected path
   authenticateUser,
   authorizeAdmin,
   updateOrderStatus
 );
+
+// === User Routes ===
+router.post("/create-final-order", authenticateUser, createFinalOrder);
+router.get("/my-orders", authenticateUser, getOrdersByUserId);
+router.get("/:orderId", authenticateUser, getSingleOrderForUser);
 
 export default router;
