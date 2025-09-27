@@ -11,7 +11,6 @@ import {
 } from "../ui/dropdown-menu";
 import { Button } from "../ui/button";
 import { useEffect, useState } from "react";
-import { useCartStore } from "@/store/useCartStore";
 import logo from "../../../public/images/Logo/tiamara-logo.png";
 import Image from "next/image";
 import { signOut, useSession } from "next-auth/react";
@@ -19,7 +18,6 @@ import GlobalSearch from "../common/search/GlobalSearch";
 import CartModal from "../common/modal/CartModal";
 import SearchModal from "../common/search/SearchModal";
 import { cn } from "@/lib/utils";
-import { useShallow } from "zustand/react/shallow";
 
 const navItems = [
   {
@@ -41,12 +39,6 @@ function Header({ isPaneView = false }: { isPaneView?: boolean }) {
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isDesktopSearchFocused, setIsDesktopSearchFocused] = useState(false);
 
-  const { initializeCart, isInitialized } = useCartStore(
-    useShallow((state) => ({
-      initializeCart: state.initializeCart,
-      isInitialized: state.isInitialized,
-    }))
-  );
   const router = useRouter();
 
   useEffect(() => {
@@ -55,12 +47,6 @@ function Header({ isPaneView = false }: { isPaneView?: boolean }) {
       signOut({ callbackUrl: "/" });
     }
   }, [session]);
-
-  useEffect(() => {
-    if (!isInitialized) {
-      initializeCart();
-    }
-  }, [initializeCart, isInitialized]);
 
   async function handleLogout() {
     await signOut({ redirect: true, callbackUrl: "/" });

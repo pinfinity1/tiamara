@@ -1,11 +1,8 @@
-// client/src/store/useAuthProcessStore.ts
-
 import { create } from "zustand";
 import { axiosPublic } from "@/lib/axios";
 import { toast } from "@/hooks/use-toast";
 import { signIn } from "next-auth/react";
 import { protectPhoneAuthAction } from "@/actions/auth";
-import { useCartStore } from "./useCartStore";
 
 type AuthStep =
   | "phone"
@@ -96,17 +93,11 @@ export const useAuthProcessStore = create<AuthState>((set, get) => ({
       set({ isLoading: false });
     } else if (result?.ok) {
       toast({ title: "خوش آمدید!" });
-
-      // 2. **CRITICAL STEP**: Merge carts BEFORE doing anything else
-      await useCartStore.getState().mergeCartsOnLogin();
-
-      // 3. Now, call the success callback (which will close modal/redirect)
       onSuccess();
       set({ isLoading: false });
     }
   },
 
-  // ... (requestPasswordReset and resetPassword functions remain the same)
   requestPasswordReset: async () => {
     set({ isLoading: true });
     const phone = get().phone;

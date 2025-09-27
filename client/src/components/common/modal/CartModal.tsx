@@ -10,15 +10,13 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
-import { useCartStore } from "@/store/useCartStore";
+
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import ImagePlaceholder from "../ImagePlaceholder";
 import Link from "next/link";
 
 export default function CartModal() {
-  const { items, updateCartItemQuantity, removeFromCart, isLoading } =
-    useCartStore();
   const router = useRouter();
 
   const handleCheckout = () => {
@@ -28,11 +26,6 @@ export default function CartModal() {
     }
     router.push("/checkout");
   };
-
-  const total = items.reduce(
-    (acc, item) => acc + item.price * item.quantity,
-    0
-  );
 
   return (
     <Sheet>
