@@ -15,9 +15,20 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import ImagePlaceholder from "../ImagePlaceholder";
 import Link from "next/link";
+import { useCartStore } from "@/store/useCartStore";
+import { useMemo } from "react";
 
 export default function CartModal() {
   const router = useRouter();
+
+  const { items, isLoading, removeFromCart, updateCartItemQuantity } =
+    useCartStore();
+
+  // Calculate the total price of items in the cart
+  const total = useMemo(
+    () => items.reduce((acc, item) => acc + item.price * item.quantity, 0),
+    [items]
+  );
 
   const handleCheckout = () => {
     const trigger = document.getElementById("cart-sheet-trigger");

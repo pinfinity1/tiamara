@@ -3,6 +3,7 @@ import { axiosPublic } from "@/lib/axios";
 import { toast } from "@/hooks/use-toast";
 import { signIn } from "next-auth/react";
 import { protectPhoneAuthAction } from "@/actions/auth";
+import { useCartStore } from "./useCartStore";
 
 type AuthStep =
   | "phone"
@@ -93,6 +94,7 @@ export const useAuthProcessStore = create<AuthState>((set, get) => ({
       set({ isLoading: false });
     } else if (result?.ok) {
       toast({ title: "خوش آمدید!" });
+      await useCartStore.getState().fetchCart();
       onSuccess();
       set({ isLoading: false });
     }

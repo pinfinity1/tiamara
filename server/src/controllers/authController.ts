@@ -68,6 +68,8 @@ export const loginWithOtpController = async (
 ): Promise<void> => {
   try {
     const { phone, otp } = req.body;
+    const { cartId } = req.cookies;
+
     if (!phone || !otp) {
       res
         .status(400)
@@ -89,7 +91,10 @@ export const loginWithOtpController = async (
         data: { phone, role: "USER" },
       });
       isNewUser = true;
+      await prisma.cart.create({ data: { userId: user.id } });
     }
+
+    await mergeGuestCartWithUserCart(user.id, cartId);
 
     const { accessToken, refreshToken } = await generateTokens(
       user.id,
@@ -166,6 +171,8 @@ export const loginWithPasswordController = async (
 ): Promise<void> => {
   try {
     const { phone, password } = req.body;
+    const { cartId } = req.cookies;
+
     const user = await prisma.user.findUnique({
       where: { phone },
     });
@@ -181,11 +188,15 @@ export const loginWithPasswordController = async (
       return;
     }
 
+    await mergeGuestCartWithUserCart(user.id, cartId);
+
     const { accessToken, refreshToken } = await generateTokens(
       user.id,
       user.phone!,
       user.role
     );
+
+    res.clearCookie("cartId");
 
     res.status(200).json({
       success: true,
@@ -369,3 +380,46 @@ export const resetPasswordController = async (
       .json({ success: false, message: "Failed to reset password." });
   }
 };
+
+async function mergeGuestCartWithUserCart(
+  userId: string,
+  guestCartId?: string
+) {
+  if (!guestCartId) return;
+
+  const userCart = await prisma.cart.findUnique({ where: { userId } });
+  const guestCart = await prisma.cart.findUnique({
+    where: { id: guestCartId },
+    include: { items: true },
+  });
+
+  if (!guestCart || !userCart) return;
+
+  for (const guestItem of guestCart.items) {
+    const userItem = await prisma.cartItem.findFirst({
+      where: { cartId: userCart.id, productId: guestItem.productId },
+    });
+
+    if (userItem) {
+      // اگر محصول در سبد کاربر بود، تعداد را جمع می‌زنیم
+      await prisma.cartItem.update({
+        where: { id: userItem.id },
+        data: { quantity: { increment: guestItem.quantity } },
+      });
+    } else {
+      // در غیر این صورت، آیتم را از سبد مهمان به سبد کاربر منتقل می‌کنیم
+      await prisma.cartItem.update({
+        where: { id: guestItem.id },
+        data: { cartId: userCart.id },
+      });
+    }
+  }
+
+  // پس از انتقال آیتم‌ها، سبد خرید مهمان را حذف می‌کنیم
+  try {
+    await prisma.cart.delete({ where: { id: guestCartId } });
+  } catch (e) {
+    // ممکن است آیتمی برای انتقال وجود نداشته باشد و سبد مهمان خود به خود حذف شود
+    console.log("Guest cart was likely empty and already cleaned up.");
+  }
+}

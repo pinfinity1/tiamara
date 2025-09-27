@@ -113,8 +113,10 @@ export default function CheckoutSummary({
     };
 
     const result = await createFinalOrder(orderData);
+
     if (result.success && result.paymentUrl) {
       toast({ title: "در حال انتقال به صفحه پرداخت..." });
+      // این خط کاربر را به درگاه پرداخت منتقل می‌کند
       window.location.href = result.paymentUrl;
     } else {
       toast({

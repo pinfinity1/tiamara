@@ -18,6 +18,7 @@ import GlobalSearch from "../common/search/GlobalSearch";
 import CartModal from "../common/modal/CartModal";
 import SearchModal from "../common/search/SearchModal";
 import { cn } from "@/lib/utils";
+import { useCartStore } from "@/store/useCartStore";
 
 const navItems = [
   {
@@ -49,7 +50,10 @@ function Header({ isPaneView = false }: { isPaneView?: boolean }) {
   }, [session]);
 
   async function handleLogout() {
-    await signOut({ redirect: true, callbackUrl: "/" });
+    await signOut({ redirect: false }); // redirect: false تا خودمان مدیریت کنیم
+    useCartStore.getState().clearLocalCart();
+    router.push("/"); // کاربر را به صفحه اصلی ببر
+    router.refresh();
   }
 
   useEffect(() => {

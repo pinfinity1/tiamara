@@ -3,39 +3,30 @@
 import express from "express";
 import {
   createFinalOrder,
-  getOrdersByUserId,
-  updateOrderStatus,
   getAllOrdersForAdmin,
+  getOrdersByUserId,
   getSingleOrderForAdmin,
   getSingleOrderForUser,
+  updateOrderStatus,
 } from "../controllers/orderController";
 import { authenticateUser, authorizeAdmin } from "../middleware/authMiddleware";
 
 const router = express.Router();
 
-// === Admin Routes (More specific paths to avoid conflicts) ===
-router.get(
-  "/admin/all", // Corrected path
-  authenticateUser,
-  authorizeAdmin,
-  getAllOrdersForAdmin
-);
-router.get(
-  "/admin/single/:orderId", // Corrected path
-  authenticateUser,
-  authorizeAdmin,
-  getSingleOrderForAdmin
-);
-router.put(
-  "/admin/status/:orderId", // Corrected path
-  authenticateUser,
-  authorizeAdmin,
-  updateOrderStatus
-);
+// ===============================================
+// ================ USER ROUTES ==================
+// ===============================================
+router.use(authenticateUser); // تمام روت‌های زیر نیاز به لاگین دارند
 
-// === User Routes ===
-router.post("/create-final-order", authenticateUser, createFinalOrder);
-router.get("/my-orders", authenticateUser, getOrdersByUserId);
-router.get("/:orderId", authenticateUser, getSingleOrderForUser);
+router.post("/create-final-order", createFinalOrder); // <-- این خط اضافه شد
+router.get("/my-orders", getOrdersByUserId);
+router.get("/:orderId", getSingleOrderForUser);
+
+// ===============================================
+// ================ ADMIN ROUTES =================
+// ===============================================
+router.get("/admin/all", authorizeAdmin, getAllOrdersForAdmin);
+router.get("/admin/single/:orderId", authorizeAdmin, getSingleOrderForAdmin);
+router.put("/admin/status/:orderId", authorizeAdmin, updateOrderStatus);
 
 export default router;
