@@ -55,7 +55,7 @@ app.use("/api/suppliers", supplierRoutes);
 app.use("/api/stock-history", stockHistoryRoutes);
 app.use("/api/purchase-orders", purchaseOrderRoutes);
 app.use("/api/wishlist", wishlistRoutes);
-app.use("/api/ai", aiRoutes);
+// app.use("/api/ai", aiRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 

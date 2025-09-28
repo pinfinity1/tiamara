@@ -4,12 +4,15 @@ import { NextResponse } from "next/server";
 const protectedRoutes = ["/account"];
 const superAdminRoutes = ["/super-admin"];
 const authRoutes = ["/auth/login"];
+const chatRoutes = ["/chat"];
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   const isLoggedIn = !!req.auth;
   // @ts-ignore
   const userRole = req.auth?.user?.role;
+
+  const isChatFeatureEnabled = process.env.NEXT_PUBLIC_CHAT_ENABLED === "true";
 
   const isProtectedRoute = protectedRoutes.some((route) =>
     pathname.startsWith(route)
@@ -18,9 +21,14 @@ export default auth((req) => {
     pathname.startsWith(route)
   );
   const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
+  const isChatRoute = chatRoutes.some((route) => pathname.startsWith(route));
 
   if ((isProtectedRoute || isAdminRoute) && !isLoggedIn) {
     return NextResponse.redirect(new URL("/auth/login", req.url));
+  }
+
+  if (isChatRoute && !isChatFeatureEnabled) {
+    return NextResponse.redirect(new URL("/", req.url));
   }
 
   if (isAuthRoute && isLoggedIn) {

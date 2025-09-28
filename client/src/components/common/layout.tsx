@@ -25,12 +25,14 @@ function CommonLayout({ children }: { children: React.ReactNode }) {
     pathName.startsWith(currentPath)
   );
 
+  const showAiFeatures = process.env.NEXT_PUBLIC_CHAT_ENABLED === "true";
+
   const isHalfMode = viewMode === "half";
 
   return (
     <div className="h-screen bg-white flex overflow-hidden">
       <AuthModal />
-      <SkinProfileModal />
+      {showAiFeatures && <SkinProfileModal />}
 
       <div
         className={cn(
@@ -52,19 +54,23 @@ function CommonLayout({ children }: { children: React.ReactNode }) {
         </main>
       </div>
 
-      <div
-        className={cn(
-          "h-full flex-shrink-0 bg-white transition-all duration-300 ease-in-out overflow-hidden flex",
-          isHalfMode ? "w-[30%]" : "w-0"
-        )}
-      >
-        <div className="w-1.5 h-full flex-shrink-0 bg-black/20" />
-        <div className="flex-1">
-          <ChatWidget isPaneView={isHalfMode} />
-        </div>
-      </div>
+      {showAiFeatures && (
+        <>
+          <div
+            className={cn(
+              "h-full flex-shrink-0 bg-white transition-all duration-300 ease-in-out overflow-hidden flex",
+              isHalfMode ? "w-[30%]" : "w-0"
+            )}
+          >
+            <div className="w-1.5 h-full flex-shrink-0 bg-black/20" />
+            <div className="flex-1">
+              <ChatWidget isPaneView={isHalfMode} />
+            </div>
+          </div>
 
-      {!isHalfMode && <ChatWidget />}
+          {!isHalfMode && <ChatWidget />}
+        </>
+      )}
     </div>
   );
 }

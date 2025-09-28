@@ -8,15 +8,20 @@ const BASE_URL = "http://www.tiamara.ir";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
-    const staticRoutes = [
+    const staticRoutesRaw = [
       "/",
       "/products",
       "/about-us",
       "/contact-us",
       "/terms",
       "/privacy",
-      "/chat",
-    ].map((route) => ({
+    ];
+
+    if (process.env.NEXT_PUBLIC_CHAT_ENABLED === "true") {
+      staticRoutesRaw.push("/chat");
+    }
+
+    const staticRoutes = staticRoutesRaw.map((route) => ({
       url: `${BASE_URL}${route}`,
       lastModified: new Date().toISOString(),
       changeFrequency: "weekly" as "weekly",
