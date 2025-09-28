@@ -36,7 +36,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   fetchCart: async () => {
     set({ isLoading: true });
     try {
-      const response = await axiosPublic.get("/cart");
+      const response = await axiosAuth.get("/cart");
       const fetchedItems = response.data.cart.map((item: any) => ({
         id: item.id,
         productId: item.productId,
@@ -56,7 +56,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   addToCart: async (item) => {
     set({ isLoading: true });
     try {
-      await axiosPublic.post("/cart/add", {
+      await axiosAuth.post("/cart/add", {
         productId: item.productId,
         quantity: item.quantity,
       });
@@ -71,7 +71,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   updateCartItemQuantity: async (itemId, quantity) => {
     set({ isLoading: true });
     try {
-      await axiosPublic.put(`/cart/item/${itemId}`, { quantity });
+      await axiosAuth.put(`/cart/item/${itemId}`, { quantity });
       await get().fetchCart();
     } catch (error) {
       toast({ title: "خطا در آپدیت سبد", variant: "destructive" });
@@ -83,7 +83,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   removeFromCart: async (itemId) => {
     set({ isLoading: true });
     try {
-      await axiosPublic.delete(`/cart/item/${itemId}`);
+      await axiosAuth.delete(`/cart/item/${itemId}`);
       await get().fetchCart();
     } catch (error) {
       toast({ title: "خطا در حذف از سبد", variant: "destructive" });
@@ -95,7 +95,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   clearCart: async () => {
     set({ isLoading: true });
     try {
-      await axiosPublic.delete("/cart/clear");
+      await axiosAuth.delete("/cart/clear");
       set({ items: [], isLoading: false });
     } catch (error) {
       toast({ title: "خطا در پاک کردن سبد", variant: "destructive" });

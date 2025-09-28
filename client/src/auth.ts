@@ -2,6 +2,7 @@ import NextAuth, { DefaultSession, User } from "next-auth";
 import { JWT } from "next-auth/jwt";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { axiosPublic } from "./lib/axios";
+import { cookies } from "next/headers";
 
 declare module "next-auth" {
   interface User {
@@ -47,6 +48,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         loginType: { label: "Login Type", type: "text" },
       },
       async authorize(credentials): Promise<User | null> {
+        const cartId = (await cookies()).get("cartId")?.value;
         const { phone, password, otp, loginType } = credentials;
 
         if (!phone) {
@@ -55,18 +57,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         try {
           let response;
+          const cookieHeader = cartId ? { Cookie: `cartId=${cartId}` } : {};
           if (loginType === "password") {
             if (!password) throw new Error("Password is required.");
-            response = await axiosPublic.post(`/auth/login-password`, {
-              phone,
-              password,
-            });
+            response = await axiosPublic.post(
+              `/auth/login-password`,
+              {
+                phone,
+                password,
+              },
+              { headers: cookieHeader }
+            );
           } else if (loginType === "otp") {
             if (!otp) throw new Error("OTP is required.");
-            response = await axiosPublic.post(`/auth/login-otp`, {
-              phone,
-              otp,
-            });
+            response = await axiosPublic.post(
+              `/auth/login-otp`,
+              {
+                phone,
+                otp,
+              },
+              { headers: cookieHeader }
+            );
           } else {
             return null;
           }

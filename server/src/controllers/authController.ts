@@ -102,6 +102,13 @@ export const loginWithOtpController = async (
       user.role
     );
 
+    res.clearCookie("cartId", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+    });
+
     res.status(200).json({
       success: true,
       message: "Login successful",
@@ -196,7 +203,12 @@ export const loginWithPasswordController = async (
       user.role
     );
 
-    res.clearCookie("cartId");
+    res.clearCookie("cartId", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+    });
 
     res.status(200).json({
       success: true,
@@ -228,6 +240,14 @@ export const logoutController = async (
         data: { revoked: true },
       });
     }
+
+    res.clearCookie("cartId", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+    });
+
     res.json({
       success: true,
       message: "User logged out successfully",

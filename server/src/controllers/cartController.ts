@@ -34,18 +34,22 @@ export const getCart = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
     const { cartId } = req.cookies; // cartId از کوکی‌ها خوانده می‌شود
+    console.log(cartId, "cart");
+    console.log(userId, "user");
 
-    const cart = await findOrCreateCart(userId, cartId);
+    if (userId && cartId) {
+      console.log(cartId, "cart");
+      console.log(userId, "user");
 
-    // اگر کاربر مهمان بود و سبد خرید جدیدی برایش ساخته شد، ID آن را در کوکی ذخیره می‌کنیم
-    if (!userId && !cartId) {
-      res.cookie("cartId", cart.id, {
+      res.clearCookie("cartId", {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        path: "/",
       });
     }
+
+    const cart = await findOrCreateCart(userId, cartId);
 
     const cartItems = await prisma.cartItem.findMany({
       where: { cartId: cart.id },

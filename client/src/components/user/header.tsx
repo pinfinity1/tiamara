@@ -50,10 +50,7 @@ function Header({ isPaneView = false }: { isPaneView?: boolean }) {
   }, [session]);
 
   async function handleLogout() {
-    await signOut({ redirect: false }); // redirect: false تا خودمان مدیریت کنیم
-    useCartStore.getState().clearLocalCart();
-    router.push("/"); // کاربر را به صفحه اصلی ببر
-    router.refresh();
+    await signOut({ redirect: true, callbackUrl: "/" });
   }
 
   useEffect(() => {
