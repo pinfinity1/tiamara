@@ -1,22 +1,22 @@
 // server/src/controllers/paymentController.ts
-
 import { Response, Request } from "express";
 import axios from "axios";
 import { prisma } from "../server";
 
-const ZARINPAL_MERCHANT_ID = process.env.ZARINPAL_MERCHANT_ID;
-const ZARINPAL_REQUEST_URL =
-  "https://sandbox.zarinpal.com/pg/rest/WebGate/PaymentRequest.json";
-const ZARINPAL_VERIFY_URL =
-  "https://sandbox.zarinpal.com/pg/rest/WebGate/PaymentVerification.json";
-const ZARINPAL_STARTPAY_URL = "https://sandbox.zarinpal.com/pg/StartPay/";
-
+const ZARINPAL_MERCHANT_ID = process.env.ZARINPAL_MERCHANT_ID!;
+const ZARINPAL_REQUEST_URL = process.env.ZARINPAL_API_REQUEST!;
+const ZARINPAL_VERIFY_URL = process.env.ZARINPAL_API_VERIFY!;
+const ZARINPAL_STARTPAY_URL = process.env.ZARINPAL_GATEWAY_URL!;
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000";
+const SERVER_URL = process.env.SERVER_URL || "http://localhost:3001";
 
+/**
+ * ایجاد درخواست پرداخت
+ */
 export const createPaymentRequest = async (req: Request, res: Response) => {
-  const { orderId, amount } = req.query;
+  const { orderId } = req.query;
 
-  if (!orderId || !amount) {
+  if (!orderId) {
     return res.status(400).send("اطلاعات سفارش ناقص است.");
   }
 
@@ -30,38 +30,53 @@ export const createPaymentRequest = async (req: Request, res: Response) => {
       return res.status(404).send("سفارش یا کاربر یافت نشد.");
     }
 
-    const callbackUrl = `http://localhost:3001/api/payment/callback?orderId=${orderId}`;
+    const callbackUrl = `${SERVER_URL}/api/payment/callback?orderId=${orderId}`;
 
     const response = await axios.post(ZARINPAL_REQUEST_URL, {
-      MerchantID: ZARINPAL_MERCHANT_ID,
-      Amount: Number(amount),
-      CallbackURL: callbackUrl,
-      Description: `سفارش شماره ${order.orderNumber}`,
-      Email: order.user.email,
-      Mobile: order.user.phone,
+      merchant_id: ZARINPAL_MERCHANT_ID,
+      amount: order.total,
+      callback_url: callbackUrl,
+      description: `سفارش شماره ${order.orderNumber}`,
+      metadata: {
+        email: order.user.email,
+        mobile: order.user.phone,
+      },
     });
 
-    if (response.data.Status === 100 && response.data.Authority) {
+    const result = response.data;
+
+    if (result.data && result.data.code === 100) {
       await prisma.order.update({
         where: { id: orderId as string },
-        data: { paymentId: response.data.Authority },
+        data: {
+          paymentAuthority: result.data.authority,
+          paymentStatus: "PENDING",
+        },
       });
-      return res.redirect(`${ZARINPAL_STARTPAY_URL}${response.data.Authority}`);
+
+      return res.redirect(`${ZARINPAL_STARTPAY_URL}${result.data.authority}`);
     } else {
-      // FIX: Redirect to the client URL
+      console.error("Zarinpal Request Failed:", result.errors);
       return res.redirect(
-        `${CLIENT_URL}/payment-result?status=failed&message=Zarinpal_Error_${response.data.Status}`
+        `${CLIENT_URL}/payment-result?status=failed&message=Zarinpal_Error_${
+          result.errors?.[0]?.message || "Unknown"
+        }`
       );
     }
-  } catch (error) {
-    console.error("Zarinpal request error:", error);
-    // FIX: Redirect to the client URL
+  } catch (error: any) {
+    console.error(
+      "Zarinpal request error:",
+      JSON.stringify(error.response?.data || error.message)
+    );
     return res.redirect(
       `${CLIENT_URL}/payment-result?status=failed&message=Server_Connection_Error`
     );
   }
 };
 
+/**
+ * هندل کردن کال‌بک پرداخت
+ */
 export const handlePaymentCallback = async (req: Request, res: Response) => {
   const { orderId, Authority, Status } = req.query;
 
@@ -77,7 +92,7 @@ export const handlePaymentCallback = async (req: Request, res: Response) => {
       include: { items: true },
     });
 
-    if (!order || order.paymentId !== Authority) {
+    if (!order || order.paymentAuthority !== Authority) {
       return res.redirect(
         `${CLIENT_URL}/payment-result?status=failed&message=Order_Mismatch`
       );
@@ -101,45 +116,43 @@ export const handlePaymentCallback = async (req: Request, res: Response) => {
       );
     }
 
+    // Verify Request
     const verificationResponse = await axios.post(ZARINPAL_VERIFY_URL, {
-      MerchantID: ZARINPAL_MERCHANT_ID,
-      Authority,
-      Amount: order.total,
+      merchant_id: ZARINPAL_MERCHANT_ID,
+      authority: Authority,
+      amount: order.total,
     });
 
-    if (
-      verificationResponse.data.Status === 100 ||
-      verificationResponse.data.Status === 101
-    ) {
-      if (order.paymentStatus === "PENDING") {
-        await prisma.$transaction(async (tx) => {
-          await tx.order.update({
-            where: { id: order.id },
-            data: {
-              paymentStatus: "COMPLETED",
-              status: "PROCESSING",
-              paymentId: verificationResponse.data.RefID.toString(),
-            },
-          });
+    const result = verificationResponse.data;
 
-          const cart = await tx.cart.findUnique({
-            where: { userId: order.userId },
-          });
-          if (cart) {
-            await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
-          }
-
-          for (const item of order.items) {
-            await tx.product.update({
-              where: { id: item.productId },
-              data: { stock: { decrement: item.quantity } },
-            });
-          }
+    if (result.data && (result.data.code === 100 || result.data.code === 101)) {
+      await prisma.$transaction(async (tx) => {
+        await tx.order.update({
+          where: { id: order.id },
+          data: {
+            paymentStatus: "COMPLETED",
+            status: "PROCESSING",
+            paymentRefId: result.data.ref_id.toString(),
+          },
         });
-      }
+
+        const cart = await tx.cart.findUnique({
+          where: { userId: order.userId },
+        });
+        if (cart) {
+          await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+        }
+
+        for (const item of order.items) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { decrement: item.quantity } },
+          });
+        }
+      });
 
       return res.redirect(
-        `${CLIENT_URL}/payment-result?status=success&orderId=${order.orderNumber}&refId=${verificationResponse.data.RefID}`
+        `${CLIENT_URL}/payment-result?status=success&orderId=${order.orderNumber}&refId=${result.data.ref_id}`
       );
     } else {
       await prisma.order.update({
@@ -147,11 +160,18 @@ export const handlePaymentCallback = async (req: Request, res: Response) => {
         data: { paymentStatus: "FAILED" },
       });
       return res.redirect(
-        `${CLIENT_URL}/payment-result?status=failed&orderId=${order.orderNumber}&message=Verification_failed`
+        `${CLIENT_URL}/payment-result?status=failed&orderId=${
+          order.orderNumber
+        }&message=Verification_failed_${
+          result.errors?.[0]?.message || "Unknown"
+        }`
       );
     }
-  } catch (error) {
-    console.error("Payment verification error:", error);
+  } catch (error: any) {
+    console.error(
+      "Payment verification error:",
+      JSON.stringify(error.response?.data || error.message)
+    );
     return res.redirect(
       `${CLIENT_URL}/payment-result?status=failed&message=Server_Verification_Error`
     );

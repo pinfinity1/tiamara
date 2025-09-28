@@ -346,9 +346,13 @@ model Order {
   coupon        Coupon?       @relation(fields: [couponId], references: [id])
   total         Float
   status        OrderStatus   @default(PENDING)
+  
   paymentMethod PaymentMethod
   paymentStatus PaymentStatus @default(PENDING)
-  paymentId     String?       @unique
+  paymentAuthority String?      
+  paymentRefId     String?  
+
+
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
