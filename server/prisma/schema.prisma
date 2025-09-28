@@ -278,6 +278,7 @@ model Cart {
   id        String     @id @default(cuid())
   userId    String?    @unique 
   user      User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId  String?    @unique
   items     CartItem[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
@@ -346,7 +347,7 @@ model Order {
   coupon        Coupon?       @relation(fields: [couponId], references: [id])
   total         Float
   status        OrderStatus   @default(PENDING)
-  
+
   paymentMethod PaymentMethod
   paymentStatus PaymentStatus @default(PENDING)
   paymentAuthority String?      
