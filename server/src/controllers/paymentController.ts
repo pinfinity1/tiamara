@@ -34,7 +34,7 @@ export const createPaymentRequest = async (req: Request, res: Response) => {
 
     const response = await axios.post(ZARINPAL_REQUEST_URL, {
       merchant_id: ZARINPAL_MERCHANT_ID,
-      amount: order.total,
+      amount: order.total * 10,
       callback_url: callbackUrl,
       description: `سفارش شماره ${order.orderNumber}`,
       metadata: {
@@ -120,7 +120,7 @@ export const handlePaymentCallback = async (req: Request, res: Response) => {
     const verificationResponse = await axios.post(ZARINPAL_VERIFY_URL, {
       merchant_id: ZARINPAL_MERCHANT_ID,
       authority: Authority,
-      amount: order.total,
+      amount: order.total * 10,
     });
 
     const result = verificationResponse.data;

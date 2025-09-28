@@ -1,8 +1,7 @@
 // client/src/store/useCartStore.ts
 
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
-import axiosAuth, { axiosPublic } from "@/lib/axios";
+import axiosAuth from "@/lib/axios";
 import { toast } from "@/hooks/use-toast";
 
 export interface CartItem {

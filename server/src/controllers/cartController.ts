@@ -34,13 +34,8 @@ export const getCart = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
     const { cartId } = req.cookies; // cartId از کوکی‌ها خوانده می‌شود
-    console.log(cartId, "cart");
-    console.log(userId, "user");
 
     if (userId && cartId) {
-      console.log(cartId, "cart");
-      console.log(userId, "user");
-
       res.clearCookie("cartId", {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",

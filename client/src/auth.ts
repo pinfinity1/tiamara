@@ -113,8 +113,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async jwt({ token, user, account }) {
       if (account && user) {
+        console.log("✅ Login response user:", user);
+
         token.accessToken = user.accessToken;
         token.refreshToken = user.refreshToken;
+
+        console.log("✅ Stored RefreshToken in JWT:", token.refreshToken);
+
         token.accessTokenExpires = Date.now() + 15 * 60 * 1000;
         token.id = user.id;
         token.role = user.role;
@@ -127,10 +132,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return token;
       }
 
+      console.log("♻️ Refreshing token with:", token.refreshToken);
+
       try {
         const response = await axiosPublic.post("/auth/refresh-token", {
           token: token.refreshToken,
         });
+        console.log("✅ Refresh response:", response.data);
 
         const { accessToken, refreshToken: newRefreshToken } = response.data;
 

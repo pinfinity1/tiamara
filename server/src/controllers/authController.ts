@@ -262,8 +262,13 @@ export const refreshTokenController = async (
   req: Request,
   res: Response
 ): Promise<void> => {
+  console.log("📥 Refresh request body:", req.body);
+
   const { token } = req.body;
   if (!token) {
+    res.clearCookie("next-auth.session-token");
+    res.clearCookie("next-auth.csrf-token");
+    res.clearCookie("next-auth.callback-url");
     res
       .status(401)
       .json({ success: false, message: "Refresh token is required." });
@@ -275,7 +280,12 @@ export const refreshTokenController = async (
       where: { token, revoked: false },
     });
 
+    console.log("🔍 Found in DB:", storedToken);
+
     if (!storedToken || storedToken.expires < new Date()) {
+      res.clearCookie("next-auth.session-token");
+      res.clearCookie("next-auth.csrf-token");
+      res.clearCookie("next-auth.callback-url");
       res
         .status(401)
         .json({ success: false, message: "Invalid or expired refresh token." });
@@ -289,6 +299,9 @@ export const refreshTokenController = async (
       where: { id: payload.userId as string },
     });
     if (!user) {
+      res.clearCookie("next-auth.session-token");
+      res.clearCookie("next-auth.csrf-token");
+      res.clearCookie("next-auth.callback-url");
       res.status(404).json({ success: false, message: "User not found." });
       return;
     }
@@ -308,6 +321,9 @@ export const refreshTokenController = async (
       .status(200)
       .json({ success: true, accessToken, refreshToken: newRefreshToken });
   } catch (error) {
+    res.clearCookie("next-auth.session-token");
+    res.clearCookie("next-auth.csrf-token");
+    res.clearCookie("next-auth.callback-url");
     res.status(401).json({ success: false, message: "Invalid refresh token." });
   }
 };
