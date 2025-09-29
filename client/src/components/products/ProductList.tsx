@@ -1,8 +1,6 @@
-// client/src/components/products/ProductList.tsx
-
 "use client";
 
-import { useEffect, useState, useTransition, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useShallow } from "zustand/react/shallow";
 import { Button } from "../ui/button";
@@ -47,25 +45,32 @@ export default function ProductList({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
 
-  // Initialize filter state from URL search parameters
+  const loadingTimer = useRef<NodeJS.Timeout | null>(null);
+
+  const roundPrice = (price: number, direction: "up" | "down" = "down") => {
+    if (direction === "up") return Math.ceil(price / 10000) * 10000;
+    return Math.floor(price / 10000) * 10000;
+  };
+
   const getInitialFilterState = useCallback((): FilterState => {
     const getArrayFromParams = (param: string) => {
       const value = searchParams.get(param);
       return value ? value.split(",") : [];
     };
+    const minPriceDefault = filters
+      ? roundPrice(filters.priceRange.min, "down")
+      : 0;
+    const maxPriceDefault = filters
+      ? roundPrice(filters.priceRange.max, "up")
+      : 1000000;
     return {
       categories: getArrayFromParams("categories"),
       brands: getArrayFromParams("brands"),
       skin_types: getArrayFromParams("skin_types"),
       concerns: getArrayFromParams("concerns"),
-      minPrice:
-        Number(searchParams.get("minPrice")) || filters?.priceRange.min || 0,
-      maxPrice:
-        Number(searchParams.get("maxPrice")) ||
-        filters?.priceRange.max ||
-        1000000,
+      minPrice: Number(searchParams.get("minPrice")) || minPriceDefault,
+      maxPrice: Number(searchParams.get("maxPrice")) || maxPriceDefault,
     };
   }, [searchParams, filters]);
 
@@ -75,12 +80,23 @@ export default function ProductList({
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
   useEffect(() => {
+    if (loadingTimer.current) {
+      clearTimeout(loadingTimer.current);
+    }
+
     useProductStore.setState({
       products: initialProducts,
       totalPages: initialTotalPages,
+      totalProducts: initialTotalProducts,
       isLoading: false,
     });
-  }, [initialProducts, initialTotalPages]);
+
+    return () => {
+      if (loadingTimer.current) {
+        clearTimeout(loadingTimer.current);
+      }
+    };
+  }, [initialProducts, initialTotalPages, initialTotalProducts]);
 
   const { products, totalPages, isLoading } = useProductStore(
     useShallow((state) => ({
@@ -90,10 +106,18 @@ export default function ProductList({
     }))
   );
 
-  // Function to update URL based on filter state
   const updateUrl = (currentState: FilterState, page?: number) => {
-    const params = new URLSearchParams(searchParams.toString());
+    // ✅ قبل از شروع تایمر جدید، تایمر قبلی را پاک کن
+    if (loadingTimer.current) {
+      clearTimeout(loadingTimer.current);
+    }
 
+    // ✅ تایمر را برای نمایش اسکلتون با تاخیر یک ثانیه‌ای تنظیم کن
+    loadingTimer.current = setTimeout(() => {
+      useProductStore.setState({ isLoading: true });
+    }, 1000); // 1000 میلی‌ثانیه = 1 ثانیه
+
+    const params = new URLSearchParams(searchParams.toString());
     const setParam = (key: string, value: string[]) => {
       if (value.length > 0) params.set(key, value.join(","));
       else params.delete(key);
@@ -104,13 +128,19 @@ export default function ProductList({
     setParam("skin_types", currentState.skin_types);
     setParam("concerns", currentState.concerns);
 
-    if (filters && currentState.minPrice > filters.priceRange.min) {
+    if (
+      filters &&
+      currentState.minPrice > roundPrice(filters.priceRange.min, "down")
+    ) {
       params.set("minPrice", String(currentState.minPrice));
     } else {
       params.delete("minPrice");
     }
 
-    if (filters && currentState.maxPrice < filters.priceRange.max) {
+    if (
+      filters &&
+      currentState.maxPrice < roundPrice(filters.priceRange.max, "up")
+    ) {
       params.set("maxPrice", String(currentState.maxPrice));
     } else {
       params.delete("maxPrice");
@@ -122,9 +152,21 @@ export default function ProductList({
       params.delete("page");
     }
 
-    startTransition(() => {
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-    });
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  const handleClearFilters = () => {
+    if (!filters) return;
+    const clearedState: FilterState = {
+      categories: [],
+      brands: [],
+      skin_types: [],
+      concerns: [],
+      minPrice: roundPrice(filters.priceRange.min, "down"),
+      maxPrice: roundPrice(filters.priceRange.max, "up"),
+    };
+    setFilterState(clearedState);
+    updateUrl(clearedState);
   };
 
   const handleDesktopFilterChange = (newState: FilterState) => {
@@ -138,18 +180,7 @@ export default function ProductList({
   };
 
   const handleMobileClearFilters = () => {
-    if (filters) {
-      const clearedState = {
-        categories: [],
-        brands: [],
-        skin_types: [],
-        concerns: [],
-        minPrice: filters.priceRange.min,
-        maxPrice: filters.priceRange.max,
-      };
-      setFilterState(clearedState);
-      updateUrl(clearedState);
-    }
+    handleClearFilters();
     setIsMobileFilterOpen(false);
   };
 
@@ -158,6 +189,13 @@ export default function ProductList({
   };
 
   const handleSortChange = (value: string) => {
+    if (loadingTimer.current) {
+      clearTimeout(loadingTimer.current);
+    }
+    loadingTimer.current = setTimeout(() => {
+      useProductStore.setState({ isLoading: true });
+    }, 1000);
+
     const [sortField, sortOrder] = value.split("-");
     const params = new URLSearchParams(searchParams.toString());
     params.set("sortBy", sortField);
@@ -174,13 +212,14 @@ export default function ProductList({
   return (
     <div className="min-h-screen bg-white">
       <div className="container mx-auto px-4 py-8">
+        {/* ... (بخش هدر کامپوننت بدون تغییر) ... */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-3">
             {!hideFilters && (
               <h2 className="text-2xl font-semibold">همه محصولات</h2>
             )}
             <p className="text-gray-500 text-sm">
-              {initialTotalProducts} محصول یافت شد
+              {initialTotalProducts.toLocaleString("fa-IR")} محصول یافت شد
             </p>
           </div>
           <div className="flex items-center justify-between md:justify-normal gap-4">
@@ -201,22 +240,11 @@ export default function ProductList({
                 <div className="flex-1 overflow-y-auto -mx-6 px-6">
                   {filters && (
                     <ProductFilters
-                      isModalView={true} // به کامپوننت اطلاع می‌دهیم که در حالت مودال است
+                      isModalView={true}
                       filters={filters}
                       initialState={filterState}
                       onFilterChange={setFilterState}
-                      onClear={() => {
-                        if (filters) {
-                          setFilterState({
-                            categories: [],
-                            brands: [],
-                            skin_types: [],
-                            concerns: [],
-                            minPrice: filters.priceRange.min,
-                            maxPrice: filters.priceRange.max,
-                          });
-                        }
-                      }}
+                      onClear={handleMobileClearFilters}
                       activeCategoryName={activeCategoryName}
                     />
                   )}
@@ -246,18 +274,13 @@ export default function ProductList({
 
         <div className="flex gap-8">
           {!hideFilters && (
-            <aside className="hidden lg:block w-64 flex-shrink-0 sticky top-3 self-start">
+            <aside className="hidden lg:block w-64 flex-shrink-0 sticky top-24 self-start">
               {filters && (
                 <ProductFilters
                   filters={filters}
                   initialState={filterState}
                   onFilterChange={handleDesktopFilterChange}
-                  onClear={() => {
-                    const params = new URLSearchParams();
-                    router.replace(`${pathname}?${params.toString()}`, {
-                      scroll: false,
-                    });
-                  }}
+                  onClear={handleClearFilters}
                   activeCategoryName={activeCategoryName}
                 />
               )}
@@ -266,21 +289,21 @@ export default function ProductList({
 
           <main className="flex-1">
             {isLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {Array.from({ length: 6 }).map((_, i) => (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {Array.from({ length: 9 }).map((_, i) => (
                   <ProductCardSkeleton key={i} />
                 ))}
               </div>
             ) : products.length === 0 ? (
-              <p>محصولی یافت نشد.</p>
+              <div className="text-center py-10">
+                <p>محصولی با این فیلترها یافت نشد.</p>
+              </div>
             ) : (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {products.map((product) => (
-                    <ProductCard key={product.id} product={product} />
-                  ))}
-                </div>
-              </>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {products.map((product) => (
+                  <ProductCard key={product.id} product={product} />
+                ))}
+              </div>
             )}
             <Pagination
               currentPage={currentPage}

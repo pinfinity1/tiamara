@@ -4,6 +4,38 @@ import { Product } from "@/store/useProductStore";
 import { Brand } from "@/store/useBrandStore";
 import { Category } from "@/store/useCategoryStore";
 
+export async function getBannersByGroup(
+  group: string
+): Promise<FeatureBanner[]> {
+  try {
+    const response = await axiosPublic.get(`/homepage/banners?group=${group}`);
+    return response.data.banners || [];
+  } catch (error) {
+    console.error(`Failed to fetch banners for group "${group}":`, error);
+    return [];
+  }
+}
+
+/**
+ * تابعی عمومی برای گرفتن سکشن‌های محصولات بر اساس موقعیت
+ */
+export async function getCollectionsByLocation(
+  location: string
+): Promise<ProductCollection[]> {
+  try {
+    const response = await axiosPublic.get(
+      `/homepage/collections?location=${location}`
+    );
+    return response.data.collections || [];
+  } catch (error) {
+    console.error(
+      `Failed to fetch collections for location "${location}":`,
+      error
+    );
+    return [];
+  }
+}
+
 // Explicitly define the return type for the function
 export async function getHomepageData(): Promise<{
   banners: FeatureBanner[];

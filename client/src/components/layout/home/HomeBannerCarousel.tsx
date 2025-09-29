@@ -1,41 +1,30 @@
 "use client";
 
-import React, { useEffect } from "react";
-import { useHomepageStore } from "@/store/useHomepageStore";
+import React from "react";
+import { FeatureBanner, useHomepageStore } from "@/store/useHomepageStore";
 import Image from "next/image";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BaseCarousel } from "@/components/user/BaseCarousel";
 
 interface HomeBannerCarouselProps {
-  group: string;
+  banners: FeatureBanner[];
 }
 
-const HomeBannerCarousel: React.FC<HomeBannerCarouselProps> = ({ group }) => {
-  const { clientBanners, isLoading, fetchBannersForClient, trackClick } =
-    useHomepageStore();
-
-  useEffect(() => {
-    if (group) {
-      fetchBannersForClient(group);
-    }
-  }, [group, fetchBannersForClient]);
+const HomeBannerCarousel: React.FC<HomeBannerCarouselProps> = ({ banners }) => {
+  const { trackClick } = useHomepageStore();
 
   const handleBannerClick = (bannerId: string) => {
     trackClick(bannerId);
   };
 
-  if (isLoading) {
+  if (!banners || banners.length === 0) {
     return <Skeleton className="w-full h-[280px] lg:h-[420px] rounded-lg" />;
-  }
-
-  if (!clientBanners || clientBanners.length === 0) {
-    return null;
   }
 
   return (
     <BaseCarousel>
-      {clientBanners.map((banner, index) => (
+      {banners.map((banner, index) => (
         <Link
           key={banner.id}
           href={banner.linkUrl || "#"}
