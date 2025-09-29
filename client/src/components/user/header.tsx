@@ -19,6 +19,7 @@ import CartModal from "../common/modal/CartModal";
 import SearchModal from "../common/search/SearchModal";
 import { cn } from "@/lib/utils";
 import { useCartStore } from "@/store/useCartStore";
+import { Session } from "next-auth";
 
 const navItems = [
   {
@@ -31,23 +32,35 @@ const navItems = [
   },
 ];
 
-function Header({ isPaneView = false }: { isPaneView?: boolean }) {
-  const { data: session, status } = useSession();
-  const isAuthenticated = status === "authenticated";
-  const isLoading = status === "loading";
+interface HeaderProps {
+  session: Session | null;
+  isPaneView?: boolean;
+}
+
+function Header({ session: initialSession, isPaneView }: HeaderProps) {
+  const router = useRouter();
+  const { data: clientSession, status: clientStatus } = useSession();
+
+  // ✅ منطق جدید برای جلوگیری از چشمک زدن
+  // برای رندر اولیه، به پراپی که از سرور آمده اعتماد می‌کنیم
+  // برای آپدیت‌های بعدی (مثل لاگین/لاگ‌اوت)، از هوک کلاینت استفاده می‌کنیم
+  const session = clientSession ?? initialSession;
+  const status = session ? "authenticated" : "unauthenticated";
+
+  // حالت لودینگ فقط زمانی نمایش داده می‌شود که هیچ سشنی از سرور نیامده باشد
+  // و کلاینت در حال بررسی وضعیت باشد (این حالت در بارگذاری اولیه رخ نمی‌دهد)
+  const isLoading = clientStatus === "loading" && !initialSession;
 
   const [showCategories, setShowCategories] = useState(true);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isDesktopSearchFocused, setIsDesktopSearchFocused] = useState(false);
 
-  const router = useRouter();
-
   useEffect(() => {
     // @ts-ignore
-    if (session?.error === "RefreshAccessTokenError") {
+    if (clientSession?.error === "RefreshAccessTokenError") {
       signOut({ callbackUrl: "/" });
     }
-  }, [session]);
+  }, [clientSession]);
 
   async function handleLogout() {
     await signOut({ redirect: true, callbackUrl: "/" });
@@ -149,7 +162,7 @@ function Header({ isPaneView = false }: { isPaneView?: boolean }) {
               </div>
               <div className="flex items-center gap-2">
                 <CartModal />
-                {isAuthenticated ? (
+                {status === "authenticated" ? (
                   <>
                     <DropdownMenu modal={false}>
                       <DropdownMenuTrigger

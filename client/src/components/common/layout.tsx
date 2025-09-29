@@ -8,12 +8,19 @@ import ChatWidget from "../ai/ChatWidget";
 import { useChatStore } from "@/store/useChatStore";
 import { cn } from "@/lib/utils";
 import Footer from "./Footer";
+import { Session } from "next-auth";
 
 const pathsNotToShowHeaders = ["/auth", "/super-admin", "/chat"];
 
 const pathsNotToShowLayout = ["/auth", "/super-admin", "/chat"];
 
-function CommonLayout({ children }: { children: React.ReactNode }) {
+function CommonLayout({
+  children,
+  session,
+}: {
+  children: React.ReactNode;
+  session: Session | null;
+}) {
   const pathName = usePathname();
   const { viewMode } = useChatStore();
 
@@ -40,7 +47,7 @@ function CommonLayout({ children }: { children: React.ReactNode }) {
           isHalfMode ? "w-[70%]" : "w-full"
         )}
       >
-        {showHeader && <Header isPaneView={isHalfMode} />}
+        {showHeader && <Header session={session} isPaneView={isHalfMode} />}
         <main
           id="main-content"
           className={cn(
