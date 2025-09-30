@@ -35,7 +35,8 @@ export const checkPhoneAndSendOtpController = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { phone } = req.body;
+    // *** تغییر کلیدی ۱: دریافت forceOtp از body ***
+    const { phone, forceOtp } = req.body;
     if (!phone) {
       res
         .status(400)
@@ -44,16 +45,30 @@ export const checkPhoneAndSendOtpController = async (
     }
 
     const user = await prisma.user.findUnique({ where: { phone } });
-    const otp = await generateAndSaveOtp(phone);
 
-    console.log(`\n\n✅ test OTP for ${phone}: ${otp}\n\n`);
-
-    res.status(200).json({
-      success: true,
-      message: "OTP sent successfully.",
-      userExists: !!user,
-      hasPassword: !!user?.password,
-    });
+    // *** تغییر کلیدی ۲: شرط جدید برای ارسال OTP ***
+    // OTP ارسال می‌شود اگر: ۱. درخواست اجباری باشد ۲. کاربر جدید باشد ۳. کاربر رمز عبور نداشته باشد
+    if (forceOtp || !user || !user.password) {
+      const otp = await generateAndSaveOtp(phone);
+      console.log(
+        `\n\n✅ OTP for ${phone}: ${otp} (Forced or New/No-Pass User)\n\n`
+      );
+      res.status(200).json({
+        success: true,
+        message: "OTP sent successfully.",
+        userExists: !!user,
+        hasPassword: !!user?.password,
+      });
+    } else {
+      // جریان استاندارد برای کاربری که رمز عبور دارد
+      console.log(`\n\n▶️ Password login flow for ${phone}\n\n`);
+      res.status(200).json({
+        success: true,
+        message: "User has a password. Proceed to password entry.",
+        userExists: true,
+        hasPassword: true,
+      });
+    }
   } catch (error) {
     console.error("Error in checkPhoneAndSendOtpController:", error);
     res
@@ -61,6 +76,9 @@ export const checkPhoneAndSendOtpController = async (
       .json({ success: false, message: "Failed to process request" });
   }
 };
+
+// ... (بقیه توابع کنترلر بدون تغییر باقی می‌مانند)
+// loginWithOtpController, setPasswordController, loginWithPasswordController, etc.
 
 export const loginWithOtpController = async (
   req: Request,

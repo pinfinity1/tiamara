@@ -1,16 +1,19 @@
 import { create } from "zustand";
 import { axiosPublic } from "@/lib/axios";
+import axiosAuth from "@/lib/axios"; // axiosAuth برای ارسال‌های نیازمند توکن
 import { toast } from "@/hooks/use-toast";
-import { signIn } from "next-auth/react";
+import { signIn, getSession, signOut } from "next-auth/react";
 import { protectPhoneAuthAction } from "@/actions/auth";
 import { useCartStore } from "./useCartStore";
 
+// یک مرحله جدید برای اجبار به تعیین رمز عبور اضافه می‌شود
 type AuthStep =
   | "phone"
   | "password"
   | "otp"
   | "forgot-password-phone"
-  | "forgot-password-reset";
+  | "forgot-password-reset"
+  | "force-password-setup"; // <-- مرحله جدید
 
 interface AuthState {
   step: AuthStep;
@@ -19,7 +22,7 @@ interface AuthState {
   userHasPassword: boolean;
   setStep: (step: AuthStep) => void;
   setPhone: (phone: string) => void;
-  checkPhone: (phone: string) => Promise<void>;
+  checkPhone: (phone: string, forceOtp?: boolean) => Promise<void>;
   finalLogin: (
     loginType: "password" | "otp",
     data: { password?: string; otp?: string },
@@ -27,6 +30,11 @@ interface AuthState {
   ) => Promise<void>;
   requestPasswordReset: () => Promise<void>;
   resetPassword: (otp: string, password: string) => Promise<boolean>;
+  // تابع جدید برای تنظیم رمز عبور اجباری
+  setPasswordAndFinalize: (
+    password: string,
+    onSuccess: () => void
+  ) => Promise<void>;
 }
 
 export const useAuthProcessStore = create<AuthState>((set, get) => ({
@@ -37,7 +45,7 @@ export const useAuthProcessStore = create<AuthState>((set, get) => ({
   setStep: (step) => set({ step }),
   setPhone: (phone) => set({ phone }),
 
-  checkPhone: async (phone) => {
+  checkPhone: async (phone, forceOtp = false) => {
     set({ isLoading: true, phone });
     try {
       const protection = await protectPhoneAuthAction(phone);
@@ -50,14 +58,27 @@ export const useAuthProcessStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      const response = await axiosPublic.post(`/auth/check-phone`, { phone });
+      const response = await axiosPublic.post(`/auth/check-phone`, {
+        phone,
+        forceOtp,
+      });
       if (response.data.success) {
-        set({
-          userHasPassword: response.data.hasPassword,
-          step: response.data.hasPassword ? "password" : "otp",
-        });
-        if (!response.data.hasPassword || response.data.userExists === false) {
+        const { hasPassword } = response.data;
+
+        // *** تغییر کلیدی ۳: منطق جدید برای مدیریت step ***
+        if (forceOtp) {
+          // اگر ارسال OTP اجباری بود، همیشه به صفحه OTP برو
+          set({ userHasPassword: hasPassword, step: "otp" });
           toast({ title: "کد یکبار مصرف با موفقیت ارسال شد." });
+        } else {
+          // در غیر این صورت، از منطق قبلی استفاده کن
+          set({
+            userHasPassword: hasPassword,
+            step: hasPassword ? "password" : "otp",
+          });
+          if (!hasPassword) {
+            toast({ title: "کد یکبار مصرف با موفقیت ارسال شد." });
+          }
         }
       }
     } catch (error: any) {
@@ -76,7 +97,6 @@ export const useAuthProcessStore = create<AuthState>((set, get) => ({
     set({ isLoading: true });
     const phone = get().phone;
 
-    // 1. Attempt to sign in
     const result = await signIn("credentials", {
       redirect: false,
       phone,
@@ -93,9 +113,42 @@ export const useAuthProcessStore = create<AuthState>((set, get) => ({
       });
       set({ isLoading: false });
     } else if (result?.ok) {
-      toast({ title: "خوش آمدید!" });
+      // بعد از ورود موفق، سشن را بررسی می‌کنیم
+      const session = await getSession();
+      // @ts-ignore
+      if (session?.user?.requiresPasswordSetup) {
+        // اگر نیاز به تنظیم رمز بود، به مرحله مربوطه می‌رویم
+        set({ step: "force-password-setup", isLoading: false });
+      } else {
+        // در غیر این صورت، ورود کامل انجام می‌شود
+        toast({ title: "خوش آمدید!" });
+        await useCartStore.getState().fetchCart();
+        onSuccess();
+        set({ isLoading: false });
+      }
+    }
+  },
+
+  // تابع جدید برای تنظیم رمز عبور و نهایی کردن ورود
+  setPasswordAndFinalize: async (password, onSuccess) => {
+    set({ isLoading: true });
+    try {
+      // این درخواست با توکن موقت کاربر ارسال می‌شود
+      await axiosAuth.post("/auth/set-password", { password });
+
+      // پس از تنظیم رمز، سشن را آپدیت می‌کنیم تا فلگ requiresPasswordSetup حذف شود
+      await getSession({ broadcast: true });
+
+      toast({ title: "رمز عبور با موفقیت تنظیم شد. خوش آمدید!" });
       await useCartStore.getState().fetchCart();
-      onSuccess();
+      onSuccess(); // اجرای کامل ورود
+    } catch (error: any) {
+      toast({
+        title: "خطا",
+        description: error.response?.data?.message || "خطا در تنظیم رمز عبور.",
+        variant: "destructive",
+      });
+    } finally {
       set({ isLoading: false });
     }
   },

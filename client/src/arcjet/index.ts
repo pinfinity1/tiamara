@@ -8,21 +8,21 @@ import arcjet, {
   validateEmail,
 } from "@arcjet/next";
 
-// ++ ADDED: A new rule specifically for phone-based authentication rate limiting
+// ++ UPDATED: Rate limiting rules for phone-based authentication are now more lenient
 export const protectPhoneAuth = arcjet({
   key: process.env.ARCJET_KEY!,
   rules: [
-    // Limit requests to 5 per 10 minutes from a single IP address
+    // Allow up to 10 requests per 10 minutes from a single IP address
     fixedWindow({
       mode: "LIVE",
       window: "10m",
-      max: 5,
+      max: 15, // Increased from 5
     }),
-    // Additionally, limit requests for a specific phone number to 3 per 5 minutes
+    // Additionally, allow up to 5 requests for a specific phone number per 10 minutes
     fixedWindow({
       mode: "LIVE",
-      window: "5m",
-      max: 3,
+      window: "10m", // Increased from 5m
+      max: 10, // Increased from 3
       // Use the phone number as the identifier for rate limiting
       characteristics: ["phone"],
     }),

@@ -291,7 +291,7 @@ function Header({
                       <User className="size-5" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="text-right">
+                  <DropdownMenuContent align="start" className="text-right">
                     {session?.user?.role === "SUPER_ADMIN" && (
                       <DropdownMenuItem
                         onClick={() => router.push("/super-admin")}
