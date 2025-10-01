@@ -1,7 +1,29 @@
 import Link from "next/link";
 import Image from "next/image";
 import { fetchAllBrands } from "@/lib/data-fetching"; // تابع دریافت دیتا از سرور
-import { Brand } from "@/store/useBrandStore"; // وارد کردن تایپ برند
+import { Brand } from "@/store/useBrandStore";
+import { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "همه برندها",
+  description:
+    "مجموعه‌ای کامل از بهترین و معتبرترین برندهای زیبایی و مراقبت از پوست جهان، گردآوری شده در فروشگاه تیامارا.",
+  openGraph: {
+    title: "کشف برندهای برتر در تیامارا",
+    description: "بهترین برندهای آرایشی و بهداشتی را در تیامارا پیدا کنید.",
+    images: [
+      {
+        url: "/images/brand-banner.png",
+        width: 1200,
+        height: 630,
+        alt: "برندهای تیامارا",
+      },
+    ],
+  },
+  alternates: {
+    canonical: "/brands",
+  },
+};
 
 const BrandsPage = async () => {
   const brands: Brand[] = await fetchAllBrands();
@@ -12,11 +34,11 @@ const BrandsPage = async () => {
       <div className="relative bg-gray-100 rounded-2xl p-8 md:p-12 mb-10 overflow-hidden text-center">
         <div className="absolute inset-0">
           <Image
-            src="/images/brand-banner.jpg" // مسیر بنر جدید شما
-            alt="Tiamara Brands"
-            layout="fill"
-            objectFit="cover"
-            className="opacity-20"
+            src="/images/abstract-design-1.png"
+            alt="Tiamara Categories"
+            width={750}
+            height={200}
+            className="m-auto opacity-20 object-fit"
           />
         </div>
         <div className="relative z-10">
@@ -36,11 +58,12 @@ const BrandsPage = async () => {
         {brands.map((brand) => (
           <Link href={`/brands/${brand.slug}`} key={brand.id} legacyBehavior>
             <a className="group flex flex-col items-center text-center gap-3 p-4 rounded-xl transition-all duration-300 hover:bg-gray-100 hover:shadow-lg">
-              <div className="relative h-24 w-24 rounded-full overflow-hidden border-2 border-transparent group-hover:border-primary group-hover:scale-105 transition-transform">
+              <div className="relative h-16 w-16 rounded-full overflow-hidden transition-transform duration-300 group-hover:scale-[102%]">
                 <Image
                   src={brand.logoUrl || "/images/placeholder.png"}
                   alt={brand.name}
                   layout="fill"
+                  className="w-[50%] h-[50%]"
                   objectFit="cover"
                 />
               </div>

@@ -122,8 +122,8 @@ export async function getCategoryBySlug(
 export async function fetchAllBrands(): Promise<Brand[]> {
   try {
     const response = await axiosPublic.get("/brands");
-    // بر اساس ساختار API شما، ممکن است نیاز باشد response.data.brands را برگردانید
-    return response.data.categories || [];
+    // The following line should return response.data.brands
+    return response.data.brands || [];
   } catch (error) {
     console.error("Failed to fetch all brands:", error);
     return [];
@@ -134,7 +134,7 @@ export async function fetchAllCategories(): Promise<Category[]> {
   try {
     const response = await axiosPublic.get("/categories");
 
-    return response.data.brands || [];
+    return response.data.categories || [];
   } catch (error) {
     console.error("Failed to fetch all categories:", error);
     return [];

@@ -7,6 +7,7 @@ import NextAuthProvider from "@/components/common/NextAuthProvider";
 import { auth } from "@/auth";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("http://www.tiamara.ir"),
   title: {
     template: "%s | تیامارا",
     default: "تیامارا | لوازم آرایشی و بهداشتی اورجینال",
