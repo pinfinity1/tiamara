@@ -38,13 +38,15 @@ const AddressCard = ({
     }`}
   >
     <p className="font-semibold">
-      {address.name}{" "}
+      {/* 1. Changed address.name to address.recipientName */}
+      {address.recipientName}{" "}
       {address.isDefault && (
         <span className="text-xs text-primary">(پیش‌فرض)</span>
       )}
     </p>
     <p className="text-sm text-gray-600 mt-1">
-      {address.address}, {address.city}
+      {/* 2. Changed address.address to address.fullAddress */}
+      {address.fullAddress}, {address.city}
     </p>
     <p className="text-sm text-gray-600 mt-1">
       کدپستی: {address.postalCode} | تلفن: {address.phone}
@@ -55,22 +57,11 @@ const AddressCard = ({
 export default function CheckoutView() {
   const router = useRouter();
   const { toast } = useToast();
-  const { items: cartItems, clearCart } = useCartStore();
-  const { addresses, fetchAddresses } = useAddressStore();
-  const userProfile = useUserStore((state) => state.userProfile);
-  const { createFinalOrder, isPaymentProcessing } = useOrderStore();
+  const { addresses, fetchAddresses, setDefaultAddress } = useAddressStore(); // Added setDefaultAddress
 
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(
     null
   );
-  const [couponCode, setCouponCode] = useState("");
-  const [appliedCoupon, setAppliedCoupon] = useState<{
-    code: string;
-    discountPercent: number;
-    id: string;
-  } | null>(null);
-  const [couponError, setCouponError] = useState<string | null>(null);
-  const [isCouponLoading, setIsCouponLoading] = useState(false);
 
   useEffect(() => {
     fetchAddresses();
@@ -85,23 +76,12 @@ export default function CheckoutView() {
     }
   }, [addresses]);
 
-  const cartTotal = useMemo(
-    () => cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0),
-    [cartItems]
-  );
-  const finalTotal = useMemo(() => {
-    if (appliedCoupon) {
-      const discountAmount = cartTotal * (appliedCoupon.discountPercent / 100);
-      return cartTotal - discountAmount;
-    }
-    return cartTotal;
-  }, [cartTotal, appliedCoupon]);
-
-  const handleApplyCoupon = async () => {
-    /* ... (code from previous step) ... */
-  };
-  const handlePlaceOrder = async () => {
-    /* ... (code from previous step) ... */
+  // When a user selects a different address, we should update the default in the store
+  const handleSelectAddress = (addressId: string) => {
+    setSelectedAddressId(addressId);
+    // This assumes you want the selected address to become the default for the final review page.
+    // If not, you can remove this line.
+    setDefaultAddress(addressId);
   };
 
   return (
@@ -118,7 +98,7 @@ export default function CheckoutView() {
             key={addr.id}
             address={addr}
             isSelected={selectedAddressId === addr.id}
-            onSelect={() => setSelectedAddressId(addr.id)}
+            onSelect={() => handleSelectAddress(addr.id)}
           />
         ))}
         <Button

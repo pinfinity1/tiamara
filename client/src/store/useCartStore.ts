@@ -53,52 +53,86 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 
   addToCart: async (item) => {
-    set({ isLoading: true });
+    const existingItem = get().items.find(
+      (i) => i.productId === item.productId
+    );
+
+    if (existingItem) {
+      // If item already exists, just update the quantity
+      get().updateCartItemQuantity(existingItem.id, existingItem.quantity + 1);
+      return;
+    }
+
+    // Optimistically add the new item
+    const tempId = `temp-${Date.now()}`;
+    const newItem = { ...item, id: tempId };
+    set((state) => ({ items: [...state.items, newItem] }));
+
     try {
       await axiosAuth.post("/cart/add", {
         productId: item.productId,
         quantity: item.quantity,
       });
+      // Re-fetch to get the real ID and confirm
       await get().fetchCart();
     } catch (error) {
       toast({ title: "خطا در افزودن به سبد", variant: "destructive" });
-    } finally {
-      set({ isLoading: false });
+      // Revert on error
+      set((state) => ({
+        items: state.items.filter((i) => i.id !== tempId),
+      }));
     }
   },
 
   updateCartItemQuantity: async (itemId, quantity) => {
-    set({ isLoading: true });
+    const originalItems = get().items;
+    const itemToUpdate = originalItems.find((item) => item.id === itemId);
+
+    if (!itemToUpdate || quantity < 1 || quantity > itemToUpdate.stock) {
+      return;
+    }
+
+    // Optimistic update
+    const newItems = originalItems.map((item) =>
+      item.id === itemId ? { ...item, quantity } : item
+    );
+    set({ items: newItems });
+
     try {
       await axiosAuth.put(`/cart/item/${itemId}`, { quantity });
-      await get().fetchCart();
+      // No re-fetch needed on success, the local state is already correct
     } catch (error) {
       toast({ title: "خطا در آپدیت سبد", variant: "destructive" });
-    } finally {
-      set({ isLoading: false });
+      // Revert on error
+      set({ items: originalItems });
     }
   },
 
-  removeFromCart: async (itemId) => {
-    set({ isLoading: true });
+  removeFromCart: async (itemId: string) => {
+    const originalItems = get().items;
+
+    // Optimistic update
+    const newItems = originalItems.filter((item) => item.id !== itemId);
+    set({ items: newItems });
+
     try {
       await axiosAuth.delete(`/cart/item/${itemId}`);
-      await get().fetchCart();
+      // No re-fetch needed
     } catch (error) {
       toast({ title: "خطا در حذف از سبد", variant: "destructive" });
-    } finally {
-      set({ isLoading: false });
+      // Revert on error
+      set({ items: originalItems });
     }
   },
 
   clearCart: async () => {
-    set({ isLoading: true });
+    const originalItems = get().items;
+    set({ items: [] });
     try {
       await axiosAuth.delete("/cart/clear");
-      set({ items: [], isLoading: false });
     } catch (error) {
       toast({ title: "خطا در پاک کردن سبد", variant: "destructive" });
-      set({ isLoading: false });
+      set({ items: originalItems });
     }
   },
 

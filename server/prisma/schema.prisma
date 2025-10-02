@@ -313,19 +313,22 @@ model Coupon {
 }
 
 model Address {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  name       String
-  address    String
-  city       String
-  country    String
-  postalCode String
-  phone      String
-  isDefault  Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  orders     Order[]
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  recipientName String   
+  phone         String
+  province      String   
+  city          String
+  fullAddress   String   
+  postalCode    String
+  // --- End of Corrected Fields ---
+
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  Order         Order[]
 
   @@index([userId])
 }
@@ -347,6 +350,9 @@ model Order {
   coupon        Coupon?       @relation(fields: [couponId], references: [id])
   total         Float
   status        OrderStatus   @default(PENDING)
+
+  shippingMethod   String?       
+  shippingCost     Float         @default(0) 
 
   paymentMethod PaymentMethod
   paymentStatus PaymentStatus @default(PENDING)
@@ -377,6 +383,18 @@ model OrderItem {
 
   @@index([orderId])
   @@index([productId])
+}
+
+model ShippingMethod {
+  id          String   @id @default(cuid())
+  code        String   @unique // یک کد منحصر به فرد مثل "pishaz" یا "tipax"
+  name        String   // نام نمایشی مثل "پست پیشتاز"
+  description String?  // توضیحات اختیاری مثل "۳ تا ۵ روز کاری"
+  cost        Float    // هزینه ارسال
+  isActive    Boolean  @default(true) // برای فعال یا غیرفعال کردن روش
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum Role {

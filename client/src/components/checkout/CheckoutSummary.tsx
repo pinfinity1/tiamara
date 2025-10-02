@@ -1,3 +1,5 @@
+// client/src/components/checkout/CheckoutSummary.tsx (نسخه اصلاح‌شده)
+
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -9,6 +11,7 @@ import { useAddressStore } from "@/store/useAddressStore";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthModalStore } from "@/store/useAuthModalStore";
 import axiosAuth from "@/lib/axios";
+import { useCheckoutStore } from "@/store/useCheckoutStore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -21,7 +24,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, Loader2, PercentSquare } from "lucide-react";
+import {
+  CheckCircle,
+  Loader2,
+  PercentSquare,
+  ChevronRight,
+  ChevronLeft,
+} from "lucide-react";
 
 interface AppliedCoupon {
   id: string;
@@ -30,21 +39,30 @@ interface AppliedCoupon {
   discountValue: number;
 }
 
+interface CheckoutSummaryProps {
+  isUserLoggedIn: boolean;
+  currentStep: number;
+  onNextStep: () => void;
+  onPrevStep: () => void;
+}
+
 export default function CheckoutSummary({
   isUserLoggedIn,
-}: {
-  isUserLoggedIn: boolean;
-}) {
+  currentStep,
+  onNextStep,
+  onPrevStep,
+}: CheckoutSummaryProps) {
   const router = useRouter();
   const { toast } = useToast();
   const { onOpen: openAuthModal } = useAuthModalStore();
-  const { items: cartItems, clearCart } = useCartStore();
+  const { items: cartItems } = useCartStore();
   const { createFinalOrder, isLoading: isPaymentProcessing } = useOrderStore();
   const { userProfile, fetchProfile } = useUserStore();
   const selectedAddressId = useAddressStore(
     (state) =>
       state.addresses.find((a) => a.isDefault)?.id || state.addresses[0]?.id
   );
+  const { shippingMethod } = useCheckoutStore();
 
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(
@@ -52,6 +70,13 @@ export default function CheckoutSummary({
   );
   const [couponError, setCouponError] = useState<string | null>(null);
   const [isCouponLoading, setIsCouponLoading] = useState(false);
+
+  const shippingCost = useMemo(() => {
+    if (currentStep >= 3 && shippingMethod) {
+      return shippingMethod.cost;
+    }
+    return 0;
+  }, [currentStep, shippingMethod]);
 
   useEffect(() => {
     if (isUserLoggedIn && !userProfile) {
@@ -65,15 +90,17 @@ export default function CheckoutSummary({
   );
 
   const finalTotal = useMemo(() => {
+    let total = cartTotal;
     if (appliedCoupon) {
       if (appliedCoupon.discountType === "FIXED") {
-        return Math.max(0, cartTotal - appliedCoupon.discountValue);
+        total = Math.max(0, total - appliedCoupon.discountValue);
+      } else {
+        const discountAmount = total * (appliedCoupon.discountValue / 100);
+        total = Math.round(total - discountAmount);
       }
-      const discountAmount = cartTotal * (appliedCoupon.discountValue / 100);
-      return Math.round(cartTotal - discountAmount);
     }
-    return cartTotal;
-  }, [cartTotal, appliedCoupon]);
+    return total + shippingCost;
+  }, [cartTotal, appliedCoupon, shippingCost]);
 
   const handleApplyCoupon = async () => {
     if (!couponCode) return;
@@ -106,23 +133,43 @@ export default function CheckoutSummary({
       });
       return;
     }
+    if (!shippingMethod) {
+      toast({
+        title: "لطفاً روش ارسال را انتخاب کنید.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const orderData = {
       addressId: selectedAddressId,
       couponId: appliedCoupon?.id,
+      shippingMethodId: shippingMethod.code,
     };
 
     const result = await createFinalOrder(orderData);
 
     if (result.success && result.paymentUrl) {
       toast({ title: "در حال انتقال به صفحه پرداخت..." });
-      // این خط کاربر را به درگاه پرداخت منتقل می‌کند
       window.location.href = result.paymentUrl;
     } else {
       toast({
         title: "خطا در ثبت سفارش. لطفاً دوباره تلاش کنید.",
         variant: "destructive",
       });
+    }
+  };
+
+  const getButtonText = () => {
+    switch (currentStep) {
+      case 1:
+        return "ادامه و انتخاب آدرس";
+      case 2:
+        return "ادامه و انتخاب روش ارسال";
+      case 3:
+        return "ادامه و بازبینی نهایی";
+      default:
+        return "پرداخت و ثبت نهایی";
     }
   };
 
@@ -136,22 +183,38 @@ export default function CheckoutSummary({
           <span>جمع کل</span>
           <span>{cartTotal.toLocaleString("fa-IR")} تومان</span>
         </div>
+
         {appliedCoupon && (
           <div className="flex justify-between text-sm text-green-600 font-medium">
             <span>تخفیف ({appliedCoupon.code})</span>
             <span>
-              - {(cartTotal - finalTotal).toLocaleString("fa-IR")} تومان
+              -{" "}
+              {(cartTotal - finalTotal + shippingCost).toLocaleString("fa-IR")}{" "}
+              تومان
             </span>
           </div>
         )}
+
+        <div className="flex justify-between text-sm text-gray-600">
+          <span>هزینه ارسال</span>
+          <span>
+            {currentStep < 3
+              ? "در مرحله بعد محاسبه می‌شود"
+              : shippingCost > 0
+              ? `${shippingCost.toLocaleString("fa-IR")} تومان`
+              : "رایگان"}
+          </span>
+        </div>
+
         <Separator />
+
         <div className="flex justify-between font-bold text-lg">
           <span>مبلغ نهایی</span>
           <span>{finalTotal.toLocaleString("fa-IR")} تومان</span>
         </div>
       </CardContent>
 
-      {isUserLoggedIn && (
+      {isUserLoggedIn && currentStep > 1 && (
         <CardContent className="border-t pt-4">
           <div className="space-y-2">
             <Label htmlFor="coupon" className="flex items-center gap-2">
@@ -187,21 +250,41 @@ export default function CheckoutSummary({
         </CardContent>
       )}
 
-      <CardFooter>
+      <CardFooter className="flex-col gap-2 pt-4">
         {isUserLoggedIn ? (
-          <Button
-            className="w-full h-12 text-lg font-bold"
-            onClick={handlePlaceOrder}
-            disabled={isPaymentProcessing}
-          >
-            {isPaymentProcessing ? (
-              <Loader2 className="animate-spin" />
+          <>
+            {currentStep < 4 ? (
+              <Button className="w-full h-12 text-lg" onClick={onNextStep}>
+                {getButtonText()}
+                <ChevronLeft className="mr-2 h-5 w-5" />
+              </Button>
             ) : (
-              "پرداخت و ثبت نهایی"
+              <Button
+                className="w-full h-12 text-lg font-bold"
+                onClick={handlePlaceOrder}
+                disabled={isPaymentProcessing}
+              >
+                {isPaymentProcessing ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  "پرداخت و ثبت نهایی"
+                )}
+              </Button>
             )}
-          </Button>
+
+            {currentStep > 1 && currentStep <= 4 && (
+              <Button
+                variant="ghost"
+                className="w-full text-gray-600"
+                onClick={onPrevStep}
+              >
+                <ChevronRight className="ml-2 h-5 w-5" />
+                بازگشت به مرحله قبل
+              </Button>
+            )}
+          </>
         ) : (
-          <Button className="w-full h-12 text-lg" onClick={openAuthModal}>
+          <Button className="w-full h-12 text-lg" onClick={onNextStep}>
             ورود برای ادامه خرید
           </Button>
         )}

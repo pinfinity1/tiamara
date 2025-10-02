@@ -12,26 +12,79 @@ async function main() {
     where: { phone: adminPhone },
   });
 
-  if (existingSuperAdmin) {
-    console.log("Super admin already exists.");
-    return;
+  if (!existingSuperAdmin) {
+    const hashedPassword = await bcrypt.hash(adminPassword, 10);
+    const superAdminUser = await prisma.user.create({
+      data: {
+        phone: adminPhone,
+        name: adminName,
+        password: hashedPassword,
+        role: "SUPER_ADMIN",
+      },
+    });
+    console.log(
+      "Super admin created successfully with phone:",
+      superAdminUser.phone
+    );
+  } else {
+    console.log("Super admin already exists. Skipping creation.");
   }
 
-  const hashedPassword = await bcrypt.hash(adminPassword, 10);
+  // const hashedPassword = await bcrypt.hash(adminPassword, 10);
 
-  const superAdminUser = await prisma.user.create({
-    data: {
-      phone: adminPhone,
-      name: adminName,
-      password: hashedPassword,
-      role: "SUPER_ADMIN",
+  // const superAdminUser = await prisma.user.create({
+  //   data: {
+  //     phone: adminPhone,
+  //     name: adminName,
+  //     password: hashedPassword,
+  //     role: "SUPER_ADMIN",
+  //   },
+  // });
+
+  // console.log(
+  //   "Super admin created successfully with phone:",
+  //   superAdminUser.phone
+  // );
+
+  console.log("Start seeding shipping methods...");
+
+  await prisma.shippingMethod.upsert({
+    where: { code: "pishaz" },
+    update: {},
+    create: {
+      code: "pishaz",
+      name: "پست پیشتاز",
+      description: "۳ تا ۵ روز کاری",
+      cost: 35000,
+      isActive: true,
     },
   });
 
-  console.log(
-    "Super admin created successfully with phone:",
-    superAdminUser.phone
-  );
+  await prisma.shippingMethod.upsert({
+    where: { code: "tipax" },
+    update: {},
+    create: {
+      code: "tipax",
+      name: "تیپاکس (پس کرایه)",
+      description: "۲ تا ۳ روز کاری",
+      cost: 0,
+      isActive: true,
+    },
+  });
+
+  await prisma.shippingMethod.upsert({
+    where: { code: "home_delivery" },
+    update: {},
+    create: {
+      code: "home_delivery",
+      name: "تحویل درب منزل (ارسال با پیک)",
+      description: "ارسال سریع در محدوده شهری (۱ تا ۴ ساعت)",
+      cost: 25000,
+      isActive: true,
+    },
+  });
+
+  console.log("Shipping methods seeded successfully.");
 }
 
 main()

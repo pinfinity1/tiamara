@@ -24,87 +24,104 @@ export const createFinalOrder = async (
   res: Response
 ) => {
   const userId = req.user?.userId;
-  const { addressId, couponId } = req.body;
+  const { addressId, couponId, shippingMethodId } = req.body;
 
   if (!userId) {
     return res.status(401).json({ success: false, message: "Unauthenticated" });
   }
 
+  if (!addressId || !shippingMethodId) {
+    return res
+      .status(400)
+      .json({ success: false, message: "آدرس و روش ارسال الزامی است." });
+  }
+
   try {
-    const cart = await prisma.cart.findUnique({
-      where: { userId },
-      include: {
-        items: {
-          include: {
-            product: true,
-          },
-        },
-      },
-    });
-
-    if (!cart || cart.items.length === 0) {
-      return res
-        .status(400)
-        .json({ success: false, message: "سبد خرید شما خالی است." });
-    }
-
-    let total = cart.items.reduce(
-      (sum, item) =>
-        sum +
-        (item.product.discount_price || item.product.price) * item.quantity,
-      0
-    );
-
-    // اعمال کد تخفیف اگر وجود داشت
-    if (couponId) {
-      const coupon = await prisma.coupon.findUnique({
-        where: { id: couponId },
+    // شروع تراکنش با استفاده از $transaction
+    const result = await prisma.$transaction(async (tx) => {
+      const cart = await tx.cart.findUnique({
+        where: { userId },
+        include: { items: { include: { product: true } } },
       });
-      if (coupon && coupon.isActive && coupon.expireDate > new Date()) {
-        if (coupon.discountType === "FIXED") {
-          total = Math.max(0, total - coupon.discountValue);
-        } else {
-          total -= total * (coupon.discountValue / 100);
+
+      if (!cart || cart.items.length === 0) {
+        throw new Error("سبد خرید شما خالی است.");
+      }
+
+      let total = cart.items.reduce(
+        (sum, item) =>
+          sum +
+          (item.product.discount_price || item.product.price) * item.quantity,
+        0
+      );
+
+      if (couponId) {
+        const coupon = await tx.coupon.findUnique({ where: { id: couponId } });
+        if (coupon && coupon.isActive && coupon.expireDate > new Date()) {
+          if (coupon.discountType === "FIXED") {
+            total = Math.max(0, total - coupon.discountValue);
+          } else {
+            total -= total * (coupon.discountValue / 100);
+          }
         }
       }
-    }
 
-    total = Math.round(total);
-    const orderNumber = await getNextOrderNumber();
+      const shippingMethod = await tx.shippingMethod.findUnique({
+        where: { code: shippingMethodId },
+      });
 
-    const newOrder = await prisma.order.create({
-      data: {
-        orderNumber,
-        userId,
-        addressId,
-        couponId,
-        total,
-        paymentMethod: "CREDIT_CARD",
-        paymentStatus: "PENDING",
-        status: "PENDING",
-        items: {
-          create: cart.items.map((item) => ({
-            productId: item.productId,
-            productName: item.product.name,
-            productCategory: item.product.categoryId || "N/A",
-            quantity: item.quantity,
-            price: item.product.discount_price || item.product.price,
-          })),
+      if (!shippingMethod || !shippingMethod.isActive) {
+        throw new Error("روش ارسال انتخاب شده نامعتبر است.");
+      }
+
+      total += shippingMethod.cost;
+      total = Math.round(total);
+
+      const orderNumber = await getNextOrderNumber(); // این تابع خارج از تراکنش است که مشکلی ندارد
+
+      const newOrder = await tx.order.create({
+        data: {
+          orderNumber,
+          userId,
+          addressId,
+          couponId,
+          total,
+          shippingMethod: shippingMethod.name,
+          shippingCost: shippingMethod.cost,
+          paymentMethod: "CREDIT_CARD",
+          paymentStatus: "PENDING",
+          status: "PENDING",
+          items: {
+            create: cart.items.map((item) => ({
+              productId: item.productId,
+              productName: item.product.name,
+              productCategory: item.product.categoryId || "N/A",
+              quantity: item.quantity,
+              price: item.product.discount_price || item.product.price,
+            })),
+          },
         },
-      },
+      });
+
+      const paymentUrl = `http://localhost:3001/api/payment/create?orderId=${newOrder.id}&amount=${newOrder.total}`;
+
+      // برگرداندن مقادیر مورد نیاز از تراکنش
+      return { orderId: newOrder.id, paymentUrl };
     });
 
-    const paymentUrl = `http://localhost:3001/api/payment/create?orderId=${newOrder.id}&amount=${newOrder.total}`;
-
+    // ارسال پاسخ موفقیت‌آمیز پس از اتمام تراکنش
     res.status(201).json({
       success: true,
       message: "سفارش با موفقیت ایجاد شد. در حال انتقال به درگاه پرداخت...",
-      orderId: newOrder.id,
-      paymentUrl: paymentUrl,
+      orderId: result.orderId,
+      paymentUrl: result.paymentUrl,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error creating order:", error);
-    res.status(500).json({ success: false, message: "خطا در سرور" });
+    // اگر خطا از داخل تراکنش باشد (مثل سبد خالی)، پیام آن را نمایش بده
+    res
+      .status(500)
+      .json({ success: false, message: error.message || "خطا در سرور" });
   }
 };
 
