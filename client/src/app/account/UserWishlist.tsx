@@ -13,8 +13,13 @@ import {
 import WishlistProductCard from "@/components/products/WishlistProductCard";
 
 export default function UserWishlist() {
-  const { wishlistItems, fetchWishlist } = useWishlistStore();
-  const { fetchProductsByIds, isLoading } = useProductStore();
+  const {
+    wishlistItems,
+    fetchWishlist,
+    isLoading: isWishlistLoading,
+  } = useWishlistStore();
+  const { fetchProductsByIds, isLoading: areProductsLoading } =
+    useProductStore();
   const [wishlistProducts, setWishlistProducts] = useState<Product[]>([]);
 
   useEffect(() => {
@@ -45,7 +50,8 @@ export default function UserWishlist() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {isLoading ? (
+        {isWishlistLoading ||
+        (areProductsLoading && wishlistItems.length > 0) ? (
           <p>در حال بارگذاری...</p>
         ) : wishlistProducts.length === 0 ? (
           <div className="text-center p-4 bg-gray-50 rounded-md">
