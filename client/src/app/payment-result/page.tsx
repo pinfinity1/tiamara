@@ -93,7 +93,7 @@ const PaymentResultContent = () => {
             </Button>
             {status === "success" && (
               <Button asChild variant="outline">
-                <Link href="/account">مشاهده سفارشات</Link>
+                <Link href="/account?tab=orders">مشاهده سفارشات</Link>
               </Button>
             )}
           </div>
