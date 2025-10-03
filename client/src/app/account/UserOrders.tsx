@@ -87,7 +87,7 @@ const OrderDetailsModal = ({ order }: { order: Order }) => {
             <div className="flex items-center gap-2">
               <Truck className="w-4 h-4" />
               <p className="font-medium">نوع ارسال:</p>
-              <p>پست پیشتاز</p> {/* Placeholder */}
+              <p>{order.shippingMethod?.name || "نامشخص"}</p>
             </div>
           </div>
         </div>

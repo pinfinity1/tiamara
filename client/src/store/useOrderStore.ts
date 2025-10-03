@@ -44,6 +44,9 @@ export interface Order {
     code: string;
     discountValue: number;
   } | null;
+  shippingMethod?: {
+    name: string;
+  } | null;
 }
 
 // Helper for translations
