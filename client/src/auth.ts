@@ -146,7 +146,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           ...token,
           accessToken: accessToken,
           accessTokenExpires: Date.now() + 15 * 60 * 1000,
-          refreshToken: newRefreshToken ?? token.refreshToken,
+          refreshToken: newRefreshToken || token.refreshToken,
         };
       } catch (error) {
         console.error("RefreshAccessTokenError", error);
