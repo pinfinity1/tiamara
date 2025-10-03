@@ -1,6 +1,9 @@
+// pinfinity1/tiamara/tiamara-8e92556f045803ca932111049e478472a72d8f9b/server/src/controllers/addressController.ts
+
 import { Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { prisma } from "../server";
+import { Prisma } from "@prisma/client";
 
 export const createAddress = async (
   req: AuthenticatedRequest,
@@ -12,8 +15,15 @@ export const createAddress = async (
     return;
   }
 
-  const { name, address, city, country, postalCode, phone, isDefault } =
-    req.body;
+  const {
+    recipientName,
+    fullAddress,
+    city,
+    province,
+    postalCode,
+    phone,
+    isDefault,
+  } = req.body;
 
   try {
     const newAddress = await prisma.$transaction(async (tx) => {
@@ -27,10 +37,10 @@ export const createAddress = async (
       const newlyCreatedAddress = await tx.address.create({
         data: {
           userId,
-          name,
-          address,
+          recipientName,
+          fullAddress,
           city,
-          country,
+          province,
           postalCode,
           phone,
           isDefault: isDefault || false,
@@ -42,10 +52,23 @@ export const createAddress = async (
 
     res.status(201).json({ success: true, address: newAddress });
   } catch (e) {
-    res.status(500).json({ success: false, message: "Some error occured" });
+    console.error("Error creating address:", e); // Log the full error to the console
+
+    if (e instanceof Prisma.PrismaClientValidationError) {
+      res
+        .status(400)
+        .json({
+          success: false,
+          message: "Invalid data provided.",
+          details: e.message,
+        });
+    } else {
+      res.status(500).json({ success: false, message: "Some error occured" });
+    }
   }
 };
 
+// ... (Rest of the controller functions remain the same)
 export const updateAddress = async (
   req: AuthenticatedRequest,
   res: Response
@@ -57,8 +80,15 @@ export const updateAddress = async (
     return;
   }
 
-  const { name, address, city, country, postalCode, phone, isDefault } =
-    req.body;
+  const {
+    recipientName,
+    fullAddress,
+    city,
+    province,
+    postalCode,
+    phone,
+    isDefault,
+  } = req.body;
 
   try {
     const updatedAddress = await prisma.$transaction(async (tx) => {
@@ -71,7 +101,15 @@ export const updateAddress = async (
 
       const addressToUpdate = await tx.address.update({
         where: { id },
-        data: { name, address, city, country, postalCode, phone, isDefault },
+        data: {
+          recipientName,
+          fullAddress,
+          city,
+          province,
+          postalCode,
+          phone,
+          isDefault,
+        },
       });
 
       return addressToUpdate;
@@ -79,10 +117,10 @@ export const updateAddress = async (
 
     res.status(200).json({ success: true, address: updatedAddress });
   } catch (e) {
+    console.error("Error updating address:", e);
     res.status(500).json({ success: false, message: "Some error occured" });
   }
 };
-
 export const getAddresses = async (
   req: AuthenticatedRequest,
   res: Response
@@ -99,11 +137,7 @@ export const getAddresses = async (
 
     const fetchAllAddresses = await prisma.address.findMany({
       where: { userId },
-      // ۱. منطق مرتب‌سازی را با کد زیر جایگزین کنید
-      orderBy: [
-        { isDefault: "desc" }, // آدرس پیش‌فرض (true) را در بالا قرار می‌دهد
-        { createdAt: "desc" }, // سپس بقیه را بر اساس جدیدترین مرتب می‌کند
-      ],
+      orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
     });
 
     res.status(200).json({

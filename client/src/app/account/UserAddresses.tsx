@@ -1,8 +1,10 @@
-// client/src/app/account/UserAddresses.tsx
-
+// pinfinity1/tiamara/tiamara-8e92556f045803ca932111049e478472a72d8f9b/client/src/app/account/UserAddresses.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import { useAddressStore, Address } from "@/store/useAddressStore";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,78 +34,28 @@ import { useToast } from "@/hooks/use-toast";
 import { PlusCircle, Edit, Trash2, Home } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const initialFormState: Omit<Address, "id"> = {
-  name: "",
-  address: "",
-  city: "",
-  country: "ایران",
-  postalCode: "",
-  phone: "",
-  isDefault: false,
-};
+const addressSchema = z.object({
+  recipientName: z.string().min(3, "نام گیرنده الزامی است."),
+  fullAddress: z.string().min(10, "آدرس کامل الزامی است."),
+  city: z.string().min(2, "نام شهر الزامی است."),
+  province: z.string().min(2, "نام استان الزامی است."),
+  postalCode: z.string().regex(/^\d{10}$/, "کدپستی باید ۱۰ رقمی باشد."),
+  phone: z.string().regex(/^09\d{9}$/, "شماره موبایل معتبر نیست."),
+  isDefault: z.boolean().default(false),
+});
 
-const AddressCard = ({
-  address,
-  isDefault = false,
-  onEdit,
-  onDelete,
-}: {
-  address: Address;
-  isDefault?: boolean;
-  onEdit: (addr: Address) => void;
-  onDelete: (id: string) => void;
-}) => (
-  <div
-    className={cn(
-      "border p-4 rounded-lg flex justify-between items-start transition-colors",
-      isDefault && "bg-primary/5 border-primary/20"
-    )}
-  >
-    <div className="space-y-2">
-      <p className="font-semibold">{address.name}</p>
-      <p className="text-sm text-gray-600">
-        {address.address}, {address.city}
-      </p>
-      <p className="text-sm text-gray-600">
-        کدپستی: {address.postalCode} | تلفن: {address.phone}
-      </p>
-    </div>
-    <div className="flex gap-1">
-      <Button variant="ghost" size="icon" onClick={() => onEdit(address)}>
-        <Edit className="h-4 w-4" />
-      </Button>
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-destructive hover:text-destructive"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent dir="rtl">
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              آیا از حذف این آدرس مطمئن هستید؟
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              این عمل غیرقابل بازگشت است.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>انصراف</AlertDialogCancel>
-            <AlertDialogAction onClick={() => onDelete(address.id)}>
-              بله، حذف کن
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  </div>
-);
+type AddressFormData = z.infer<typeof addressSchema>;
 
-export default function UserAddresses() {
+interface UserAddressesProps {
+  isDialogMode?: boolean;
+  onDialogClose?: () => void;
+}
+
+export default function UserAddresses({
+  isDialogMode = false,
+  onDialogClose,
+}: UserAddressesProps) {
+  // ... (rest of the component is mostly the same)
   const {
     addresses,
     fetchAddresses,
@@ -114,9 +66,27 @@ export default function UserAddresses() {
   } = useAddressStore();
   const { toast } = useToast();
 
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
-  const [formData, setFormData] = useState(initialFormState);
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    reset,
+    formState: { errors },
+  } = useForm<AddressFormData>({
+    resolver: zodResolver(addressSchema),
+    defaultValues: {
+      recipientName: "",
+      fullAddress: "",
+      city: "",
+      province: "",
+      postalCode: "",
+      phone: "",
+      isDefault: false,
+    },
+  });
 
   useEffect(() => {
     fetchAddresses();
@@ -130,51 +100,49 @@ export default function UserAddresses() {
 
   const handleAddNew = () => {
     setEditingAddress(null);
-    setFormData(initialFormState);
-    setIsDialogOpen(true);
+    reset({
+      recipientName: "",
+      fullAddress: "",
+      city: "",
+      province: "",
+      postalCode: "",
+      phone: "",
+      isDefault: false,
+    });
+    setIsFormDialogOpen(true);
   };
 
   const handleEdit = (address: Address) => {
     setEditingAddress(address);
-    setFormData({
-      name: address.name,
-      address: address.address,
-      city: address.city,
-      country: address.country,
-      postalCode: address.postalCode,
-      phone: address.phone,
-      isDefault: address.isDefault,
-    });
-    setIsDialogOpen(true);
+    reset(address);
+    setIsFormDialogOpen(true);
   };
 
   const handleDelete = async (id: string) => {
     const success = await deleteAddress(id);
     if (success) {
       toast({ title: "آدرس با موفقیت حذف شد." });
-      fetchAddresses();
     } else {
       toast({ title: "خطا در حذف آدرس.", variant: "destructive" });
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = async () => {
+  const onSubmit = async (data: AddressFormData) => {
     const result = editingAddress
-      ? await updateAddress(editingAddress.id, formData)
+      ? await updateAddress(editingAddress.id, data)
       : await createAddress({
-          ...formData,
-          isDefault: addresses.length === 0 || formData.isDefault,
+          ...data,
+          isDefault: addresses.length === 0 || data.isDefault,
         });
 
     if (result) {
       toast({
         title: `آدرس با موفقیت ${editingAddress ? "ویرایش" : "ذخیره"} شد.`,
       });
-      setIsDialogOpen(false);
+      setIsFormDialogOpen(false);
+      if (isDialogMode && onDialogClose) {
+        onDialogClose(); // Close the parent dialog (e.g., in CheckoutView)
+      }
     } else {
       toast({
         title: `خطا در ${editingAddress ? "ویرایش" : "ذخیره"} آدرس.`,
@@ -183,8 +151,65 @@ export default function UserAddresses() {
     }
   };
 
-  return (
-    <Card>
+  const AddressCardComponent = ({
+    address,
+    isDefault = false,
+  }: {
+    address: Address;
+    isDefault?: boolean;
+  }) => (
+    <div
+      className={cn(
+        "border p-4 rounded-lg flex justify-between items-start transition-colors",
+        isDefault && "bg-primary/5 border-primary/20"
+      )}
+    >
+      <div className="space-y-2">
+        <p className="font-semibold">{address.recipientName}</p>
+        <p className="text-sm text-gray-600">
+          {address.fullAddress}, {address.city}
+        </p>
+        <p className="text-sm text-gray-600">
+          کدپستی: {address.postalCode} | تلفن: {address.phone}
+        </p>
+      </div>
+      <div className="flex gap-1">
+        <Button variant="ghost" size="icon" onClick={() => handleEdit(address)}>
+          <Edit className="h-4 w-4" />
+        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-destructive hover:text-destructive"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent dir="rtl">
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                آیا از حذف این آدرس مطمئن هستید؟
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                این عمل غیرقابل بازگشت است.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>انصراف</AlertDialogCancel>
+              <AlertDialogAction onClick={() => handleDelete(address.id)}>
+                بله، حذف کن
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </div>
+  );
+
+  const mainContent = (
+    <>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>آدرس‌های من</CardTitle>
         <Button onClick={handleAddNew}>
@@ -192,7 +217,7 @@ export default function UserAddresses() {
         </Button>
       </CardHeader>
       <CardContent className="space-y-6">
-        {isLoading ? (
+        {isLoading && addresses.length === 0 ? (
           <p>در حال بارگذاری آدرس‌ها...</p>
         ) : addresses.length === 0 ? (
           <p>شما هنوز آدرسی ثبت نکرده‌اید.</p>
@@ -204,11 +229,9 @@ export default function UserAddresses() {
                   <Home className="h-4 w-4" />
                   آدرس پیش‌فرض
                 </Label>
-                <AddressCard
+                <AddressCardComponent
                   address={defaultAddress}
                   isDefault={true}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
                 />
               </div>
             )}
@@ -219,99 +242,139 @@ export default function UserAddresses() {
                   سایر آدرس‌ها
                 </Label>
                 {otherAddresses.map((addr) => (
-                  <AddressCard
-                    key={addr.id}
-                    address={addr}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                  />
+                  <AddressCardComponent key={addr.id} address={addr} />
                 ))}
               </div>
             )}
           </>
         )}
       </CardContent>
+    </>
+  );
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+  const dialogOnlyContent = (
+    <div className="pt-4">
+      {isLoading ? (
+        <p>در حال بارگذاری آدرس‌ها...</p>
+      ) : addresses.length === 0 ? (
+        <p className="text-center py-4">
+          شما هنوز آدرسی ثبت نکرده‌اید. برای ادامه یک آدرس جدید اضافه کنید.
+        </p>
+      ) : // In dialog mode on checkout, we don't need to show existing addresses, just the form.
+      // This part can be enhanced if you want to manage addresses from checkout too.
+      null}
+      <div className="flex justify-end">
+        <Button onClick={handleAddNew}>
+          <PlusCircle className="ml-2 h-4 w-4" /> افزودن آدرس جدید
+        </Button>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      {isDialogMode ? (
+        <div className="p-4">{dialogOnlyContent}</div>
+      ) : (
+        <Card>{mainContent}</Card>
+      )}
+
+      {/* This Dialog is for the address form itself */}
+      <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
         <DialogContent dir="rtl">
           <DialogHeader>
             <DialogTitle>
               {editingAddress ? "ویرایش آدرس" : "افزودن آدرس جدید"}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-4">
+            {/* Form fields... */}
             <div>
-              <Label htmlFor="name">عنوان آدرس (مثلا: خانه)</Label>
-              <Input
-                id="name"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-              />
+              <Label htmlFor="recipientName">نام گیرنده</Label>
+              <Input id="recipientName" {...register("recipientName")} />
+              {errors.recipientName && (
+                <p className="text-red-500 text-xs mt-1">
+                  {errors.recipientName.message}
+                </p>
+              )}
             </div>
             <div>
-              <Label htmlFor="address">آدرس کامل</Label>
-              <Input
-                id="address"
-                name="address"
-                value={formData.address}
-                onChange={handleInputChange}
-              />
+              <Label htmlFor="fullAddress">آدرس کامل</Label>
+              <Input id="fullAddress" {...register("fullAddress")} />
+              {errors.fullAddress && (
+                <p className="text-red-500 text-xs mt-1">
+                  {errors.fullAddress.message}
+                </p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="city">شهر</Label>
-                <Input
-                  id="city"
-                  name="city"
-                  value={formData.city}
-                  onChange={handleInputChange}
-                />
+                <Input id="city" {...register("city")} />
+                {errors.city && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {errors.city.message}
+                  </p>
+                )}
               </div>
               <div>
-                <Label htmlFor="postalCode">کدپستی</Label>
-                <Input
-                  id="postalCode"
-                  name="postalCode"
-                  value={formData.postalCode}
-                  onChange={handleInputChange}
-                />
+                <Label htmlFor="province">استان</Label>
+                <Input id="province" {...register("province")} />
+                {errors.province && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {errors.province.message}
+                  </p>
+                )}
               </div>
             </div>
-            <div>
-              <Label htmlFor="phone">شماره تماس</Label>
-              <Input
-                id="phone"
-                name="phone"
-                value={formData.phone}
-                onChange={handleInputChange}
-                dir="ltr"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="postalCode">کدپستی</Label>
+                <Input id="postalCode" {...register("postalCode")} />
+                {errors.postalCode && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {errors.postalCode.message}
+                  </p>
+                )}
+              </div>
+              <div>
+                <Label htmlFor="phone">شماره تماس</Label>
+                <Input id="phone" {...register("phone")} dir="ltr" />
+                {errors.phone && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {errors.phone.message}
+                  </p>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-2 pt-2">
-              <Switch
-                id="isDefault"
-                dir="ltr"
-                checked={formData.isDefault}
-                onCheckedChange={(checked) =>
-                  setFormData({ ...formData, isDefault: checked })
-                }
+              <Controller
+                control={control}
+                name="isDefault"
+                render={({ field }) => (
+                  <Switch
+                    id="isDefault"
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    dir="ltr"
+                  />
+                )}
               />
               <Label htmlFor="isDefault">انتخاب به عنوان آدرس پیش‌فرض</Label>
             </div>
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="secondary">
-                انصراف
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="secondary">
+                  انصراف
+                </Button>
+              </DialogClose>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? "در حال ذخیره..." : "ذخیره آدرس"}
               </Button>
-            </DialogClose>
-            <Button onClick={handleSubmit} disabled={isLoading}>
-              {isLoading ? "در حال ذخیره..." : "ذخیره آدرس"}
-            </Button>
-          </DialogFooter>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
-    </Card>
+    </>
   );
 }
