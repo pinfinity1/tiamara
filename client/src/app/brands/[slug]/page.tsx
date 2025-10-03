@@ -5,18 +5,24 @@ import { useFilterStore } from "@/store/useFilterStore";
 import { useProductStore } from "@/store/useProductStore";
 import { Metadata } from "next";
 
+// ✅ حالا params و searchParams باید Promise باشن
+type BrandPageProps = {
+  params: Promise<{ slug: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
 export async function generateMetadata({
   params,
-}: {
-  params: { slug: string };
-}): Promise<Metadata> {
-  const { slug } = await params;
+}: BrandPageProps): Promise<Metadata> {
+  const { slug } = await params; // ✅ await چون Promise هست
   const brand = await getBrandBySlug(slug);
+
   if (!brand) {
     return {
       title: "برند یافت نشد",
     };
   }
+
   return {
     title: brand.metaTitle || brand.name,
     description:
@@ -35,20 +41,19 @@ export async function generateMetadata({
 export default async function BrandPage({
   params,
   searchParams,
-}: {
-  params: { slug: string };
-  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
-}) {
-  const { slug } = await params;
+}: BrandPageProps) {
+  const { slug } = await params; // ✅ await چون Promise هست
   const brand = await getBrandBySlug(slug);
-  const resolvedSearchParams = (await searchParams) || {};
 
-  const page = parseInt((resolvedSearchParams?.page as string) ?? "1");
-  const sortBy = (resolvedSearchParams?.sortBy as string) ?? "createdAt";
+  // ✅ searchParams هم Promise هست
+  const resolvedSearchParams = (searchParams ? await searchParams : {}) || {};
+
+  const page = parseInt((resolvedSearchParams.page as string) ?? "1");
+  const sortBy = (resolvedSearchParams.sortBy as string) ?? "createdAt";
   const sortOrder =
-    (resolvedSearchParams?.sortOrder as "asc" | "desc") ?? "desc";
+    (resolvedSearchParams.sortOrder as "asc" | "desc") ?? "desc";
 
-  // Fetch only products for this brand
+  // محصولات این برند رو بگیر
   await useProductStore.getState().fetchProductsForClient({
     page,
     limit: 12,
@@ -57,7 +62,7 @@ export default async function BrandPage({
     sortOrder,
   });
 
-  // Fetch all filters to still allow sorting and other potential future filters
+  // فیلترها رو هم بگیر
   await useFilterStore.getState().fetchFilters();
 
   const { products, totalPages, totalProducts } = useProductStore.getState();
@@ -71,7 +76,6 @@ export default async function BrandPage({
         initialTotalPages={totalPages}
         initialTotalProducts={totalProducts}
         filters={filters}
-        // We hide the general filters sidebar for a cleaner brand page
         hideFilters
       />
     </div>

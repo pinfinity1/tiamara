@@ -5,18 +5,23 @@ import { useFilterStore } from "@/store/useFilterStore";
 import { useProductStore } from "@/store/useProductStore";
 import { Metadata } from "next";
 
+type CategoryPageProps = {
+  params: Promise<{ slug: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
 export async function generateMetadata({
   params,
-}: {
-  params: { slug: string };
-}): Promise<Metadata> {
-  const { slug } = await params;
+}: CategoryPageProps): Promise<Metadata> {
+  const { slug } = await params; // ✅ چون Promise هست
   const category = await getCategoryBySlug(slug);
+
   if (!category) {
     return {
       title: "دسته‌بندی یافت نشد",
     };
   }
+
   return {
     title: category.metaTitle || category.name,
     description:
@@ -35,25 +40,24 @@ export async function generateMetadata({
 export default async function CategoryPage({
   params,
   searchParams,
-}: {
-  params: { slug: string };
-  searchParams: { [key: string]: string | string[] | undefined };
-}) {
-  const { slug } = await params;
+}: CategoryPageProps) {
+  const { slug } = await params; // ✅
+  const resolvedSearchParams = (searchParams ? await searchParams : {}) || {};
   const category = await getCategoryBySlug(slug);
 
-  const page = parseInt((searchParams?.page as string) ?? "1");
-  const brands = (searchParams?.brands as string)?.split(",");
-  const skin_types = (searchParams?.skin_types as string)?.split(",");
-  const concerns = (searchParams?.concerns as string)?.split(",");
-  const minPrice = searchParams?.minPrice
-    ? parseInt(searchParams.minPrice as string)
+  const page = parseInt((resolvedSearchParams.page as string) ?? "1");
+  const brands = (resolvedSearchParams.brands as string)?.split(",");
+  const skin_types = (resolvedSearchParams.skin_types as string)?.split(",");
+  const concerns = (resolvedSearchParams.concerns as string)?.split(",");
+  const minPrice = resolvedSearchParams.minPrice
+    ? parseInt(resolvedSearchParams.minPrice as string)
     : undefined;
-  const maxPrice = searchParams?.maxPrice
-    ? parseInt(searchParams.maxPrice as string)
+  const maxPrice = resolvedSearchParams.maxPrice
+    ? parseInt(resolvedSearchParams.maxPrice as string)
     : undefined;
-  const sortBy = (searchParams?.sortBy as string) ?? "createdAt";
-  const sortOrder = (searchParams?.sortOrder as "asc" | "desc") ?? "desc";
+  const sortBy = (resolvedSearchParams.sortBy as string) ?? "createdAt";
+  const sortOrder =
+    (resolvedSearchParams.sortOrder as "asc" | "desc") ?? "desc";
 
   await Promise.all([
     useProductStore.getState().fetchProductsForClient({

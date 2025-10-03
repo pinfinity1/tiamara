@@ -55,35 +55,88 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           throw new Error("Phone number is required.");
         }
 
+        // try {
+        //   let response;
+        //   const cookieHeader = cartId ? { Cookie: `cartId=${cartId}` } : {};
+        //   if (loginType === "password") {
+        //     if (!password) throw new Error("Password is required.");
+        //     response = await axiosPublic.post(
+        //       `/auth/login-password`,
+        //       {
+        //         phone,
+        //         password,
+        //       },
+        //       { headers: cookieHeader }
+        //     );
+        //   } else if (loginType === "otp") {
+        //     if (!otp) throw new Error("OTP is required.");
+        //     response = await axiosPublic.post(
+        //       `/auth/login-otp`,
+        //       {
+        //         phone,
+        //         otp,
+        //       },
+        //       { headers: cookieHeader }
+        //     );
+        //   } else {
+        //     return null;
+        //   }
+
+        //   if (response.data && response.data.success) {
+        //     const user = response.data.user;
+        //     return {
+        //       id: user.id,
+        //       name: user.name,
+        //       email: user.email,
+        //       role: user.role,
+        //       phone: user.phone,
+        //       requiresPasswordSetup: user.requiresPasswordSetup,
+        //       accessToken: response.data.accessToken,
+        //       refreshToken: response.data.refreshToken,
+        //     } as User;
+        //   } else {
+        //     throw new Error(response.data.error || "Authentication failed.");
+        //   }
+        // } catch (error: any) {
+        //   const errorMessage =
+        //     error.response?.data?.error ||
+        //     error.message ||
+        //     "An unexpected error occurred.";
+        //   throw new Error(errorMessage);
+        // }
         try {
-          let response;
-          const cookieHeader = cartId ? { Cookie: `cartId=${cartId}` } : {};
+          const headers: HeadersInit = {
+            "Content-Type": "application/json",
+          };
+          if (cartId) {
+            headers["Cookie"] = `cartId=${cartId}`;
+          }
+
+          let body;
+          let url;
+
           if (loginType === "password") {
             if (!password) throw new Error("Password is required.");
-            response = await axiosPublic.post(
-              `/auth/login-password`,
-              {
-                phone,
-                password,
-              },
-              { headers: cookieHeader }
-            );
+            url = `${process.env.API_BASE_URL}/auth/login-password`;
+            body = JSON.stringify({ phone, password });
           } else if (loginType === "otp") {
             if (!otp) throw new Error("OTP is required.");
-            response = await axiosPublic.post(
-              `/auth/login-otp`,
-              {
-                phone,
-                otp,
-              },
-              { headers: cookieHeader }
-            );
+            url = `${process.env.API_BASE_URL}/auth/login-otp`;
+            body = JSON.stringify({ phone, otp });
           } else {
             return null;
           }
 
-          if (response.data && response.data.success) {
-            const user = response.data.user;
+          const res = await fetch(url, {
+            method: "POST",
+            headers,
+            body,
+          });
+
+          const data = await res.json();
+
+          if (res.ok && data.success) {
+            const user = data.user;
             return {
               id: user.id,
               name: user.name,
@@ -91,11 +144,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               role: user.role,
               phone: user.phone,
               requiresPasswordSetup: user.requiresPasswordSetup,
-              accessToken: response.data.accessToken,
-              refreshToken: response.data.refreshToken,
+              accessToken: data.accessToken,
+              refreshToken: data.refreshToken,
             } as User;
           } else {
-            throw new Error(response.data.error || "Authentication failed.");
+            throw new Error(data.error || "Authentication failed.");
           }
         } catch (error: any) {
           const errorMessage =

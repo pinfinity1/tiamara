@@ -2,6 +2,7 @@ import { getProductBySlug, getRelatedProducts } from "@/lib/data-fetching";
 import ProductDetails from "./ProductDetails";
 import { Product } from "@/store/useProductStore";
 import Script from "next/script";
+import { Metadata } from "next";
 
 function JsonLd({ product }: { product: Product }) {
   const productSchema = {
@@ -28,12 +29,6 @@ function JsonLd({ product }: { product: Product }) {
         new Date().setFullYear(new Date().getFullYear() + 1)
       ).toISOString(),
     },
-    // اگر سیستم امتیازدهی دارید، این بخش را از کامنت خارج کنید
-    // aggregateRating: {
-    //   '@type': 'AggregateRating',
-    //   ratingValue: product.average_rating || '4.5',
-    //   reviewCount: product.review_count || '89',
-    // },
   };
 
   const breadcrumbSchema = {
@@ -50,7 +45,7 @@ function JsonLd({ product }: { product: Product }) {
         "@type": "ListItem",
         position: 2,
         name: product.category?.name || "محصولات",
-        item: `http://localhost:3000/categories/${product.category?.slug}`,
+        item: `https://www.tiamara.ir/categories/${product.category?.slug}`,
       },
       {
         "@type": "ListItem",
@@ -76,13 +71,14 @@ function JsonLd({ product }: { product: Product }) {
   );
 }
 
-export default async function ProductPage({
-  params,
-}: {
-  params: { slug: string };
-}) {
+type ProductPageProps = {
+  params: Promise<{ slug: string }>;
+};
+
+export default async function ProductPage({ params }: ProductPageProps) {
   const { slug } = await params;
   const product = await getProductBySlug(slug);
+
   const relatedProducts = await getRelatedProducts(
     product?.id || "",
     product?.category?.name
@@ -98,9 +94,7 @@ export default async function ProductPage({
 
 export async function generateMetadata({
   params,
-}: {
-  params: { slug: string };
-}) {
+}: ProductPageProps): Promise<Metadata> {
   const { slug } = await params;
   const product = await getProductBySlug(slug);
 
@@ -112,11 +106,11 @@ export async function generateMetadata({
   }
 
   return {
-    title: product.metaTitle || product.name,
-    description: product.metaDescription || product.description,
+    title: product.metaTitle || product.name || undefined,
+    description: product.metaDescription || product.description || undefined,
     openGraph: {
-      title: product.metaTitle || product.name,
-      description: product.metaDescription || product.description,
+      title: product.metaTitle || product.name || undefined,
+      description: product.metaDescription || product.description || undefined,
       images: [
         {
           url: product.images[0]?.url || "/images/placeholder.png",
