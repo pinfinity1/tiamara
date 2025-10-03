@@ -22,6 +22,7 @@ import aiRoutes from "./routes/aiRoutes";
 import paymentRoutes from "./routes/paymentRoutes";
 import dashboardRoutes from "./routes/dashboardRoutes";
 import shippingRoutes from "./routes/shippingRoutes";
+import newsletterRoutes from "./routes/newsletterRoutes";
 
 //load all your enviroment variables
 dotenv.config();
@@ -60,6 +61,7 @@ app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/shipping", shippingRoutes);
+app.use("/api/newsletter", newsletterRoutes);
 
 app.get("/", (req, res) => {
   res.send("Hello from Tiamara backend");

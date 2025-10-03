@@ -400,6 +400,12 @@ model ShippingMethod {
   updatedAt DateTime @updatedAt
 }
 
+model NewsletterSubscription {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
+
 enum Role {
   USER
   SUPER_ADMIN

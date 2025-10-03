@@ -1,5 +1,6 @@
 import FeaturedBrands from "@/components/layout/home/FeaturedBrands";
 import HomeBannerCarousel from "@/components/layout/home/HomeBannerCarousel";
+import NewsletterSignUp from "@/components/layout/home/NewsletterSignUp";
 import ProductSection from "@/components/layout/home/ProductSection";
 import WhyChooseUs from "@/components/layout/home/WhyChooseUs";
 import {
@@ -28,6 +29,8 @@ export default async function HomePage() {
       <FeaturedBrands brands={allBrands} />
 
       <WhyChooseUs />
+
+      <NewsletterSignUp />
     </div>
   );
 }
