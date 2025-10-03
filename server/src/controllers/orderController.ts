@@ -1,5 +1,3 @@
-// server/src/controllers/orderController.ts
-
 import { Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { prisma } from "../server";
@@ -86,8 +84,8 @@ export const createFinalOrder = async (
           addressId,
           couponId,
           total,
-          shippingMethod: shippingMethod.name,
           shippingCost: shippingMethod.cost,
+          shippingMethodCode: shippingMethod.code,
           paymentMethod: "CREDIT_CARD",
           paymentStatus: "PENDING",
           status: "PENDING",
@@ -142,6 +140,8 @@ export const getOrdersByUserId = async (
       orderBy: { createdAt: "desc" },
       include: {
         items: true,
+        address: true,
+        shippingMethod: true,
       },
     });
     res.status(200).json({ success: true, orders });

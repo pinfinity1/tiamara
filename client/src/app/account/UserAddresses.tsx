@@ -1,4 +1,3 @@
-// pinfinity1/tiamara/tiamara-8e92556f045803ca932111049e478472a72d8f9b/client/src/app/account/UserAddresses.tsx
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -41,7 +40,7 @@ const addressSchema = z.object({
   province: z.string().min(2, "نام استان الزامی است."),
   postalCode: z.string().regex(/^\d{10}$/, "کدپستی باید ۱۰ رقمی باشد."),
   phone: z.string().regex(/^09\d{9}$/, "شماره موبایل معتبر نیست."),
-  isDefault: z.boolean().default(false),
+  isDefault: z.boolean(),
 });
 
 type AddressFormData = z.infer<typeof addressSchema>;

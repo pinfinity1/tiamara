@@ -351,8 +351,9 @@ model Order {
   total         Float
   status        OrderStatus   @default(PENDING)
 
-  shippingMethod   String?       
-  shippingCost     Float         @default(0) 
+  shippingMethodCode String?      
+  shippingCost       Float          @default(0)
+  shippingMethod     ShippingMethod? @relation(fields: [shippingMethodCode], references: [code])
 
   paymentMethod PaymentMethod
   paymentStatus PaymentStatus @default(PENDING)
@@ -366,6 +367,7 @@ model Order {
   @@index([userId])
   @@index([addressId])
   @@index([couponId])
+  @@index([shippingMethodCode]) 
 }
 
 model OrderItem {
@@ -387,11 +389,12 @@ model OrderItem {
 
 model ShippingMethod {
   id          String   @id @default(cuid())
-  code        String   @unique // یک کد منحصر به فرد مثل "pishaz" یا "tipax"
-  name        String   // نام نمایشی مثل "پست پیشتاز"
-  description String?  // توضیحات اختیاری مثل "۳ تا ۵ روز کاری"
-  cost        Float    // هزینه ارسال
-  isActive    Boolean  @default(true) // برای فعال یا غیرفعال کردن روش
+  code        String   @unique
+  name        String
+  description String?
+  cost        Float
+  isActive    Boolean  @default(true)
+  orders      Order[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
