@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import useEmblaCarousel, { EmblaCarouselType } from "embla-carousel-react";
+import useEmblaCarousel from "embla-carousel-react";
+import type { EmblaCarouselType as CarouselApi } from "embla-carousel";
 import Autoplay from "embla-carousel-autoplay";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -36,15 +37,25 @@ export const BaseCarousel: React.FC<BaseCarouselProps> = ({
     [emblaApi]
   );
 
-  const onSelect = useCallback((api: EmblaCarouselType) => {
-    setSelectedIndex(api.selectedScrollSnap());
-  }, []);
-
   useEffect(() => {
     if (!emblaApi) return;
+
+    const onSelect = (api: CarouselApi) => {
+      setSelectedIndex(api.selectedScrollSnap());
+    };
+
+    emblaApi.on("select", onSelect);
+    emblaApi.on("reInit", onSelect);
+
+    // Initial call
     onSelect(emblaApi);
-    emblaApi.on("select", onSelect).on("reInit", onSelect);
-  }, [emblaApi, onSelect]);
+
+    // Cleanup function
+    return () => {
+      emblaApi.off("select", onSelect);
+      emblaApi.off("reInit", onSelect);
+    };
+  }, [emblaApi]);
 
   const slideCount = React.Children.count(children);
 
@@ -85,6 +96,7 @@ export const BaseCarousel: React.FC<BaseCarouselProps> = ({
             className="rounded-full h-10 w-10"
             onClick={scrollPrev}
           >
+            <span className="sr-only">Previous slide</span>
             <ChevronRight className="h-5 w-5" />
           </Button>
           <Button
@@ -93,6 +105,7 @@ export const BaseCarousel: React.FC<BaseCarouselProps> = ({
             className="rounded-full h-10 w-10"
             onClick={scrollNext}
           >
+            <span className="sr-only">Next slide</span>
             <ChevronLeft className="h-5 w-5" />
           </Button>
         </div>

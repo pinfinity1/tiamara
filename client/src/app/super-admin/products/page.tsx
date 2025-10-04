@@ -217,6 +217,7 @@ function ManageProductsPage() {
     formDataToSend.append("concern", selectedConcerns.join(","));
 
     if (editingProduct) {
+      formDataToSend.append("slug", editingProduct.slug);
       formDataToSend.append("imagesToDelete", imagesToDelete.join(","));
     }
 
