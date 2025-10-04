@@ -1,6 +1,6 @@
 import express from "express";
 import { authenticateUser, authorizeAdmin } from "../middleware/authMiddleware";
-import { uploadImage } from "../middleware/uploadMiddleware";
+import { uploadImage, uploadVideo } from "../middleware/uploadMiddleware";
 import {
   addFeatureBanner,
   updateFeatureBanner,
@@ -15,6 +15,9 @@ import {
   updateProductCollection,
   deleteProductCollection,
   reorderProductCollections,
+  getVideoShowcaseItems,
+  addVideoShowcaseItem,
+  deleteVideoShowcaseItem,
 } from "../controllers/homepageController";
 
 const router = express.Router();
@@ -93,6 +96,22 @@ router.post(
   authenticateUser,
   authorizeAdmin,
   reorderProductCollections
+);
+
+// --- Video Showcase Routes ---
+router.get("/showcase", getVideoShowcaseItems);
+router.post(
+  "/showcase/add",
+  authenticateUser,
+  authorizeAdmin,
+  uploadVideo.single("video"),
+  addVideoShowcaseItem
+);
+router.delete(
+  "/showcase/delete/:id",
+  authenticateUser,
+  authorizeAdmin,
+  deleteVideoShowcaseItem
 );
 
 export default router;

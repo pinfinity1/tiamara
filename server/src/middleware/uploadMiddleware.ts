@@ -41,14 +41,33 @@ const excelFileFilter = (
   }
 };
 
+const videoFileFilter = (
+  req: any,
+  file: Express.Multer.File,
+  cb: multer.FileFilterCallback
+) => {
+  if (file.mimetype.startsWith("video")) {
+    cb(null, true);
+  } else {
+    cb(new Error("Not a video! Please upload only videos."));
+  }
+};
+
 export const uploadImage = multer({
   storage: storage,
   fileFilter: imageFileFilter,
-  limits: { fileSize: 1024 * 1024 * 5 },
+  limits: { fileSize: 1024 * 1024 * 5 }, // 5MB
 });
 
 export const uploadExcel = multer({
   storage: storage,
   fileFilter: excelFileFilter,
-  limits: { fileSize: 1024 * 1024 * 10 },
+  limits: { fileSize: 1024 * 1024 * 10 }, // 10MB
+});
+
+// ** این بخش جدید را export کنید **
+export const uploadVideo = multer({
+  storage: storage,
+  fileFilter: videoFileFilter,
+  limits: { fileSize: 1024 * 1024 * 20 }, // 20MB limit for videos
 });

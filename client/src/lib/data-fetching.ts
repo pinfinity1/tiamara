@@ -1,5 +1,9 @@
 import { axiosPublic } from "@/lib/axios";
-import { FeatureBanner, ProductCollection } from "@/store/useHomepageStore";
+import {
+  FeatureBanner,
+  ProductCollection,
+  VideoShowcaseItem,
+} from "@/store/useHomepageStore";
 import { Product } from "@/store/useProductStore";
 import { Brand } from "@/store/useBrandStore";
 import { Category } from "@/store/useCategoryStore";
@@ -36,7 +40,18 @@ export async function getCollectionsByLocation(
   }
 }
 
-// Explicitly define the return type for the function
+export async function getVideoShowcaseItems(): Promise<VideoShowcaseItem[]> {
+  try {
+    const response = await axiosPublic.get(`/homepage/showcase`);
+    return response.data.items || [];
+  } catch (error) {
+    console.error(`Failed to fetch video showcase items:`, error);
+    return [];
+  }
+}
+
+// ... (بقیه توابع فایل بدون تغییر باقی می‌مانند)
+
 export async function getHomepageData(): Promise<{
   banners: FeatureBanner[];
   collections: ProductCollection[];
@@ -122,7 +137,6 @@ export async function getCategoryBySlug(
 export async function fetchAllBrands(): Promise<Brand[]> {
   try {
     const response = await axiosPublic.get("/brands");
-    // The following line should return response.data.brands
     return response.data.brands || [];
   } catch (error) {
     console.error("Failed to fetch all brands:", error);
@@ -133,7 +147,6 @@ export async function fetchAllBrands(): Promise<Brand[]> {
 export async function fetchAllCategories(): Promise<Category[]> {
   try {
     const response = await axiosPublic.get("/categories");
-
     return response.data.categories || [];
   } catch (error) {
     console.error("Failed to fetch all categories:", error);

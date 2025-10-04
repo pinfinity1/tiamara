@@ -605,3 +605,85 @@ export const reorderProductCollections = async (
       .json({ success: false, message: "Failed to reorder collections." });
   }
 };
+
+// ===================================================
+// ================ VIDEO SHOWCASE CONTROLLERS =======
+// ===================================================
+
+export const addVideoShowcaseItem = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { productId, order } = req.body;
+    const file = req.file;
+
+    if (!productId || !file) {
+      res.status(400).json({
+        success: false,
+        message: "Product ID and a video file are required.",
+      });
+      return;
+    }
+
+    // ** ساختن URL صحیح برای دسترسی از فرانت‌اند **
+    const videoUrl = `/uploads/${file.filename}`;
+
+    const newItem = await prisma.videoShowcaseItem.create({
+      data: {
+        productId,
+        videoUrl: videoUrl, // <-- ذخیره کردن مسیر نسبی
+        order: Number(order) || 0,
+      },
+    });
+
+    res.status(201).json({ success: true, item: newItem });
+  } catch (error) {
+    console.error("Error adding video showcase item:", error);
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to add showcase item." });
+  }
+};
+
+export const deleteVideoShowcaseItem = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    await prisma.videoShowcaseItem.delete({ where: { id } });
+    res
+      .status(200)
+      .json({ success: true, message: "Showcase item deleted successfully." });
+  } catch (error) {
+    console.error("Error deleting video showcase item:", error);
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to delete showcase item." });
+  }
+};
+
+export const getVideoShowcaseItems = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const items = await prisma.videoShowcaseItem.findMany({
+      orderBy: { order: "asc" },
+      include: {
+        product: {
+          include: {
+            images: { take: 1 },
+          },
+        },
+      },
+    });
+    res.status(200).json({ success: true, items });
+  } catch (error) {
+    console.error("Error fetching video showcase items:", error);
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch showcase items." });
+  }
+};

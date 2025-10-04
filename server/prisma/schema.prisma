@@ -52,6 +52,7 @@ model Product {
   wishlistItems      WishlistItem[]
   cartItems          CartItem[]
   orderItems         OrderItem[]
+  videoShowcaseItems VideoShowcaseItem[]
 
   @@map("Product")
 }
@@ -404,6 +405,19 @@ model NewsletterSubscription {
   id        Int      @id @default(autoincrement())
   email     String   @unique
   createdAt DateTime @default(now())
+}
+
+model VideoShowcaseItem {
+  id        String   @id @default(cuid())
+  videoUrl  String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  product   Product  @relation(fields: [productId], references: [id])
+  productId String
+
+  @@index([productId])
+  @@map("video_showcase_items")
 }
 
 enum Role {

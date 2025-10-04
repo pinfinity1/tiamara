@@ -3,6 +3,14 @@ import axiosAuth, { axiosPublic } from "@/lib/axios";
 import { toast } from "@/hooks/use-toast";
 import { Product } from "./useProductStore";
 
+export interface VideoShowcaseItem {
+  id: string;
+  videoUrl: string;
+  order: number;
+  product: Product;
+  productId: string;
+}
+
 export enum SectionType {
   MANUAL = "MANUAL",
   DISCOUNTED = "DISCOUNTED",
@@ -40,6 +48,7 @@ interface HomepageState {
   banners: FeatureBanner[];
   clientBanners: FeatureBanner[];
   collections: ProductCollection[];
+  videoShowcaseItems: VideoShowcaseItem[];
   isLoading: boolean;
   error: string | null;
   // Admin banner actions
@@ -63,12 +72,16 @@ interface HomepageState {
   reorderCollections: (
     reorderedCollections: ProductCollection[]
   ) => Promise<boolean>;
+  fetchVideoShowcaseItems: () => Promise<void>;
+  addVideoShowcaseItem: (formData: FormData) => Promise<void>;
+  deleteVideoShowcaseItem: (id: string) => Promise<void>;
 }
 
 export const useHomepageStore = create<HomepageState>((set, get) => ({
   banners: [],
   clientBanners: [],
   collections: [],
+  videoShowcaseItems: [],
   isLoading: false,
   error: null,
 
@@ -278,6 +291,72 @@ export const useHomepageStore = create<HomepageState>((set, get) => ({
       set({ collections: originalCollections }); // Revert on error
       toast({ title: "خطا در مرتب‌سازی مجموعه‌ها", variant: "destructive" });
       return false;
+    }
+  },
+
+  // ===============================================
+  // ================ VIDEO SHOWCASE ===============
+  // ===============================================
+
+  fetchVideoShowcaseItems: async () => {
+    try {
+      set({ isLoading: true });
+      const { data } = await axiosAuth.get("/homepage/showcase"); // ** اصلاح شد
+      if (data.success) {
+        set({ videoShowcaseItems: data.items });
+      }
+    } catch (error) {
+      toast({
+        title: "خطا در دریافت لیست آیتم‌های نمایشی",
+        variant: "destructive",
+      }); // ** اصلاح شد
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  addVideoShowcaseItem: async (formData: FormData) => {
+    try {
+      set({ isLoading: true });
+      const { data } = await axiosAuth.post(
+        "/homepage/showcase/add", // ** اصلاح شد
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        }
+      );
+      if (data.success) {
+        toast({ title: "آیتم جدید با موفقیت اضافه شد" }); // ** اصلاح شد
+        set((state) => ({
+          videoShowcaseItems: [...state.videoShowcaseItems, data.item],
+        }));
+      }
+    } catch (error) {
+      toast({ title: "خطا در افزودن آیتم جدید", variant: "destructive" }); // ** اصلاح شد
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  deleteVideoShowcaseItem: async (id: string) => {
+    if (!confirm("آیا از حذف این آیتم اطمینان دارید؟")) return;
+    try {
+      set({ isLoading: true });
+      const { data } = await axiosAuth.delete(
+        `/homepage/showcase/delete/${id}` // ** اصلاح شد
+      );
+      if (data.success) {
+        toast({ title: "آیتم با موفقیت حذف شد" }); // ** اصلاح شد
+        set((state) => ({
+          videoShowcaseItems: state.videoShowcaseItems.filter(
+            (item) => item.id !== id
+          ),
+        }));
+      }
+    } catch (error) {
+      toast({ title: "خطا در حذف آیتم", variant: "destructive" }); // ** اصلاح شد
+    } finally {
+      set({ isLoading: false });
     }
   },
 }));
