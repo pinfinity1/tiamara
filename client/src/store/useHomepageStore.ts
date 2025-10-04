@@ -73,7 +73,10 @@ interface HomepageState {
     reorderedCollections: ProductCollection[]
   ) => Promise<boolean>;
   fetchVideoShowcaseItems: () => Promise<void>;
-  addVideoShowcaseItem: (formData: FormData) => Promise<void>;
+  addVideoShowcaseItem: (
+    formData: FormData,
+    onUploadProgress: (progressEvent: any) => void
+  ) => Promise<void>;
   deleteVideoShowcaseItem: (id: string) => Promise<void>;
 }
 
@@ -315,38 +318,38 @@ export const useHomepageStore = create<HomepageState>((set, get) => ({
     }
   },
 
-  addVideoShowcaseItem: async (formData: FormData) => {
+  addVideoShowcaseItem: async (formData, onUploadProgress) => {
     try {
       set({ isLoading: true });
       const { data } = await axiosAuth.post(
-        "/homepage/showcase/add", // ** اصلاح شد
+        "/homepage/showcase/add",
         formData,
         {
           headers: { "Content-Type": "multipart/form-data" },
+          onUploadProgress,
         }
       );
       if (data.success) {
-        toast({ title: "آیتم جدید با موفقیت اضافه شد" }); // ** اصلاح شد
+        toast({ title: "آیتم جدید با موفقیت اضافه شد" });
         set((state) => ({
           videoShowcaseItems: [...state.videoShowcaseItems, data.item],
         }));
       }
     } catch (error) {
-      toast({ title: "خطا در افزودن آیتم جدید", variant: "destructive" }); // ** اصلاح شد
+      toast({ title: "خطا در افزودن آیتم جدید", variant: "destructive" });
     } finally {
       set({ isLoading: false });
     }
   },
 
   deleteVideoShowcaseItem: async (id: string) => {
-    if (!confirm("آیا از حذف این آیتم اطمینان دارید؟")) return;
     try {
       set({ isLoading: true });
       const { data } = await axiosAuth.delete(
-        `/homepage/showcase/delete/${id}` // ** اصلاح شد
+        `/homepage/showcase/delete/${id}`
       );
       if (data.success) {
-        toast({ title: "آیتم با موفقیت حذف شد" }); // ** اصلاح شد
+        toast({ title: "آیتم با موفقیت حذف شد" });
         set((state) => ({
           videoShowcaseItems: state.videoShowcaseItems.filter(
             (item) => item.id !== id

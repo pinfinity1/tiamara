@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Image from "next/image";
+import { useToast } from "@/hooks/use-toast"; // <-- ایمپورت کردن هوک useToast
 
 const VideoShowcaseManager = () => {
   const {
@@ -30,6 +31,8 @@ const VideoShowcaseManager = () => {
 
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const { toast } = useToast(); // <-- فراخوانی هوک
 
   useEffect(() => {
     fetchVideoShowcaseItems();
@@ -48,7 +51,12 @@ const VideoShowcaseManager = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProductId || !videoFile) {
-      alert("لطفا یک محصول و یک فایل ویدیویی انتخاب کنید.");
+      // ** استفاده از toast به جای alert **
+      toast({
+        title: "فرم ناقص است",
+        description: "لطفاً هم محصول و هم فایل ویدیویی را انتخاب کنید.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -56,9 +64,20 @@ const VideoShowcaseManager = () => {
     formData.append("productId", selectedProductId);
     formData.append("video", videoFile);
 
-    await addVideoShowcaseItem(formData);
+    setUploadProgress(0);
+
+    const onUploadProgress = (progressEvent: any) => {
+      const percentCompleted = Math.round(
+        (progressEvent.loaded * 100) / progressEvent.total
+      );
+      setUploadProgress(percentCompleted);
+    };
+
+    await addVideoShowcaseItem(formData, onUploadProgress);
+
     setSelectedProductId("");
     setVideoFile(null);
+    setUploadProgress(0);
     const fileInput = document.getElementById(
       "video-upload"
     ) as HTMLInputElement;
@@ -102,8 +121,21 @@ const VideoShowcaseManager = () => {
               required
             />
           </div>
+
+          {/* نوار پیشرفت آپلود */}
+          {isLoading && uploadProgress > 0 && (
+            <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+              <div
+                className="bg-primary h-2.5 rounded-full transition-all duration-300"
+                style={{ width: `${uploadProgress}%` }}
+              ></div>
+            </div>
+          )}
+
           <Button type="submit" disabled={isLoading}>
-            {isLoading ? "در حال افزودن..." : "افزودن آیتم جدید"}
+            {isLoading
+              ? `در حال آپلود... ${uploadProgress}%`
+              : "افزودن آیتم جدید"}
           </Button>
         </form>
 
@@ -116,7 +148,6 @@ const VideoShowcaseManager = () => {
             <p>در حال بارگذاری...</p>
           )}
           {videoShowcaseItems.map((item) => {
-            // ** این شرط کلیدی، از بروز خطا جلوگیری می‌کند **
             if (!item.product) {
               return (
                 <div
@@ -137,7 +168,6 @@ const VideoShowcaseManager = () => {
                 </div>
               );
             }
-            // اگر محصول وجود داشت، آیتم را به صورت عادی نمایش بده
             return (
               <div
                 key={item.id}

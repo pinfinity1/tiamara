@@ -626,20 +626,38 @@ export const addVideoShowcaseItem = async (
       return;
     }
 
-    // ** ساختن URL صحیح برای دسترسی از فرانت‌اند **
-    const videoUrl = `/uploads/${file.filename}`;
+    const result = await cloudinary.uploader.upload(file.path, {
+      resource_type: "video",
+      folder: "tiamara-videos",
+    });
 
-    const newItem = await prisma.videoShowcaseItem.create({
+    fs.unlinkSync(file.path);
+
+    const newItemData = await prisma.videoShowcaseItem.create({
       data: {
         productId,
-        videoUrl: videoUrl, // <-- ذخیره کردن مسیر نسبی
+        videoUrl: result.secure_url,
         order: Number(order) || 0,
+      },
+    });
+
+    const newItem = await prisma.videoShowcaseItem.findUnique({
+      where: { id: newItemData.id },
+      include: {
+        product: {
+          include: {
+            images: { take: 1 },
+          },
+        },
       },
     });
 
     res.status(201).json({ success: true, item: newItem });
   } catch (error) {
     console.error("Error adding video showcase item:", error);
+    if (req.file) {
+      fs.unlinkSync(req.file.path);
+    }
     res
       .status(500)
       .json({ success: false, message: "Failed to add showcase item." });
