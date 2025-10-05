@@ -2,7 +2,8 @@ import FeaturedBrands from "@/components/layout/home/FeaturedBrands";
 import HomeBannerCarousel from "@/components/layout/home/HomeBannerCarousel";
 import NewsletterSignUp from "@/components/layout/home/NewsletterSignUp";
 import ProductSection from "@/components/layout/home/ProductSection";
-import VideoShowcase from "@/components/layout/home/VideoShowcase";
+import VideoCarousel from "@/components/layout/home/VideoCarousel";
+// import VideoShowcase from "@/components/layout/home/VideoShowcase";
 import WhyChooseUs from "@/components/layout/home/WhyChooseUs";
 import {
   fetchAllBrands,
@@ -23,7 +24,7 @@ export default async function HomePage() {
     <div className="min-h-screen bg-white">
       <HomeBannerCarousel banners={homepageBanners} />
 
-      <VideoShowcase items={videoShowcaseItems} />
+      <VideoCarousel items={videoShowcaseItems} />
 
       <div className="py-12 lg:py-16 space-y-12 lg:space-y-16">
         {homepageCollections.map((collection) => (

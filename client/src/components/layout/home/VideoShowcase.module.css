@@ -1,4 +1,4 @@
-/* VideoShowcase.module.css */
+/* client/src/components/layout/home/VideoShowcase.module.css */
 
 .embla {
   overflow: hidden;
@@ -6,14 +6,15 @@
 
 .embla__container {
   display: flex;
+  align-items: center; /* اسلایدها را در مرکز عمودی تراز می‌کند */
 }
 
 .embla__slide {
-  flex: 0 0 256px; /* عرض اسلاید در موبایل */
+  flex: 0 0 220px; /* عرض اسلاید در موبایل */
   min-width: 0;
   padding: 0 10px;
-  border-radius: 16px;
-  overflow: hidden;
+  position: relative;
+  transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
 }
 
 /* استایل برای نمایشگرهای بزرگتر */
@@ -21,10 +22,6 @@
   .embla__slide {
     flex: 0 0 300px; /* عرض اسلاید در دسکتاپ */
   }
-}
-
-.embla__slide > div {
-  height: 100%;
 }
 
 .embla__lazy-load {

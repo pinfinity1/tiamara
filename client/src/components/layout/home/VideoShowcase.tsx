@@ -14,9 +14,8 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useCartStore } from "@/store/useCartStore";
 import styles from "./VideoShowcase.module.css";
-import { LazyLoadVideo } from "./LazyLoadVideo"; // کامپوننت جدید را ایمپورت کنید
+import { LazyLoadVideo } from "./LazyLoadVideo";
 
-// فاکتور انیمیشن را کمی ملایم‌تر می‌کنیم
 const TWEEN_FACTOR_BASE = 0.5;
 
 const numberWithinRange = (number: number, min: number, max: number): number =>
@@ -34,19 +33,15 @@ const VideoShowcase: React.FC<VideoShowcaseProps> = ({ items }) => {
   });
   const [selectedIndex, setSelectedIndex] = useState(0);
   const tweenFactor = useRef(0);
-
-  // --- State برای Lazy Load ---
   const [slidesInView, setSlidesInView] = useState<number[]>([]);
-
   const { toast } = useToast();
   const addToCart = useCartStore((state) => state.addToCart);
 
-  // --- منطق Opacity ---
   const setTweenFactor = useCallback((emblaApi: EmblaCarouselType) => {
     tweenFactor.current = TWEEN_FACTOR_BASE * emblaApi.scrollSnapList().length;
   }, []);
 
-  const tweenOpacity = useCallback(
+  const tweenStyles = useCallback(
     (emblaApi: EmblaCarouselType, eventName?: EmblaEventType) => {
       const engine = emblaApi.internalEngine();
       const scrollProgress = emblaApi.scrollProgress();
@@ -74,16 +69,17 @@ const VideoShowcase: React.FC<VideoShowcaseProps> = ({ items }) => {
           }
 
           const tweenValue = 1 - Math.abs(diffToTarget * tweenFactor.current);
-          const opacity = numberWithinRange(tweenValue, 0, 1).toString();
-          // مستقیم استایل را به نود اصلی اسلاید اعمال می‌کنیم
-          emblaApi.slideNodes()[slideIndex].style.opacity = opacity;
+          const scale = numberWithinRange(tweenValue, 0.8, 1).toString();
+          const opacity = numberWithinRange(tweenValue, 0.5, 1).toString();
+          const slideNode = emblaApi.slideNodes()[slideIndex];
+          slideNode.style.opacity = opacity;
+          slideNode.style.transform = `scale(${scale})`;
         });
       });
     },
     []
   );
 
-  // --- منطق Lazy Load ---
   const updateSlidesInView = useCallback((emblaApi: EmblaCarouselType) => {
     setSlidesInView((prevSlidesInView) => {
       if (prevSlidesInView.length === emblaApi.slideNodes().length) {
@@ -96,7 +92,6 @@ const VideoShowcase: React.FC<VideoShowcaseProps> = ({ items }) => {
     });
   }, []);
 
-  // --- ترکیب useEffect ها برای همه رویدادها ---
   useEffect(() => {
     if (!emblaApi) return;
 
@@ -104,29 +99,27 @@ const VideoShowcase: React.FC<VideoShowcaseProps> = ({ items }) => {
       setSelectedIndex(emblaApi.selectedScrollSnap());
     };
 
-    // راه‌اندازی هر دو قابلیت
     updateSlidesInView(emblaApi);
     setTweenFactor(emblaApi);
-    tweenOpacity(emblaApi);
+    tweenStyles(emblaApi);
     onSelect();
 
-    // ثبت رویدادها
     emblaApi.on("select", onSelect);
-    emblaApi.on("slidesInView", updateSlidesInView); // برای Lazy Load
+    emblaApi.on("slidesInView", updateSlidesInView);
     emblaApi.on("reInit", () => {
       updateSlidesInView(emblaApi);
       setTweenFactor(emblaApi);
-      tweenOpacity(emblaApi);
+      tweenStyles(emblaApi);
       onSelect();
     });
-    emblaApi.on("scroll", tweenOpacity); // برای Opacity
-    emblaApi.on("slideFocus", tweenOpacity); // برای Opacity
+    emblaApi.on("scroll", tweenStyles);
+    emblaApi.on("slideFocus", tweenStyles);
 
     return () => {
       emblaApi.off("select", onSelect);
       emblaApi.off("slidesInView", updateSlidesInView);
     };
-  }, [emblaApi, updateSlidesInView, setTweenFactor, tweenOpacity]);
+  }, [emblaApi, updateSlidesInView, setTweenFactor, tweenStyles]);
 
   if (!items || items.length === 0) {
     return null;
@@ -134,7 +127,6 @@ const VideoShowcase: React.FC<VideoShowcaseProps> = ({ items }) => {
 
   const currentItem = items[selectedIndex];
 
-  // این تابع بدون تغییر باقی می‌ماند
   const handleAddToCart = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     const product = currentItem.product;
@@ -178,7 +170,6 @@ const VideoShowcase: React.FC<VideoShowcaseProps> = ({ items }) => {
           </div>
         </div>
 
-        {/* بخش کارت اطلاعات محصول بدون تغییر باقی می‌ماند */}
         {currentItem && (
           <div className="mt-6 max-w-sm mx-auto">
             <div className="bg-white p-3 rounded-lg shadow-md flex items-center gap-3">
