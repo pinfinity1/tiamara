@@ -2,19 +2,25 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import useEmblaCarousel from "embla-carousel-react";
-import type { EmblaCarouselType as CarouselApi } from "embla-carousel";
+import { EmblaCarouselType, EmblaEventType } from "embla-carousel";
 import { VideoShowcaseItem } from "@/store/useHomepageStore";
 import { Button } from "@/components/ui/button";
 import { ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useCartStore } from "@/store/useCartStore";
-// ایمپورت کردن فایل استایل ماژول
 import styles from "./VideoShowcase.module.css";
+import { LazyLoadVideo } from "./LazyLoadVideo"; // کامپوننت جدید را ایمپورت کنید
+
+// فاکتور انیمیشن را کمی ملایم‌تر می‌کنیم
+const TWEEN_FACTOR_BASE = 0.5;
+
+const numberWithinRange = (number: number, min: number, max: number): number =>
+  Math.min(Math.max(number, min), max);
 
 interface VideoShowcaseProps {
   items: VideoShowcaseItem[];
@@ -27,25 +33,100 @@ const VideoShowcase: React.FC<VideoShowcaseProps> = ({ items }) => {
     containScroll: "trimSnaps",
   });
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const tweenFactor = useRef(0);
+
+  // --- State برای Lazy Load ---
+  const [slidesInView, setSlidesInView] = useState<number[]>([]);
 
   const { toast } = useToast();
   const addToCart = useCartStore((state) => state.addToCart);
 
-  const onSelect = useCallback((emblaApi: CarouselApi) => {
-    setSelectedIndex(emblaApi.selectedScrollSnap());
+  // --- منطق Opacity ---
+  const setTweenFactor = useCallback((emblaApi: EmblaCarouselType) => {
+    tweenFactor.current = TWEEN_FACTOR_BASE * emblaApi.scrollSnapList().length;
   }, []);
 
+  const tweenOpacity = useCallback(
+    (emblaApi: EmblaCarouselType, eventName?: EmblaEventType) => {
+      const engine = emblaApi.internalEngine();
+      const scrollProgress = emblaApi.scrollProgress();
+      const slidesInView = emblaApi.slidesInView();
+      const isScrollEvent = eventName === "scroll";
+
+      emblaApi.scrollSnapList().forEach((scrollSnap, snapIndex) => {
+        let diffToTarget = scrollSnap - scrollProgress;
+        const slidesInSnap = engine.slideRegistry[snapIndex];
+
+        slidesInSnap.forEach((slideIndex) => {
+          if (isScrollEvent && !slidesInView.includes(slideIndex)) return;
+
+          if (engine.options.loop) {
+            engine.slideLooper.loopPoints.forEach((loopItem) => {
+              const target = loopItem.target();
+              if (slideIndex === loopItem.index && target !== 0) {
+                const sign = Math.sign(target);
+                if (sign === -1)
+                  diffToTarget = scrollSnap - (1 + scrollProgress);
+                if (sign === 1)
+                  diffToTarget = scrollSnap + (1 - scrollProgress);
+              }
+            });
+          }
+
+          const tweenValue = 1 - Math.abs(diffToTarget * tweenFactor.current);
+          const opacity = numberWithinRange(tweenValue, 0, 1).toString();
+          // مستقیم استایل را به نود اصلی اسلاید اعمال می‌کنیم
+          emblaApi.slideNodes()[slideIndex].style.opacity = opacity;
+        });
+      });
+    },
+    []
+  );
+
+  // --- منطق Lazy Load ---
+  const updateSlidesInView = useCallback((emblaApi: EmblaCarouselType) => {
+    setSlidesInView((prevSlidesInView) => {
+      if (prevSlidesInView.length === emblaApi.slideNodes().length) {
+        emblaApi.off("slidesInView", updateSlidesInView);
+      }
+      const inView = emblaApi
+        .slidesInView()
+        .filter((index) => !prevSlidesInView.includes(index));
+      return prevSlidesInView.concat(inView);
+    });
+  }, []);
+
+  // --- ترکیب useEffect ها برای همه رویدادها ---
   useEffect(() => {
     if (!emblaApi) return;
-    onSelect(emblaApi);
-    emblaApi.on("select", onSelect);
-    emblaApi.on("reInit", onSelect);
-  }, [emblaApi, onSelect]);
 
-  const scrollTo = useCallback(
-    (index: number) => emblaApi && emblaApi.scrollTo(index),
-    [emblaApi]
-  );
+    const onSelect = () => {
+      setSelectedIndex(emblaApi.selectedScrollSnap());
+    };
+
+    // راه‌اندازی هر دو قابلیت
+    updateSlidesInView(emblaApi);
+    setTweenFactor(emblaApi);
+    tweenOpacity(emblaApi);
+    onSelect();
+
+    // ثبت رویدادها
+    emblaApi.on("select", onSelect);
+    emblaApi.on("slidesInView", updateSlidesInView); // برای Lazy Load
+    emblaApi.on("reInit", () => {
+      updateSlidesInView(emblaApi);
+      setTweenFactor(emblaApi);
+      tweenOpacity(emblaApi);
+      onSelect();
+    });
+    emblaApi.on("scroll", tweenOpacity); // برای Opacity
+    emblaApi.on("slideFocus", tweenOpacity); // برای Opacity
+
+    return () => {
+      emblaApi.off("select", onSelect);
+      emblaApi.off("slidesInView", updateSlidesInView);
+    };
+  }, [emblaApi, updateSlidesInView, setTweenFactor, tweenOpacity]);
 
   if (!items || items.length === 0) {
     return null;
@@ -53,6 +134,7 @@ const VideoShowcase: React.FC<VideoShowcaseProps> = ({ items }) => {
 
   const currentItem = items[selectedIndex];
 
+  // این تابع بدون تغییر باقی می‌ماند
   const handleAddToCart = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     const product = currentItem.product;
@@ -74,47 +156,29 @@ const VideoShowcase: React.FC<VideoShowcaseProps> = ({ items }) => {
   return (
     <section className="w-full py-8 md:py-12 bg-white overflow-hidden">
       <div className="container mx-auto px-4">
-        {/* استفاده از کلاس‌های ماژول */}
         <div className={styles.embla} ref={emblaRef}>
           <div
-            className={
-              styles.embla__container + " h-[400px] md:h-[550px] items-center"
-            }
+            className={`${styles.embla__container} h-[400px] md:h-[550px] items-center`}
           >
             {items.map((item, index) => (
               <div
-                className={cn(
-                  styles.embla__slide, // استفاده از کلاس ماژول
-                  "transition-all duration-300 ease-in-out cursor-pointer",
-                  index === selectedIndex ? "scale-100" : "scale-90 opacity-60"
-                )}
+                className={cn(styles.embla__slide, "cursor-pointer")}
                 key={item.id}
-                onClick={() => scrollTo(index)}
+                onClick={() => emblaApi && emblaApi.scrollTo(index)}
               >
                 <div className="relative aspect-[9/16] h-full mx-auto bg-black rounded-lg overflow-hidden shadow-lg pointer-events-none">
-                  {item.videoUrl ? (
-                    <video
-                      src={item.videoUrl}
-                      className="w-full h-full object-cover"
-                      muted
-                      loop
-                      playsInline
-                    />
-                  ) : (
-                    <Image
-                      src={item.product.images?.[0]?.url || "/placeholder.png"}
-                      alt={`نمایش محصول ${item.product.name}`}
-                      fill
-                      className="object-cover"
-                    />
-                  )}
+                  <LazyLoadVideo
+                    key={item.id}
+                    videoSrc={item.videoUrl}
+                    inView={slidesInView.includes(index)}
+                  />
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Product Info Card */}
+        {/* بخش کارت اطلاعات محصول بدون تغییر باقی می‌ماند */}
         {currentItem && (
           <div className="mt-6 max-w-sm mx-auto">
             <div className="bg-white p-3 rounded-lg shadow-md flex items-center gap-3">
