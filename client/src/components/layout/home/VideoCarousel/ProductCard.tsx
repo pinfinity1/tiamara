@@ -31,29 +31,26 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   };
 
   return (
-    <div className={styles.product_card_wrapper}>
-      <div className={styles.product_card}>
+    <div className="video-carousel-product_card_wrapper">
+      <div className="video-carousel-product_card">
         <Link
           href={`/products/${product.slug}`}
-          className={styles.product_image_link}
+          className="video-carousel-product_image_link"
         >
           <Image
             src={product.images?.[0]?.url || "/images/placeholder.png"}
             alt={product.name}
             fill
-            className="object-cover"
+            style={{ objectFit: "cover" }}
           />
         </Link>
-        <div className={styles.product_info}>
-          <Link
-            href={`/products/${product.slug}`}
-            className={styles.product_name}
-          >
-            {product.name}
+        <div className="video-carousel-product_info">
+          <Link href={`/products/${product.slug}`}>
+            <span className="video-carousel-product_name">{product.name}</span>
           </Link>
-          <div className={styles.product_price}>
-            {product.price.toLocaleString("fa-IR")} تومان
-          </div>
+          <p className="video-carousel-product_price">
+            {product.price.toLocaleString()} تومان
+          </p>
         </div>
         <Button
           size="icon"

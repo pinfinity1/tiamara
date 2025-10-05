@@ -1,21 +1,28 @@
 import React, { useRef, useEffect, useState } from "react";
 import { Volume2, VolumeX } from "lucide-react";
-import styles from "./VideoCarousel.module.css";
+import { ProductCard } from "./ProductCard";
+
+interface Product {
+  id: string;
+  slug: string;
+  name: string;
+  price: number;
+  images?: { url: string }[];
+}
 
 interface VideoSlideProps {
   videoSrc: string;
   isActive: boolean;
+  currentItem: any;
 }
 
 export const VideoSlide: React.FC<VideoSlideProps> = ({
   videoSrc,
   isActive,
+  currentItem,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isMuted, setIsMuted] = useState(true);
-
-  console.log(videoSrc);
-  console.log(isActive);
 
   useEffect(() => {
     const videoElement = videoRef.current;
@@ -36,21 +43,31 @@ export const VideoSlide: React.FC<VideoSlideProps> = ({
     setIsMuted((prev) => !prev);
   };
 
+  const handleAddToCart = (product: Product) => {
+    // منطق اضافه کردن به سبد خرید را در اینجا پیاده‌سازی کنید
+    console.log("Added to cart:", product.name);
+    // toast({ title: "محصول به سبد خرید اضافه شد." });
+  };
+
   return (
-    <div className={styles.embla__slide}>
-      <div className={styles.video_wrapper}>
+    <div className="video-carousel-embla__slide">
+      <div className="video-carousel-video_wrapper">
         <video
           ref={videoRef}
           src={videoSrc}
           muted={isMuted}
           playsInline
           loop
-          className={styles.embla__slide__video}
+          className="video-carousel-embla__slide__video "
         />
-        <button onClick={toggleMute} className={styles.mute_button}>
+        <button onClick={toggleMute} className="video-carousel-mute_button">
           {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
         </button>
       </div>
+      <ProductCard
+        product={currentItem.product}
+        onAddToCart={handleAddToCart}
+      />
     </div>
   );
 };

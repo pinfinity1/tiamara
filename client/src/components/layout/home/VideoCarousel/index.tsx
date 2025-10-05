@@ -36,12 +36,6 @@ const VideoCarousel: React.FC<VideoCarouselProps> = ({ items }) => {
     nextBtnDisabled,
   } = useEmblaCarouselSetup();
 
-  const handleAddToCart = (product: Product) => {
-    // منطق اضافه کردن به سبد خرید را در اینجا پیاده‌سازی کنید
-    console.log("Added to cart:", product.name);
-    // toast({ title: "محصول به سبد خرید اضافه شد." });
-  };
-
   if (!items || items.length === 0) {
     return null;
   }
@@ -49,40 +43,36 @@ const VideoCarousel: React.FC<VideoCarouselProps> = ({ items }) => {
   const currentItem = items[selectedIndex];
 
   return (
-    <section className={styles.carousel_section}>
-      <div className={styles.embla}>
-        <div className={styles.embla__viewport} ref={emblaRef}>
-          <div className={styles.embla__container}>
+    <section className="video-carousel-section">
+      <div className="video-carousel-embla">
+        <div className="video-carousel-embla__viewport" ref={emblaRef}>
+          <div className="video-carousel-embla__container">
             {items.map((item, index) => (
               <VideoSlide
                 key={item.id}
                 videoSrc={item.videoUrl}
                 isActive={index === selectedIndex}
+                currentItem={currentItem}
               />
             ))}
           </div>
         </div>
 
         <button
-          className={`${styles.embla__button} ${styles.embla__button__prev}`}
+          className="video-carousel-embla__button video-carousel-embla__button__prev"
           onClick={scrollPrev}
           disabled={prevBtnDisabled}
         >
           <ChevronRight size={24} />
         </button>
         <button
-          className={`${styles.embla__button} ${styles.embla__button__next}`}
+          className="video-carousel-embla__button video-carousel-embla__button__next"
           onClick={scrollNext}
           disabled={nextBtnDisabled}
         >
           <ChevronLeft size={24} />
         </button>
       </div>
-
-      <ProductCard
-        product={currentItem.product}
-        onAddToCart={handleAddToCart}
-      />
     </section>
   );
 };
