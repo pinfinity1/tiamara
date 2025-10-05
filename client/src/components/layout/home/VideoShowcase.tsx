@@ -2,18 +2,19 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react"; // **<-- اینجا اصلاح شد**
+import React, { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import useEmblaCarousel from "embla-carousel-react";
 import type { EmblaCarouselType as CarouselApi } from "embla-carousel";
-
 import { VideoShowcaseItem } from "@/store/useHomepageStore";
 import { Button } from "@/components/ui/button";
 import { ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useCartStore } from "@/store/useCartStore";
+// ایمپورت کردن فایل استایل ماژول
+import styles from "./VideoShowcase.module.css";
 
 interface VideoShowcaseProps {
   items: VideoShowcaseItem[];
@@ -73,13 +74,18 @@ const VideoShowcase: React.FC<VideoShowcaseProps> = ({ items }) => {
   return (
     <section className="w-full py-8 md:py-12 bg-white overflow-hidden">
       <div className="container mx-auto px-4">
-        {/* Embla Carousel Viewport */}
-        <div className="embla" ref={emblaRef}>
-          <div className="embla__container h-[400px] md:h-[550px] items-center">
+        {/* استفاده از کلاس‌های ماژول */}
+        <div className={styles.embla} ref={emblaRef}>
+          <div
+            className={
+              styles.embla__container + " h-[400px] md:h-[550px] items-center"
+            }
+          >
             {items.map((item, index) => (
               <div
                 className={cn(
-                  "embla__slide transition-all duration-300 ease-in-out cursor-pointer",
+                  styles.embla__slide, // استفاده از کلاس ماژول
+                  "transition-all duration-300 ease-in-out cursor-pointer",
                   index === selectedIndex ? "scale-100" : "scale-90 opacity-60"
                 )}
                 key={item.id}
@@ -90,7 +96,6 @@ const VideoShowcase: React.FC<VideoShowcaseProps> = ({ items }) => {
                     <video
                       src={item.videoUrl}
                       className="w-full h-full object-cover"
-                      autoPlay
                       muted
                       loop
                       playsInline
@@ -151,26 +156,6 @@ const VideoShowcase: React.FC<VideoShowcaseProps> = ({ items }) => {
           </div>
         )}
       </div>
-
-      {/* استایل‌های مربوط به عرض اسلایدها */}
-      <style jsx global>{`
-        .embla {
-          overflow: hidden;
-        }
-        .embla__container {
-          display: flex;
-        }
-        .embla__slide {
-          flex: 0 0 70%; /* عرض اسلاید در موبایل */
-          min-width: 0;
-          padding: 0 10px;
-        }
-        @media (min-width: 768px) {
-          .embla__slide {
-            flex: 0 0 33.33%; /* عرض اسلاید در دسکتاپ */
-          }
-        }
-      `}</style>
     </section>
   );
 };

@@ -626,6 +626,21 @@ export const addVideoShowcaseItem = async (
       return;
     }
 
+    const existingItem = await prisma.videoShowcaseItem.findFirst({
+      where: { productId },
+    });
+
+    if (existingItem) {
+      // If an item already exists, return an error
+      res.status(409).json({
+        // 409 Conflict is a suitable status code
+        success: false,
+        message:
+          "ویدیو برای این محصول از قبل وجود دارد و امکان افزودن مجدد نیست.",
+      });
+      return;
+    }
+
     const result = await cloudinary.uploader.upload(file.path, {
       resource_type: "video",
       folder: "tiamara-videos",

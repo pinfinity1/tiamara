@@ -84,6 +84,10 @@ const VideoShowcaseManager = () => {
     if (fileInput) fileInput.value = "";
   };
 
+  const productsWithVideo = new Set(
+    videoShowcaseItems.map((item) => item.productId)
+  );
+
   return (
     <Card>
       <CardHeader>
@@ -102,7 +106,11 @@ const VideoShowcaseManager = () => {
               </SelectTrigger>
               <SelectContent>
                 {products.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
+                  <SelectItem
+                    key={p.id}
+                    value={p.id}
+                    disabled={productsWithVideo.has(p.id)}
+                  >
                     {p.name}
                   </SelectItem>
                 ))}

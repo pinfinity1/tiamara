@@ -1,0 +1,22 @@
+/* VideoShowcase.module.css */
+
+.embla {
+  overflow: hidden;
+}
+
+.embla__container {
+  display: flex;
+}
+
+.embla__slide {
+  flex: 0 0 70%; /* عرض اسلاید در موبایل */
+  min-width: 0;
+  padding: 0 10px;
+}
+
+/* استایل برای نمایشگرهای بزرگتر */
+@media (min-width: 768px) {
+  .embla__slide {
+    flex: 0 0 33.33%; /* عرض اسلاید در دسکتاپ */
+  }
+}
