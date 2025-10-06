@@ -707,7 +707,8 @@ export const getVideoShowcaseItems = async (
       include: {
         product: {
           include: {
-            images: { take: 1 },
+            images: true,
+            brand: true,
           },
         },
       },

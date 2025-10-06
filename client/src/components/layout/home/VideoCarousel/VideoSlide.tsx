@@ -1,73 +1,62 @@
-import React, { useRef, useEffect, useState } from "react";
-import { Volume2, VolumeX } from "lucide-react";
-import { ProductCard } from "./ProductCard";
+// client/src/components/layout/home/VideoCarousel/VideoSlide.tsx
 
-interface Product {
-  id: string;
-  slug: string;
-  name: string;
-  price: number;
-  images?: { url: string }[];
-}
+import React, { useRef, useEffect, useState } from "react";
+import { ProductCard, type Product } from "./ProductCard"; // تایپ Product را از اینجا وارد می‌کنیم
+import { Volume2, VolumeX } from "lucide-react";
 
 interface VideoSlideProps {
   videoSrc: string;
   isActive: boolean;
-  currentItem: any;
+  product: Product;
+  isMuted: boolean;
+  onToggleMute: () => void;
 }
 
 export const VideoSlide: React.FC<VideoSlideProps> = ({
   videoSrc,
   isActive,
-  currentItem,
+  product,
+  isMuted,
+  onToggleMute,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [isMuted, setIsMuted] = useState(true);
 
   useEffect(() => {
-    const videoElement = videoRef.current;
-    if (videoElement) {
+    if (videoRef.current) {
       if (isActive) {
-        videoElement.play().catch((error) => {
-          console.error("Video play failed:", error);
-        });
+        videoRef.current.play().catch(console.error);
       } else {
-        videoElement.pause();
-        videoElement.currentTime = 0;
+        videoRef.current.pause();
       }
     }
   }, [isActive]);
 
-  const toggleMute = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsMuted((prev) => !prev);
-  };
-
-  const handleAddToCart = (product: Product) => {
-    // منطق اضافه کردن به سبد خرید را در اینجا پیاده‌سازی کنید
-    console.log("Added to cart:", product.name);
-    // toast({ title: "محصول به سبد خرید اضافه شد." });
-  };
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.muted = isMuted;
+    }
+  }, [isMuted]);
 
   return (
     <div className="video-carousel-embla__slide">
       <div className="video-carousel-video_wrapper">
         <video
+          className="video-carousel-embla__slide__video"
           ref={videoRef}
           src={videoSrc}
+          autoPlay
+          loop
           muted={isMuted}
           playsInline
-          loop
-          className="video-carousel-embla__slide__video "
         />
-        <button onClick={toggleMute} className="video-carousel-mute_button">
-          {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+        <button className="video-carousel-mute_button" onClick={onToggleMute}>
+          {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
         </button>
       </div>
-      <ProductCard
-        product={currentItem.product}
-        onAddToCart={handleAddToCart}
-      />
+
+      <div className="product-card-overlay">
+        <ProductCard product={product} isActiveSlide={isActive} />
+      </div>
     </div>
   );
 };

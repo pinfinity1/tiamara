@@ -9,6 +9,7 @@ import { useChatStore } from "@/store/useChatStore";
 import { cn } from "@/lib/utils";
 import Footer from "./Footer";
 import { Session } from "next-auth";
+import { ProductModal } from "./modal/ProductModal";
 
 const pathsNotToShowHeaders = ["/auth", "/super-admin", "/chat"];
 
@@ -40,6 +41,7 @@ function CommonLayout({
     <div className="h-screen bg-white flex overflow-hidden">
       <AuthModal />
       {showAiFeatures && <SkinProfileModal />}
+      <ProductModal />
 
       <div
         className={cn(

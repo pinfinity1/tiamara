@@ -1,65 +1,108 @@
+// client/src/components/layout/home/VideoCarousel/ProductCard.tsx
+
 import React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Button } from "@/components/ui/button"; // مسیر کامپوننت دکمه را تنظیم کنید
-import { ShoppingCart } from "lucide-react";
-import styles from "./VideoCarousel.module.css";
+import { Button } from "@/components/ui/button";
+import { ChevronDown, Plus, ShoppingCart } from "lucide-react";
+import { useProductModalStore } from "@/store/useProductModalStore";
 
-// فرض می‌کنیم تایپ محصول به این شکل است. آن را با تایپ واقعی خود جایگزین کنید
-interface Product {
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+
+export interface Product {
   id: string;
   slug: string;
   name: string;
   price: number;
   images?: { url: string }[];
+  brand?: {
+    name: string;
+  };
 }
 
 interface ProductCardProps {
   product: Product;
-  onAddToCart: (product: Product) => void;
+  isActiveSlide: boolean;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
   product,
-  onAddToCart,
+  isActiveSlide,
 }) => {
+  const openModal = useProductModalStore((state) => state.onOpen);
+
   if (!product) return null;
 
-  const handleAddToCart = (e: React.MouseEvent) => {
+  const handleOpenModal = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onAddToCart(product);
+    openModal(product);
   };
 
   return (
-    <div className="video-carousel-product_card_wrapper">
-      <div className="video-carousel-product_card">
-        <Link
-          href={`/products/${product.slug}`}
-          className="video-carousel-product_image_link"
-        >
-          <Image
-            src={product.images?.[0]?.url || "/images/placeholder.png"}
-            alt={product.name}
-            fill
-            style={{ objectFit: "cover" }}
-          />
-        </Link>
-        <div className="video-carousel-product_info">
-          <Link href={`/products/${product.slug}`}>
-            <span className="video-carousel-product_name">{product.name}</span>
+    <Accordion type="single" collapsible className="w-full">
+      <AccordionItem
+        value="product-info"
+        className="rounded-xl bg-white/80 shadow-md backdrop-blur-sm border-none "
+      >
+        {/* این div اصلی، flex container است */}
+        <div className="flex items-center p-3">
+          {/* 1. این قسمت اصلی حالا یک لینک است */}
+          <Link
+            href={`/products/${product.slug}`}
+            target="_blank"
+            className="flex flex-grow items-center gap-3 text-right min-w-0"
+          >
+            <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-md">
+              <Image
+                src={product.images?.[0]?.url || "/images/placeholder.png"}
+                alt={product.name}
+                fill
+                className="object-cover"
+              />
+            </div>
+            <div className="flex-grow min-w-0">
+              <p className="truncate text-sm font-semibold text-gray-900">
+                {product.name}
+              </p>
+              {product.brand && (
+                <>
+                  <p className="text-xs ">
+                    برند
+                    <span className="text-xs font-semibold text-gray-700 mr-2">
+                      {product.brand.name}
+                    </span>
+                  </p>
+                </>
+              )}
+            </div>
           </Link>
-          <p className="video-carousel-product_price">
-            {product.price.toLocaleString()} تومان
-          </p>
+
+          <AccordionTrigger className="flex-shrink-0 p-2 hover:no-underline [&[data-state=open]>svg]:rotate-180"></AccordionTrigger>
         </div>
-        <Button
-          size="icon"
-          onClick={handleAddToCart}
-          className="rounded-full flex-shrink-0"
-        >
-          <ShoppingCart className="size-4" />
-        </Button>
-      </div>
-    </div>
+
+        {/* محتوای آکاردئون */}
+        <AccordionContent className="px-3 pt-0 pb-3">
+          <div className="flex items-center justify-between border-t pt-2">
+            <p className="font-semibold text-gray-800">
+              {product.price.toLocaleString("fa")} تومان
+            </p>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleOpenModal}
+              className="rounded-full"
+            >
+              <Plus className="size-3" />
+            </Button>
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
   );
 };

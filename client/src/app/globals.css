@@ -242,18 +242,13 @@ input[type="search"]::-webkit-search-cancel-button {
 }
 
 .video-carousel-embla__slide {
-  flex: 0 0 256px;
+  flex: 0 0 300px;
   min-width: 0;
   padding: 0 8px;
   position: relative;
   height: 100%;
 }
 
-@media (min-width: 768px) {
-  .video-carousel-embla__slide {
-    flex: 0 0 300px;
-  }
-}
 @media (min-width: 1024px) {
   .video-carousel-embla__slide {
     flex: 0 0 312px;
@@ -277,7 +272,7 @@ input[type="search"]::-webkit-search-cancel-button {
 
 .video-carousel-mute_button {
   position: absolute;
-  bottom: 1rem;
+  top: 1rem;
   right: 1rem;
   background-color: rgba(0, 0, 0, 0.5);
   color: white;
@@ -298,6 +293,7 @@ input[type="search"]::-webkit-search-cancel-button {
 }
 
 .video-carousel-embla__button {
+  display: none;
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
@@ -306,11 +302,17 @@ input[type="search"]::-webkit-search-cancel-button {
   border-radius: 50%;
   width: 40px;
   height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+
   cursor: pointer;
   z-index: 10;
+}
+
+@media (min-width: 768px) {
+  .video-carousel-embla__button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
 .video-carousel-embla__button:disabled {
   opacity: 0.3;
@@ -325,53 +327,30 @@ input[type="search"]::-webkit-search-cancel-button {
   left: 1rem;
 }
 
-.video-carousel-product_card_wrapper {
-  margin-top: 1.5rem;
-  display: flex;
-  justify-content: center;
+.video-carousel-container {
+  /* These are recommended styles by Embla Carousel documentation */
+  backface-visibility: hidden;
+  touch-action: pan-y;
 }
 
-.video-carousel-product_card {
+.product-card-overlay {
+  position: absolute;
+  bottom: 1px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  width: 94%;
   max-width: 350px;
-  width: 100%;
-  background-color: #f9f9f9;
-  border-radius: 0.75rem;
-  padding: 0.75rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-radius: 1rem;
+  padding: 6px;
+
+  background-color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
-.video-carousel-product_image_link {
-  position: relative;
-  width: 56px;
-  height: 56px;
-  border-radius: 0.5rem;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.video-carousel-product_info {
-  flex-grow: 1;
-  text-align: right;
-  min-width: 0;
-}
-
-.video-carousel-product_name {
-  font-weight: 600;
-  font-size: 0.875rem;
-  color: #333;
-  display: block;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.video-carousel-product_name:hover {
-  color: #007bff;
-}
-
-.video-carousel-product_price {
-  font-size: 0.8rem;
-  color: #555;
+@supports not (backdrop-filter: blur(10px)) {
+  .product-card-overlay {
+    background-color: rgba(255, 255, 255, 0.95);
+  }
 }

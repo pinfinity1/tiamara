@@ -1,20 +1,10 @@
+// client/src/components/layout/home/VideoCarousel/index.tsx
 "use client";
-
-import React from "react";
+import React, { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEmblaCarouselSetup } from "./useEmblaCarouselSetup";
 import { VideoSlide } from "./VideoSlide";
-import { ProductCard } from "./ProductCard";
-import styles from "./VideoCarousel.module.css";
-
-// تایپ آیتم‌ها و محصول را با ساختار داده واقعی خود هماهنگ کنید
-interface Product {
-  id: string;
-  slug: string;
-  name: string;
-  price: number;
-  images?: { url: string }[];
-}
+import type { Product } from "./ProductCard";
 
 interface CarouselItem {
   id: string;
@@ -36,11 +26,15 @@ const VideoCarousel: React.FC<VideoCarouselProps> = ({ items }) => {
     nextBtnDisabled,
   } = useEmblaCarouselSetup();
 
+  const [isMuted, setIsMuted] = useState(true);
+
+  const toggleMute = () => {
+    setIsMuted((prev) => !prev);
+  };
+
   if (!items || items.length === 0) {
     return null;
   }
-
-  const currentItem = items[selectedIndex];
 
   return (
     <section className="video-carousel-section">
@@ -52,7 +46,9 @@ const VideoCarousel: React.FC<VideoCarouselProps> = ({ items }) => {
                 key={item.id}
                 videoSrc={item.videoUrl}
                 isActive={index === selectedIndex}
-                currentItem={currentItem}
+                isMuted={isMuted}
+                onToggleMute={toggleMute}
+                product={item.product}
               />
             ))}
           </div>
