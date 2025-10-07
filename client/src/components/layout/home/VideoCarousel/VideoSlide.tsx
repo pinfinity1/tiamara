@@ -1,35 +1,43 @@
-// client/src/components/layout/home/VideoCarousel/VideoSlide.tsx
+// client/src/components/layout/home/VideoCarousel/VideoSlide.tsx (نسخه اصلاح شده)
 
-import React, { useRef, useEffect, useState } from "react";
-import { ProductCard, type Product } from "./ProductCard"; // تایپ Product را از اینجا وارد می‌کنیم
+import React, { useRef, useEffect } from "react";
+import { ProductCard, type Product } from "./ProductCard";
 import { Volume2, VolumeX } from "lucide-react";
 
+// Props ها کمی تغییر کرده تا با VideoCarousel هماهنگ شود
 interface VideoSlideProps {
-  videoSrc: string;
-  isActive: boolean;
-  product: Product;
+  video: {
+    id: string;
+    videoUrl: string;
+    product: Product;
+  };
+  isSelected: boolean;
+  onEnded: () => void;
+  // این دو prop دیگر لازم نیستند و از VideoCarousel مدیریت می‌شوند
   isMuted: boolean;
   onToggleMute: () => void;
 }
 
 export const VideoSlide: React.FC<VideoSlideProps> = ({
-  videoSrc,
-  isActive,
-  product,
+  video,
+  isSelected,
+  onEnded,
   isMuted,
   onToggleMute,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    if (videoRef.current) {
-      if (isActive) {
-        videoRef.current.play().catch(console.error);
+    const videoElement = videoRef.current;
+    if (videoElement) {
+      if (isSelected) {
+        videoElement.play().catch(console.error);
       } else {
-        videoRef.current.pause();
+        videoElement.pause();
+        videoElement.currentTime = 0; // ویدیو از اول شروع شود
       }
     }
-  }, [isActive]);
+  }, [isSelected]);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -38,16 +46,16 @@ export const VideoSlide: React.FC<VideoSlideProps> = ({
   }, [isMuted]);
 
   return (
-    <div className="video-carousel-embla__slide">
+    <>
       <div className="video-carousel-video_wrapper">
         <video
           className="video-carousel-embla__slide__video"
           ref={videoRef}
-          src={videoSrc}
-          autoPlay
-          loop
-          muted={isMuted}
+          src={video.videoUrl}
+          loop={false} // onEnded فقط وقتی کار می‌کند که loop نباشد
+          muted // ویدیوها همیشه Mute هستند
           playsInline
+          onEnded={onEnded} // وقتی ویدیو تمام شد، اسلاید بعدی
         />
         <button className="video-carousel-mute_button" onClick={onToggleMute}>
           {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
@@ -55,8 +63,8 @@ export const VideoSlide: React.FC<VideoSlideProps> = ({
       </div>
 
       <div className="product-card-overlay">
-        <ProductCard product={product} isActiveSlide={isActive} />
+        <ProductCard product={video.product} isActiveSlide={isSelected} />
       </div>
-    </div>
+    </>
   );
 };

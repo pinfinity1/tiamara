@@ -1,4 +1,4 @@
-// client/src/components/layout/home/VideoCarousel/index.tsx
+// client/src/components/layout/home/VideoCarousel/index.tsx (نسخه صحیح)
 "use client";
 import React, { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -17,20 +17,11 @@ interface VideoCarouselProps {
 }
 
 const VideoCarousel: React.FC<VideoCarouselProps> = ({ items }) => {
-  const {
-    emblaRef,
-    selectedIndex,
-    scrollPrev,
-    scrollNext,
-    prevBtnDisabled,
-    nextBtnDisabled,
-  } = useEmblaCarouselSetup();
+  const { emblaRef, emblaApi, selectedIndex, scrollPrev, scrollNext } =
+    useEmblaCarouselSetup();
 
   const [isMuted, setIsMuted] = useState(true);
-
-  const toggleMute = () => {
-    setIsMuted((prev) => !prev);
-  };
+  const toggleMute = () => setIsMuted((prev) => !prev);
 
   if (!items || items.length === 0) {
     return null;
@@ -42,14 +33,21 @@ const VideoCarousel: React.FC<VideoCarouselProps> = ({ items }) => {
         <div className="video-carousel-embla__viewport" ref={emblaRef}>
           <div className="video-carousel-embla__container">
             {items.map((item, index) => (
-              <VideoSlide
+              <div
+                className="video-carousel-embla__slide"
                 key={item.id}
-                videoSrc={item.videoUrl}
-                isActive={index === selectedIndex}
-                isMuted={isMuted}
-                onToggleMute={toggleMute}
-                product={item.product}
-              />
+                onClick={() => emblaApi && emblaApi.scrollTo(index)}
+              >
+                <div className="video-carousel-embla__slide__transformer">
+                  <VideoSlide
+                    video={item}
+                    isSelected={index === selectedIndex}
+                    onEnded={scrollNext}
+                    isMuted={isMuted}
+                    onToggleMute={toggleMute}
+                  />
+                </div>
+              </div>
             ))}
           </div>
         </div>
@@ -57,14 +55,12 @@ const VideoCarousel: React.FC<VideoCarouselProps> = ({ items }) => {
         <button
           className="video-carousel-embla__button video-carousel-embla__button__prev"
           onClick={scrollPrev}
-          disabled={prevBtnDisabled}
         >
           <ChevronRight size={24} />
         </button>
         <button
           className="video-carousel-embla__button video-carousel-embla__button__next"
           onClick={scrollNext}
-          disabled={nextBtnDisabled}
         >
           <ChevronLeft size={24} />
         </button>
