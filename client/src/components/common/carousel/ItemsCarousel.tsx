@@ -1,56 +1,74 @@
 "use client";
 
-import React from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import useEmblaCarousel from "embla-carousel-react";
-import ProductCard from "@/components/products/ProductCard";
-import { Product } from "@/store/useProductStore";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 type PropType = {
-  products: Product[];
+  children: React.ReactNode;
 };
 
-const ItemsCarousel: React.FC<PropType> = ({ products }) => {
+const ItemsCarousel: React.FC<PropType> = ({ children }) => {
   const [emblaRef, emblaApi] = useEmblaCarousel({
     direction: "rtl",
-    loop: false, // لوپ غیرفعال است
+    loop: false,
     align: "start",
   });
 
-  const scrollPrev = () => emblaApi && emblaApi.scrollPrev();
-  const scrollNext = () => emblaApi && emblaApi.scrollNext();
+  const [canScrollPrev, setCanScrollPrev] = useState(false);
+  const [canScrollNext, setCanScrollNext] = useState(false);
+
+  const scrollPrev = useCallback(() => emblaApi?.scrollPrev(), [emblaApi]);
+  const scrollNext = useCallback(() => emblaApi?.scrollNext(), [emblaApi]);
+
+  const onSelect = useCallback(() => {
+    if (!emblaApi) return;
+    setCanScrollPrev(emblaApi.canScrollPrev());
+    setCanScrollNext(emblaApi.canScrollNext());
+  }, [emblaApi]);
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    onSelect();
+    emblaApi.on("select", onSelect);
+    emblaApi.on("reInit", onSelect);
+    return () => {
+      emblaApi.off("select", onSelect);
+      emblaApi.off("reInit", onSelect);
+    };
+  }, [emblaApi, onSelect]);
 
   return (
-    // این کانتینر اصلی، دکمه‌ها را نسبت به خودش موقعیت‌دهی می‌کند
     <div className="relative w-full h-full">
       <div className="overflow-hidden h-full" ref={emblaRef}>
-        <div className="flex h-full">
-          {products.map((product) => (
-            <div
-              key={product.id}
-              className="embla__slide basis-1/2 sm:basis-1/3 lg:basis-1/4 p-2 h-full flex-shrink-0"
-            >
-              <ProductCard product={product} />
+        <div className="flex h-full -mr-2">
+          {React.Children.map(children, (child) => (
+            <div className="embla__slide p-1 h-full flex-shrink-0 w-[256px]">
+              {child}
             </div>
           ))}
         </div>
       </div>
 
-      {/* دکمه‌های ناوبری با استایل و جایگاه اختصاصی که بیرون کادر اسلایدها هستند */}
-      <button
-        className="absolute top-1/2 -translate-y-1/2 -right-4 bg-white/90 hover:bg-white rounded-full p-2 z-10 shadow-lg transition-opacity disabled:opacity-30"
+      <Button
+        variant="secondary"
+        size="icon"
+        className="absolute top-1/2 -translate-y-1/2 -right-3 rounded-full shadow z-10 transition-opacity duration-300 disabled:opacity-0"
         onClick={scrollPrev}
-        disabled={!emblaApi || !emblaApi.canScrollPrev()}
+        disabled={!canScrollPrev}
       >
-        <ChevronRight className="h-6 w-6 text-gray-800" />
-      </button>
-      <button
-        className="absolute top-1/2 -translate-y-1/2 left-1 bg-white/90 hover:bg-white rounded-full p-2 z-10 shadow-lg transition-opacity disabled:opacity-30"
+        <ChevronRight className="h-5 w-5" />
+      </Button>
+      <Button
+        variant="secondary"
+        size="icon"
+        className="absolute top-1/2 -translate-y-1/2 -left-3 rounded-full shadow z-10 transition-opacity duration-300 disabled:opacity-0"
         onClick={scrollNext}
-        disabled={!emblaApi || !emblaApi.canScrollNext()}
+        disabled={!canScrollNext}
       >
-        <ChevronLeft className="h-6 w-6 text-gray-800" />
-      </button>
+        <ChevronLeft className="h-5 w-5" />
+      </Button>
     </div>
   );
 };

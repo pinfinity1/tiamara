@@ -1,9 +1,10 @@
-// client/src/components/layout/home/AmazingOfferSection.tsx
-
-import { ProductCollection } from "@/store/useHomepageStore";
-import Link from "next/link";
-import Image from "next/image";
 import ItemsCarousel from "@/components/common/carousel/ItemsCarousel";
+import AmazingOfferProductCard from "@/components/products/AmazingOfferProductCard";
+import AmazingOfferIntroSlide from "./AmazingOfferIntroSlide";
+import Image from "next/image";
+import { ProductCollection } from "@/store/useHomepageStore";
+import StaticOfferCard from "@/components/common/carousel/StatixOfferCard";
+import { Separator } from "@/components/ui/separator";
 
 interface AmazingOfferSectionProps {
   collection: ProductCollection;
@@ -17,36 +18,29 @@ export default function AmazingOfferSection({
   }
 
   return (
-    <section className="container mx-auto px-4">
-      {/* کانتینر اصلی با position: relative برای پس‌زمینه */}
-      <div className="relative rounded-lg overflow-hidden md:h-[420px] w-full flex flex-col md:flex-row">
-        {/* تصویر پس‌زمینه که از پنل ادمین می‌آید و کل بخش را می‌پوشاند */}
-        {collection.imageUrl && (
+    <section className="container mx-auto px-4 my-12">
+      <div className="relative rounded-lg overflow-hidden h-[420px] w-full group">
+        <div className="absolute inset-0 z-0">
           <Image
-            src={collection.imageUrl}
-            alt={collection.title}
+            src={collection.imageUrl || "/images/abstract-design-1.png"}
+            alt={collection.title || "Amazing Offer Background"}
             fill
-            className="object-cover z-0"
+            className="object-cover transition-transform duration-500 group-hover:scale-105"
+            sizes="100vw"
           />
-        )}
-        {/* لایه تیره برای خوانایی بهتر */}
-        <div className="absolute inset-0 bg-black/40 z-10"></div>
-
-        {/* محتوای رویی با z-index بالاتر */}
-        <div className="relative z-20 w-full md:w-1/4 flex flex-col items-center justify-center p-6 text-white text-center">
-          <h2 className="text-3xl font-bold">{collection.title}</h2>
-          <p className="text-6xl font-bold my-4">%</p>
-          <Link
-            href="/products?sort=discount"
-            className="mt-4 inline-block bg-white text-gray-800 font-bold py-2 px-6 rounded-full hover:bg-gray-200 transition-colors"
-          >
-            مشاهده همه
-          </Link>
+          <div className="absolute inset-0 bg-gradient-to-l from-primary/80 via-primary/50 to-transparent" />
         </div>
 
-        {/* کانتینر اسلایدر */}
-        <div className="relative z-20 w-full md:w-3/4 p-4 flex items-center">
-          <ItemsCarousel products={collection.products} />
+        <div className="relative z-10 w-full h-full px-3 py-1 flex items-center">
+          <ItemsCarousel>
+            <AmazingOfferIntroSlide />
+
+            {collection.products.map((product) => (
+              <AmazingOfferProductCard key={product.id} product={product} />
+            ))}
+
+            <StaticOfferCard />
+          </ItemsCarousel>
         </div>
       </div>
     </section>
