@@ -45,7 +45,7 @@ function AmazingOfferProductCard({ product }: { product: Product }) {
             variant="destructive"
             className="absolute top-2 left-2 text-xs"
           >
-            {discountPercentage}%
+            {discountPercentage.toLocaleString("fa-IR")}%
           </Badge>
         )}
       </div>

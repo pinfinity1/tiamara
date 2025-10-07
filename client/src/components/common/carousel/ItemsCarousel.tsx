@@ -42,9 +42,14 @@ const ItemsCarousel: React.FC<PropType> = ({ children }) => {
   return (
     <div className="relative w-full h-full">
       <div className="overflow-hidden h-full" ref={emblaRef}>
-        <div className="flex h-full -mr-2">
-          {React.Children.map(children, (child) => (
-            <div className="embla__slide p-1 h-full flex-shrink-0 w-[256px]">
+        <div className="flex h-full md:-mr-2">
+          {React.Children.map(children, (child, index) => (
+            <div
+              // ✅ تغییر کلیدی: اضافه کردن کلاس شرطی به اولین اسلاید
+              className={`embla__slide p-1 h-full flex-shrink-0 w-[256px] ${
+                index === 0 ? "first-slide-conditional" : ""
+              }`}
+            >
               {child}
             </div>
           ))}
@@ -54,7 +59,7 @@ const ItemsCarousel: React.FC<PropType> = ({ children }) => {
       <Button
         variant="secondary"
         size="icon"
-        className="absolute top-1/2 -translate-y-1/2 -right-3 rounded-full shadow z-10 transition-opacity duration-300 disabled:opacity-0"
+        className="absolute top-1/2 -translate-y-1/2 -right-2 rounded-full shadow-gray-400 z-10 transition-opacity duration-300 disabled:opacity-0"
         onClick={scrollPrev}
         disabled={!canScrollPrev}
       >
@@ -63,7 +68,7 @@ const ItemsCarousel: React.FC<PropType> = ({ children }) => {
       <Button
         variant="secondary"
         size="icon"
-        className="absolute top-1/2 -translate-y-1/2 -left-3 rounded-full shadow z-10 transition-opacity duration-300 disabled:opacity-0"
+        className="absolute top-1/2 -translate-y-1/2 -left-2 rounded-full shadow-gray-400 z-10 transition-opacity duration-300 disabled:opacity-0"
         onClick={scrollNext}
         disabled={!canScrollNext}
       >

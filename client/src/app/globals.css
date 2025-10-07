@@ -350,7 +350,13 @@ input[type="search"]::-webkit-search-cancel-button {
 
 .product-card-container:not(.is-active) a {
   pointer-events: none;
-  /* cursor: default; */
+  cursor: default;
+}
+
+@media (max-width: 767px) {
+  .first-slide-conditional {
+    display: none !important;
+  }
 }
 
 @supports not (backdrop-filter: blur(10px)) {

@@ -1,10 +1,11 @@
+import { useState, useEffect } from "react";
 import ItemsCarousel from "@/components/common/carousel/ItemsCarousel";
 import AmazingOfferProductCard from "@/components/products/AmazingOfferProductCard";
 import AmazingOfferIntroSlide from "./AmazingOfferIntroSlide";
 import Image from "next/image";
 import { ProductCollection } from "@/store/useHomepageStore";
 import StaticOfferCard from "@/components/common/carousel/StatixOfferCard";
-import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface AmazingOfferSectionProps {
   collection: ProductCollection;
@@ -19,7 +20,8 @@ export default function AmazingOfferSection({
 
   return (
     <section className="container mx-auto px-4 my-12">
-      <div className="relative rounded-lg overflow-hidden h-[420px] w-full group">
+      <div className="relative rounded-lg overflow-hidden w-full group">
+        {/* Background Image & Overlay */}
         <div className="absolute inset-0 z-0">
           <Image
             src={collection.imageUrl || "/images/abstract-design-1.png"}
@@ -31,7 +33,11 @@ export default function AmazingOfferSection({
           <div className="absolute inset-0 bg-gradient-to-l from-primary/80 via-primary/50 to-transparent" />
         </div>
 
-        <div className="relative z-10 w-full h-full px-3 py-1 flex items-center">
+        <div className="md:hidden relative z-10 p-3">
+          <AmazingOfferIntroSlide />
+        </div>
+
+        <div className="relative z-10 w-full h-[380px] px-3 py-1 flex items-center ">
           <ItemsCarousel>
             <AmazingOfferIntroSlide />
 

@@ -106,7 +106,7 @@ function ProductCard({ product }: { product: Product }) {
               variant="destructive"
               className="absolute top-2.5 right-2.5 text-sm"
             >
-              {discountPercentage}%
+              {discountPercentage.toLocaleString("fa-IR")}%
             </Badge>
           )}
           <div className="absolute top-2 left-2">
