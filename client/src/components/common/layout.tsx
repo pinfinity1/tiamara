@@ -4,15 +4,24 @@ import { usePathname } from "next/navigation";
 import Header from "../user/header";
 import AuthModal from "../auth/AuthModal";
 import SkinProfileModal from "./SkinProfileModal";
-import ChatWidget from "../ai/ChatWidget";
+// 1. ایمپورت dynamic را اضافه کنید
+import dynamic from "next/dynamic";
+// 2. ایمپورت استاتیک ChatWidget را حذف کنید
+// import ChatWidget from "../ai/ChatWidget";
 import { useChatStore } from "@/store/useChatStore";
 import { cn } from "@/lib/utils";
 import Footer from "./Footer";
 import { Session } from "next-auth";
 import { ProductModal } from "./modal/ProductModal";
 
-const pathsNotToShowHeaders = ["/auth", "/super-admin", "/chat"];
+// 3. ChatWidget را به صورت دینامیک و فقط در کلاینت (ssr: false) لود کنید
+// این کار باعث می‌شود کد آن از باندل اولیه جاوا اسکریپت حذف شود
+const ChatWidget = dynamic(
+  () => import("../ai/ChatWidget"),
+  { ssr: false } // بسیار مهم: این کامپوننت هرگز در سرور رندر نمی‌شود
+);
 
+const pathsNotToShowHeaders = ["/auth", "/super-admin", "/chat"];
 const pathsNotToShowLayout = ["/auth", "/super-admin", "/chat"];
 
 function CommonLayout({
@@ -63,6 +72,7 @@ function CommonLayout({
         </main>
       </div>
 
+      {/* تمام منطق رندر ChatWidget مثل قبل کار می‌کند */}
       {showAiFeatures && (
         <>
           <div

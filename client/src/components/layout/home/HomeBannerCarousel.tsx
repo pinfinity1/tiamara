@@ -31,22 +31,14 @@ const HomeBannerCarousel: React.FC<HomeBannerCarouselProps> = ({ banners }) => {
           className="h-full w-full block relative"
           onClick={() => handleBannerClick(banner.id)}
         >
-          <picture className="w-full h-full">
-            {banner.imageUrlMobile && (
-              <source
-                media="(max-width: 768px)"
-                srcSet={banner.imageUrlMobile}
-              />
-            )}
-            <source media="(min-width: 769px)" srcSet={banner.imageUrl} />
-            <Image
-              src={banner.imageUrl}
-              alt={banner.altText || "Tiamara Banner"}
-              fill
-              className="w-full h-full object-cover"
-              priority={index === 0}
-            />
-          </picture>
+          <Image
+            src={banner.imageUrl}
+            alt={banner.altText || "Tiamara Banner"}
+            fill
+            className="w-full h-full object-cover"
+            priority={index === 0}
+            sizes="(max-width: 768px) 100vw, 100vw"
+          />
         </Link>
       ))}
     </BaseCarousel>

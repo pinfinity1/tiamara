@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Product } from "@/components/layout/home/VideoCarousel/ProductCard";
+import type { Product } from "@/store/useProductStore";
 
 interface ProductModalStore {
   product: Product | null;
