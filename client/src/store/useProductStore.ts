@@ -82,6 +82,7 @@ interface ProductState {
     maxPrice?: number;
     sortBy?: string;
     sortOrder?: "asc" | "desc";
+    profileBasedFilter?: boolean;
   }) => Promise<void>;
   setCurrentPage: (page: number) => void;
   fetchProductsByIds: (ids: string[]) => Promise<Product[] | null>;

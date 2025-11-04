@@ -1,5 +1,9 @@
 import expess from "express";
-import { authenticateUser, authorizeAdmin } from "../middleware/authMiddleware";
+import {
+  authenticateUser,
+  authorizeAdmin,
+  optionalAuthenticateUser,
+} from "../middleware/authMiddleware";
 import { uploadImage, uploadExcel } from "../middleware/uploadMiddleware";
 import {
   createProduct,
@@ -50,8 +54,15 @@ router.put(
 router.delete("/:id", authenticateUser, authorizeAdmin, deleteProduct);
 
 router.get("/filters", getProductFilters);
-router.get("/fetch-client-products", getProductsForClient);
-router.get("/slug/:slug", getProductBySlug);
+
+router.get(
+  "/fetch-client-products",
+  optionalAuthenticateUser,
+  getProductsForClient
+);
+router.get("/slug/:slug", optionalAuthenticateUser, getProductBySlug);
+// ---
+
 router.post("/by-ids", getProductsByIds);
 router.get("/:id", getProductByID);
 

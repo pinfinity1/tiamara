@@ -1,3 +1,4 @@
+import { SkinProfilePromptBanner } from "@/components/common/SkinProfilePromptBanner";
 import HomeBannerCarousel from "@/components/layout/home/HomeBannerCarousel";
 import NewsletterSignUp from "@/components/layout/home/NewsletterSignUp";
 import WhyChooseUs from "@/components/layout/home/WhyChooseUs";
@@ -42,13 +43,15 @@ export default async function HomePage() {
     <div className="min-h-screen bg-white">
       <HomeBannerCarousel banners={homepageBanners} />
 
-      <VideoCarousel items={carouselItems} />
-
       <div className="py-12 lg:py-16 space-y-12 lg:space-y-16">
         {homepageCollections.map((collection) => (
           <ProductSection key={collection.id} collection={collection} />
         ))}
       </div>
+
+      <SkinProfilePromptBanner />
+
+      <VideoCarousel items={carouselItems} />
 
       <FeaturedBrands brands={allBrands} />
 

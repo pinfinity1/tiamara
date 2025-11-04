@@ -18,6 +18,7 @@ export default async function ProductsPage({
   const maxPrice = params?.maxPrice ? parseInt(params.maxPrice) : undefined;
   const sortBy = params?.sortBy ?? "createdAt";
   const sortOrder = (params?.sortOrder as "asc" | "desc") ?? "desc";
+  const profileBasedFilter = params?.profileBasedFilter === "true";
 
   await Promise.all([
     useProductStore.getState().fetchProductsForClient({
@@ -31,6 +32,7 @@ export default async function ProductsPage({
       maxPrice,
       sortBy,
       sortOrder,
+      profileBasedFilter,
     }),
     useFilterStore.getState().fetchFilters(),
   ]);

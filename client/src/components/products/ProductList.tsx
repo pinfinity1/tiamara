@@ -11,10 +11,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import { Product, useProductStore } from "../../store/useProductStore";
-import { FilterData } from "@/store/useFilterStore";
+import { Product, useProductStore } from "../../store/useProductStore"; //
+import { FilterData } from "@/store/useFilterStore"; //
 import ProductCard from "./ProductCard";
-import ProductFilters, { FilterState } from "./ProductFilters";
+import ProductFilters, { FilterState } from "./ProductFilters"; // <-- FilterState حالا شامل profileBasedFilter است
 import { SlidersHorizontal } from "lucide-react";
 import {
   Dialog,
@@ -64,6 +64,8 @@ export default function ProductList({
     const maxPriceDefault = filters
       ? roundPrice(filters.priceRange.max, "up")
       : 1000000;
+
+    // --- ۱. profileBasedFilter از URL خوانده می‌شود ---
     return {
       categories: getArrayFromParams("categories"),
       brands: getArrayFromParams("brands"),
@@ -71,6 +73,7 @@ export default function ProductList({
       concerns: getArrayFromParams("concerns"),
       minPrice: Number(searchParams.get("minPrice")) || minPriceDefault,
       maxPrice: Number(searchParams.get("maxPrice")) || maxPriceDefault,
+      profileBasedFilter: searchParams.get("profileBasedFilter") === "true", // <-- اضافه شد
     };
   }, [searchParams, filters]);
 
@@ -107,15 +110,13 @@ export default function ProductList({
   );
 
   const updateUrl = (currentState: FilterState, page?: number) => {
-    // ✅ قبل از شروع تایمر جدید، تایمر قبلی را پاک کن
     if (loadingTimer.current) {
       clearTimeout(loadingTimer.current);
     }
 
-    // ✅ تایمر را برای نمایش اسکلتون با تاخیر یک ثانیه‌ای تنظیم کن
     loadingTimer.current = setTimeout(() => {
       useProductStore.setState({ isLoading: true });
-    }, 1000); // 1000 میلی‌ثانیه = 1 ثانیه
+    }, 1000);
 
     const params = new URLSearchParams(searchParams.toString());
     const setParam = (key: string, value: string[]) => {
@@ -146,6 +147,14 @@ export default function ProductList({
       params.delete("maxPrice");
     }
 
+    // --- ۲. profileBasedFilter به URL اضافه می‌شود ---
+    if (currentState.profileBasedFilter) {
+      params.set("profileBasedFilter", "true");
+    } else {
+      params.delete("profileBasedFilter");
+    }
+    // --- پایان بخش جدید ---
+
     if (page) {
       params.set("page", String(page));
     } else {
@@ -155,6 +164,7 @@ export default function ProductList({
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
+  // --- ۳. (حل مشکل ۱) handleClearFilters دیگر فیلتر پروفایل را ریست نمی‌کند ---
   const handleClearFilters = () => {
     if (!filters) return;
     const clearedState: FilterState = {
@@ -164,6 +174,8 @@ export default function ProductList({
       concerns: [],
       minPrice: roundPrice(filters.priceRange.min, "down"),
       maxPrice: roundPrice(filters.priceRange.max, "up"),
+      // profileBasedFilter حفظ می‌شود!
+      profileBasedFilter: filterState.profileBasedFilter, // <-- این خط مهم است
     };
     setFilterState(clearedState);
     updateUrl(clearedState);
@@ -179,15 +191,27 @@ export default function ProductList({
     setIsMobileFilterOpen(false);
   };
 
+  // --- ۴. (حل مشکل ۱) پاک کردن در موبایل هم نباید فیلتر پروفایل را ریست کند ---
   const handleMobileClearFilters = () => {
-    handleClearFilters();
-    setIsMobileFilterOpen(false);
+    if (!filters) return;
+    // state محلی را ریست می‌کنیم، اما فیلتر پروفایل را نگه می‌داریم
+    setFilterState((prevState) => ({
+      categories: [],
+      brands: [],
+      skin_types: [],
+      concerns: [],
+      minPrice: roundPrice(filters.priceRange.min, "down"),
+      maxPrice: roundPrice(filters.priceRange.max, "up"),
+      profileBasedFilter: prevState.profileBasedFilter, // <-- حفظ حالت قبلی
+    }));
+    // (توجه: updateUrl اینجا صدا زده نمی‌شود، چون در موبایل فقط دکمه "اعمال" URL را آپدیت می‌کند)
   };
 
   const handlePageChange = (page: number) => {
     updateUrl(filterState, page);
   };
 
+  // ... (بقیه کد: handleSortChange, currentPage, currentSort, و JSX ...)
   const handleSortChange = (value: string) => {
     if (loadingTimer.current) {
       clearTimeout(loadingTimer.current);
@@ -243,8 +267,8 @@ export default function ProductList({
                       isModalView={true}
                       filters={filters}
                       initialState={filterState}
-                      onFilterChange={setFilterState}
-                      onClear={handleMobileClearFilters}
+                      onFilterChange={setFilterState} // <-- state محلی را آپدیت می‌کند
+                      onClear={handleMobileClearFilters} // <-- از تابع اصلاح شده استفاده می‌کند
                       activeCategoryName={activeCategoryName}
                     />
                   )}
@@ -274,13 +298,13 @@ export default function ProductList({
 
         <div className="flex gap-8">
           {!hideFilters && (
-            <aside className="hidden lg:block w-64 flex-shrink-0 sticky top-24 self-start">
+            <aside className="hidden lg:block w-64 flex-shrink-0 sticky top-0 self-start">
               {filters && (
                 <ProductFilters
                   filters={filters}
-                  initialState={filterState}
-                  onFilterChange={handleDesktopFilterChange}
-                  onClear={handleClearFilters}
+                  initialState={filterState} // <-- state اصلی را پاس می‌دهد
+                  onFilterChange={handleDesktopFilterChange} // <-- state اصلی را آپدیت و URL را عوض می‌کند
+                  onClear={handleClearFilters} // <-- از تابع اصلاح شده استفاده می‌کند
                   activeCategoryName={activeCategoryName}
                 />
               )}

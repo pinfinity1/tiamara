@@ -240,10 +240,43 @@ model User {
   orders             Order[]
   stockHistory       StockHistory[]
   wishlist           Wishlist?
-  skinType           String?
-  skinConcerns       String[]       @default([])
-  skincareGoals      String[]       @default([])
-  productPreferences String[]       @default([])
+
+  // --- شروع پروفایل پوستی جامع ---
+  
+  // بخش ۱: اطلاعات پایه
+  ageRange           String?        // (مثال: "20-29", "30-39")
+  gender             String?
+  isPregnantOrNursing  Boolean?       // (بسیار مهم برای ایمنی)
+
+  // بخش ۲: ارزیابی پوست
+  skinType           String?        // (نوع پوست بر اساس راهنمایی: چرب، خشک، مختلط، نرمال)
+  skinSensitivity    String?        // (میزان حساسیت: "مقاوم", "کمی حساس", "بسیار حساس")
+  skinConcerns       String[]       @default([]) // (دغدغه اصلی: آکنه، لک، چروک و...)
+  skincareGoals      String[]       @default([]) // (اهداف اصلی: "جوان‌سازی", "آبرسانی" و...)
+  acneType           String?        // (نوع آکنه: "هورمونی", "منافذ بسته", "کل صورت")
+  eyeConcerns        String[]       @default([]) // (دغدغه دور چشم: "تیرگی", "پف", "چروک ریز")
+
+  // بخش ۳: سبک زندگی و محیط
+  sleepHours         String?        // (میزان خواب: "کمتر از ۵", "۵-۷", "۸+")
+  stressLevel        String?        // (میزان استرس: "کم", "متوسط", "زیاد")
+  waterIntake        String?        // (میزان آب: "کم", "متوسط", "زیاد")
+  dietHabits         String[]       @default([]) // (عادات غذایی: "قند زیاد", "لبنیات زیاد", "فست فود")
+  smokingHabit       String?        // (عادت سیگار: "هرگز", "گاهی", "مرتب")
+  environmentType    String?        // (محیط: "شهر بزرگ/آلوده", "حومه/معتدل", "روستایی/پاک")
+  climate            String?        // (آب و هوا: "خشک", "مرطوب", "متغیر")
+
+  // بخش ۴: روتین فعلی و سابقه
+  currentRoutineProducts String[]   @default([]) // (محصولات روتین فعلی: "شوینده", "سرم" و...)
+  activeIngredients    String[]   @default([]) // (مواد موثره فعلی: "رتینول", "ویتامین C", "AHA/BHA")
+  medications          String?        // (داروهای خاص مصرفی - متن باز)
+  knownAllergies       String[]   @default([]) // (حساسیت‌های شناخته شده: "عطر", "الکل")
+
+  // بخش ۵: ترجیحات
+  routineComplexity    String?        // (پیچیدگی روتین: "ساده (۱-۳ محصول)", "پیشرفته (+۵ محصول)")
+  texturePreferences String[]       @default([]) // (بافت مورد علاقه: "ژل", "کرم", "روغن")
+  productPreferences String[]       @default([]) // (ترجیحات ارزشی: "وگان", "ارگانیک", "بدون عطر")
+  
+  // --- پایان پروفایل پوستی ---
 }
 
 model Session {

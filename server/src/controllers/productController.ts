@@ -52,18 +52,13 @@ export const getProductFilters = async (
       productFormsRaw,
     ] = await prisma.$transaction([
       prisma.brand.findMany({ orderBy: { name: "asc" } }),
-
       prisma.category.findMany({ orderBy: { name: "asc" } }),
-
       prisma.product.aggregate({
         _max: { price: true },
         _min: { price: true },
       }),
-
       prisma.$queryRaw`SELECT DISTINCT unnest(skin_type) as value FROM "Product" WHERE cardinality(skin_type) > 0`,
-
       prisma.$queryRaw`SELECT DISTINCT unnest(concern) as value FROM "Product" WHERE cardinality(concern) > 0`,
-
       prisma.product.findMany({
         select: { product_form: true },
         where: { product_form: { not: null } },
@@ -106,7 +101,6 @@ export const getProductFilters = async (
   }
 };
 
-// Create a new product
 export const createProduct = async (
   req: AuthenticatedRequest,
   res: Response
@@ -215,7 +209,6 @@ export const createProduct = async (
   }
 };
 
-// Fetch all products (for admin panel)
 export const fetchAllProductsForAdmin = async (
   req: AuthenticatedRequest,
   res: Response
@@ -238,7 +231,6 @@ export const fetchAllProductsForAdmin = async (
   }
 };
 
-// Get a single product by SLUG
 export const getProductBySlug = async (
   req: Request,
   res: Response
@@ -269,7 +261,7 @@ export const getProductBySlug = async (
   }
 };
 
-// Get a single product by ID
+// ... (تابع getProductByID بدون تغییر) ...
 export const getProductByID = async (
   req: AuthenticatedRequest,
   res: Response
@@ -300,7 +292,7 @@ export const getProductByID = async (
   }
 };
 
-// Get a multiple product by IDs
+// ... (تابع getProductsByIds بدون تغییر) ...
 export const getProductsByIds = async (
   req: Request,
   res: Response
@@ -333,7 +325,7 @@ export const getProductsByIds = async (
   }
 };
 
-// Update a product
+// ... (تابع updateProduct بدون تغییر) ...
 export const updateProduct = async (
   req: AuthenticatedRequest,
   res: Response
@@ -473,7 +465,7 @@ export const updateProduct = async (
   }
 };
 
-// Delete a product
+// ... (تابع deleteProduct بدون تغییر) ...
 export const deleteProduct = async (
   req: AuthenticatedRequest,
   res: Response
@@ -496,9 +488,11 @@ export const deleteProduct = async (
   }
 };
 
+// --- ▼▼▼ شروع تغییرات در getProductsForClient ▼▼▼ ---
+
 // Fetch products with filters (for client side)
 export const getProductsForClient = async (
-  req: AuthenticatedRequest,
+  req: Request, // <-- ۱. نوع req را به AuthenticatedRequest تغییر دهید
   res: Response
 ): Promise<void> => {
   try {
@@ -527,65 +521,115 @@ export const getProductsForClient = async (
     const sortBy = (req.query.sortBy as string) || "createdAt";
     const sortOrder = (req.query.sortOrder as "asc" | "desc") || "desc";
 
+    // --- ۲. فیلتر هوشمند را از query بخوانید ---
+    const { profileBasedFilter } = req.query;
+
     const skip = (page - 1) * limit;
 
-    const where: Prisma.ProductWhereInput = {
-      AND: [
-        categories.length > 0
-          ? {
-              category: {
-                name: {
-                  in: categories,
-                  mode: "insensitive",
-                },
-              },
-            }
-          : {},
-        brands.length > 0
-          ? {
-              brand: {
-                name: {
-                  in: brands,
-                  mode: "insensitive",
-                },
-              },
-            }
-          : {},
-        skin_types.length > 0
-          ? {
-              skin_type: {
-                hasSome: skin_types,
-              },
-            }
-          : {},
-        concerns.length > 0
-          ? {
-              concern: {
-                hasSome: concerns,
-              },
-            }
-          : {},
-        product_forms.length > 0
-          ? {
-              product_form: {
-                in: product_forms,
-                mode: "insensitive",
-              },
-            }
-          : {},
-        tags.length > 0
-          ? {
-              tags: {
-                hasSome: tags,
-              },
-            }
-          : {},
-        {
-          price: { gte: minPrice, lte: maxPrice },
-        },
-      ],
-    };
+    const where: Prisma.ProductWhereInput = {}; // <-- ۳. 'where' را به یک آبجکت خالی تغییر دهید
+    const whereAndClauses: Prisma.ProductWhereInput[] = []; // (از این برای فیلترهای عادی استفاده می‌کنیم)
 
+    // --- ۴. منطق اصلی فیلتر هوشمند ---
+    const user = (req as AuthenticatedRequest).user;
+    let isSmartFilterActive = false;
+
+    if (profileBasedFilter === "true" && user) {
+      const userProfile = await prisma.user.findUnique({
+        where: { id: user.userId },
+        select: {
+          skinType: true,
+          skinConcerns: true,
+          knownAllergies: true,
+        },
+      });
+
+      // فیلتر هوشمند فقط زمانی فعال می‌شود که کاربر واقعاً پروفایل داشته باشد
+      if (userProfile && userProfile.skinType) {
+        isSmartFilterActive = true;
+
+        if (userProfile.skinType) {
+          where.skin_type = { has: userProfile.skinType };
+        }
+        if (userProfile.skinConcerns && userProfile.skinConcerns.length > 0) {
+          where.concern = { hasSome: userProfile.skinConcerns };
+        }
+        if (
+          userProfile.knownAllergies &&
+          userProfile.knownAllergies.length > 0
+        ) {
+          where.NOT = {
+            ingredients: { hasSome: userProfile.knownAllergies },
+          };
+        }
+      }
+    }
+    // --- پایان منطق فیلتر هوشمند ---
+
+    // --- ۵. فیلترهای عادی را *فقط* اگر فیلتر هوشمند خاموش است اعمال کنید ---
+    if (!isSmartFilterActive) {
+      if (categories.length > 0) {
+        whereAndClauses.push({
+          category: {
+            name: {
+              in: categories,
+              mode: "insensitive",
+            },
+          },
+        });
+      }
+      if (brands.length > 0) {
+        whereAndClauses.push({
+          brand: {
+            name: {
+              in: brands,
+              mode: "insensitive",
+            },
+          },
+        });
+      }
+      if (skin_types.length > 0) {
+        whereAndClauses.push({
+          skin_type: {
+            hasSome: skin_types,
+          },
+        });
+      }
+      if (concerns.length > 0) {
+        whereAndClauses.push({
+          concern: {
+            hasSome: concerns,
+          },
+        });
+      }
+      if (product_forms.length > 0) {
+        whereAndClauses.push({
+          product_form: {
+            in: product_forms,
+            mode: "insensitive",
+          },
+        });
+      }
+      if (tags.length > 0) {
+        whereAndClauses.push({
+          tags: {
+            hasSome: tags,
+          },
+        });
+      }
+    }
+
+    // --- ۶. فیلتر قیمت و AND را به 'where' اصلی اضافه کنید ---
+    whereAndClauses.push({
+      price: { gte: minPrice, lte: maxPrice },
+    });
+
+    // (اگر فیلتر هوشمند روشن باشد، 'AND' فقط شامل فیلتر قیمت است)
+    // (اگر خاموش باشد، 'AND' شامل همه فیلترهای عادی + قیمت است)
+    if (whereAndClauses.length > 0) {
+      where.AND = whereAndClauses;
+    }
+
+    // (بقیه تابع شما: $transaction, findMany و ...)
     const [products, total] = await Promise.all([
       prisma.product.findMany({
         where,
@@ -617,7 +661,9 @@ export const getProductsForClient = async (
     res.status(500).json({ success: false, message: "Some error occurred!" });
   }
 };
+// --- ▲▲▲ پایان تغییرات در getProductsForClient ▲▲▲ ---
 
+// ... (تابع bulkCreateProductsFromExcel بدون تغییر) ...
 export const bulkCreateProductsFromExcel = async (
   req: AuthenticatedRequest,
   res: Response

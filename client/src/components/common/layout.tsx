@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils";
 import Footer from "./Footer";
 import { Session } from "next-auth";
 import { ProductModal } from "./modal/ProductModal";
+import QuickEditSkinProfileModal from "./QuickEditSkinProfileModal";
+import { GlobalProfileLoader } from "./GlobalProfileLoader";
 
 // 3. ChatWidget را به صورت دینامیک و فقط در کلاینت (ssr: false) لود کنید
 // این کار باعث می‌شود کد آن از باندل اولیه جاوا اسکریپت حذف شود
@@ -49,7 +51,9 @@ function CommonLayout({
   return (
     <div className="h-screen bg-white flex overflow-hidden">
       <AuthModal />
-      {showAiFeatures && <SkinProfileModal />}
+      <SkinProfileModal />
+      <QuickEditSkinProfileModal />
+      <GlobalProfileLoader />
       <ProductModal />
 
       <div

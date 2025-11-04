@@ -5,17 +5,26 @@ import { Checkbox } from "../ui/checkbox";
 import { Label } from "../ui/label";
 import { Input } from "../ui/input";
 import { Slider } from "@/components/ui/slider";
-import { useState, useMemo, useCallback, useEffect } from "react";
-import { FilterData } from "@/store/useFilterStore";
+import { useState, useMemo, useEffect } from "react";
+import { FilterData } from "@/store/useFilterStore"; //
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { useDebounce } from "@/hooks/use-debounce";
+import { useDebounce } from "@/hooks/use-debounce"; //
 
-// A single source of truth for all filter states
+// --- ۱. Import های جدید مورد نیاز ---
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
+import { useSession } from "next-auth/react";
+import { useUserStore } from "@/store/useUserStore"; //
+import { useSkinProfileModalStore } from "@/store/useSkinProfileModalStore"; //
+import { cn } from "@/lib/utils"; //
+import { Skeleton } from "@/components/ui/skeleton"; // <-- برای لودینگ
+
+// --- ۲. profileBasedFilter به FilterState اضافه شد ---
 export interface FilterState {
   categories: string[];
   brands: string[];
@@ -23,6 +32,7 @@ export interface FilterState {
   concerns: string[];
   minPrice: number;
   maxPrice: number;
+  profileBasedFilter: boolean; // <-- اضافه شد
 }
 
 interface ProductFiltersProps {
@@ -42,20 +52,35 @@ export default function ProductFilters({
   activeCategoryName,
   isModalView = false,
 }: ProductFiltersProps) {
-  // Local state for immediate UI feedback (like typing in search boxes)
   const [brandSearch, setBrandSearch] = useState("");
   const [categorySearch, setCategorySearch] = useState("");
-
-  // Price range state for the slider component
   const [priceRange, setPriceRange] = useState<[number, number]>([
     initialState.minPrice,
     initialState.maxPrice,
   ]);
   const debouncedPriceRange = useDebounce(priceRange, 500);
 
-  // Effect to update parent component when debounced price changes
+  // --- ۳. Import کردن هوک‌ها با state لودینگ ---
+  const { data: session, status: sessionStatus } = useSession();
+  const { userProfile, isLoading: isProfileStoreLoading } = useUserStore(); // <-- isLoading را می‌گیریم
+  const { onOpen: openSkinProfileModal } = useSkinProfileModalStore();
+
+  const isLoggedIn = sessionStatus === "authenticated";
+
+  // --- ۴. این منطق جدید و صحیح برای حل مشکل رفرش است ---
+  const isSessionLoading = sessionStatus === "loading";
+  // ما در حال "بررسی پروفایل" هستیم اگر:
+  // ۱. سشن در حال لود شدن است
+  // ۲. یا، سشن لاگین شده، اما ما هنوز آبجکت userProfile را از استور نگرفته‌ایم (چون GlobalProfileLoader در حال فچ کردن آن است)
+  const isProfileCheckLoading =
+    isSessionLoading || (isLoggedIn && !userProfile);
+
+  // پروفایل کامل است اگر:
+  // آبجکت userProfile وجود داشته باشد AND فیلد skinType داخل آن باشد
+  const isProfileComplete = !!userProfile?.skinType;
+  // --- پایان منطق جدید ---
+
   useEffect(() => {
-    // Only apply debounce effect automatically on desktop view
     if (!isModalView) {
       onFilterChange({
         ...initialState,
@@ -63,7 +88,6 @@ export default function ProductFilters({
         maxPrice: debouncedPriceRange[1],
       });
     } else {
-      // In modal view, just update the local price range state
       onFilterChange({
         ...initialState,
         minPrice: priceRange[0],
@@ -73,7 +97,6 @@ export default function ProductFilters({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedPriceRange, isModalView]);
 
-  // *** FIX: Sync internal price slider when initial state changes from parent ***
   useEffect(() => {
     setPriceRange([initialState.minPrice, initialState.maxPrice]);
   }, [initialState.minPrice, initialState.maxPrice]);
@@ -91,8 +114,18 @@ export default function ProductFilters({
   };
 
   const handleClear = () => {
-    // We only need to call onClear, the parent will handle the state reset
     onClear();
+  };
+
+  const handleProfileFilterToggle = (checked: boolean) => {
+    if (!isLoggedIn) return;
+
+    if (isProfileComplete) {
+      onFilterChange({ ...initialState, profileBasedFilter: checked });
+    } else {
+      openSkinProfileModal();
+      onFilterChange({ ...initialState, profileBasedFilter: false });
+    }
   };
 
   const filteredBrands = useMemo(
@@ -111,9 +144,72 @@ export default function ProductFilters({
     [filters.categories, categorySearch]
   );
 
+  // --- ۵. کامپوننت JSX فیلتر هوشمند ---
+  const renderSmartFilter = () => {
+    // اگر در حال چک کردن پروفایل هستیم، اسکلتون نشان بده (حل مشکل رفرش)
+    if (isProfileCheckLoading) {
+      return (
+        <>
+          <div className="space-y-4 pt-2">
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="flex flex-col space-y-2">
+                <Skeleton className="h-5 w-24" />
+                <Skeleton className="h-4 w-40" />
+              </div>
+              <Skeleton className="h-6 w-11 rounded-full" />
+            </div>
+          </div>
+          <Separator />
+        </>
+      );
+    }
+
+    // اگر کاربر لاگین نکرده، اصلاً این بخش را نشان نده
+    if (!isLoggedIn) {
+      return null;
+    }
+
+    // اگر لاگین کرده و چک کردن تمام شده، سوییچ واقعی را نشان بده
+    return (
+      <>
+        <div className="space-y-4 pt-2">
+          <div
+            className={cn(
+              "flex items-center justify-between rounded-lg border p-4",
+              !isProfileComplete && "cursor-pointer hover:bg-muted/50"
+            )}
+            onClick={() => !isProfileComplete && openSkinProfileModal()}
+          >
+            <Label
+              htmlFor="profile-filter"
+              className={cn(
+                "flex flex-col space-y-1",
+                !isProfileComplete && "cursor-pointer"
+              )}
+            >
+              <span className="font-semibold">فیلتر هوشمند</span>
+              <span className="text-xs text-muted-foreground">
+                {isProfileComplete
+                  ? "فقط محصولات سازگار با پروفایل من"
+                  : "برای فعالسازی، پروفایلت را کامل کن"}
+              </span>
+            </Label>
+            <Switch
+              id="profile-filter"
+              checked={initialState.profileBasedFilter}
+              onCheckedChange={handleProfileFilterToggle}
+              disabled={!isProfileComplete}
+              dir="ltr"
+            />
+          </div>
+        </div>
+        <Separator />
+      </>
+    );
+  };
+
   return (
     <div className="space-y-4">
-      {/* این بخش فقط در حالت دسکتاپ نمایش داده می‌شود */}
       {!isModalView && (
         <div className="flex justify-between items-center">
           <h3 className="font-semibold">فیلترها</h3>
@@ -127,9 +223,14 @@ export default function ProductFilters({
         </div>
       )}
 
+      {/* --- ۶. رندر کردن فیلتر هوشمند --- */}
+      {/* فقط در دسکتاپ نمایش داده شود */}
+      {!isModalView && renderSmartFilter()}
+
       <Accordion type="multiple" defaultValue={["price"]}>
         {/* Price Range */}
         <AccordionItem value="price">
+          {/* ... (بقیه فیلترها بدون تغییر) ... */}
           <AccordionTrigger>محدوده قیمت</AccordionTrigger>
           <AccordionContent>
             <div className="px-1 pt-2">
