@@ -52,31 +52,49 @@ export async function getVideoShowcaseItems(): Promise<VideoShowcaseItem[]> {
 
 // ... (بقیه توابع فایل بدون تغییر باقی می‌مانند)
 
-export async function getHomepageData(): Promise<{
-  banners: FeatureBanner[];
-  collections: ProductCollection[];
-  error: string | null;
-}> {
+// export async function getHomepageData(): Promise<{
+//   banners: FeatureBanner[];
+//   collections: ProductCollection[];
+//   error: string | null;
+// }> {
+//   try {
+//     const bannerGroup = "home-banner";
+
+//     const [bannersRes, collectionsRes] = await Promise.all([
+//       axiosPublic.get(`/homepage/banners?group=${bannerGroup}`),
+//       axiosPublic.get("/homepage/collections?location=homepage"),
+//     ]);
+
+//     return {
+//       banners: bannersRes.data.banners || [],
+//       collections: collectionsRes.data.collections || [],
+//       error: null,
+//     };
+//   } catch (error) {
+//     console.error("Failed to fetch homepage data:", error);
+//     return {
+//       banners: [],
+//       collections: [],
+//       error: "Could not load homepage data.",
+//     };
+//   }
+// }
+export async function getCollectionByType(
+  type: string // ✅ پارامتر location حذف شد
+): Promise<ProductCollection | null> {
   try {
-    const bannerGroup = "home-banner";
-
-    const [bannersRes, collectionsRes] = await Promise.all([
-      axiosPublic.get(`/homepage/banners?group=${bannerGroup}`),
-      axiosPublic.get("/homepage/collections?location=homepage"),
-    ]);
-
-    return {
-      banners: bannersRes.data.banners || [],
-      collections: collectionsRes.data.collections || [],
-      error: null,
-    };
+    // ما به یک اندپوینت جدید در بک‌اند نیاز داریم
+    // مثلاً: /homepage/collections/by-type?type=POPULAR
+    const response = await axiosPublic.get(`/homepage/collections/by-type`, {
+      params: {
+        type: type, // ✅ فقط type ارسال می‌شود
+      },
+    });
+    // سرور باید فقط یک آبجکت کالکشن برگرداند
+    return response.data.collection || null;
   } catch (error) {
-    console.error("Failed to fetch homepage data:", error);
-    return {
-      banners: [],
-      collections: [],
-      error: "Could not load homepage data.",
-    };
+    console.error(`Failed to fetch collection for type "${type}":`, error);
+    return null;
   }
 }
 

@@ -2,7 +2,6 @@ import ProductCard from "@/components/products/ProductCard";
 import { ProductCollection } from "@/store/useHomepageStore";
 import Link from "next/link";
 import Image from "next/image";
-import AmazingOfferSection from "./AmazingOfferSection"; // کامپوننت جدید را وارد می‌کنیم
 
 interface ProductSectionProps {
   collection: ProductCollection;
@@ -11,11 +10,6 @@ interface ProductSectionProps {
 export default function ProductSection({ collection }: ProductSectionProps) {
   if (!collection || !collection.products || collection.products.length === 0) {
     return null;
-  }
-
-  // اگر نوع مجموعه تخفیف‌دار بود، کامپوننت مربوط به آن را نمایش بده
-  if (collection.type === "DISCOUNTED") {
-    return <AmazingOfferSection collection={collection} />;
   }
 
   // اگر مجموعه بنر داشت، این ظاهر را نمایش بده

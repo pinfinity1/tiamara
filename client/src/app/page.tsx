@@ -1,6 +1,9 @@
 import { SkinProfilePromptBanner } from "@/components/common/SkinProfilePromptBanner";
+import AmazingOfferSection from "@/components/layout/home/AmazingOfferSection";
+import BrandsProductSection from "@/components/layout/home/BrandsProductSection";
 import HomeBannerCarousel from "@/components/layout/home/HomeBannerCarousel";
 import NewsletterSignUp from "@/components/layout/home/NewsletterSignUp";
+import PopularProductSection from "@/components/layout/home/PopularProductSection";
 import WhyChooseUs from "@/components/layout/home/WhyChooseUs";
 import {
   fetchAllBrands,
@@ -43,11 +46,19 @@ export default async function HomePage() {
     <div className="min-h-screen bg-white">
       <HomeBannerCarousel banners={homepageBanners} />
 
-      <div className="py-12 lg:py-16 space-y-12 lg:space-y-16">
+      <AmazingOfferSection />
+
+      <PopularProductSection />
+
+      <BrandsProductSection collectionType="BRAND_SPOTLIGHT_1" />
+
+      <BrandsProductSection collectionType="BRAND_SPOTLIGHT_2" />
+
+      {/* <div className="py-12 lg:py-16 space-y-12 lg:space-y-16">
         {homepageCollections.map((collection) => (
           <ProductSection key={collection.id} collection={collection} />
         ))}
-      </div>
+      </div> */}
 
       <SkinProfilePromptBanner />
 

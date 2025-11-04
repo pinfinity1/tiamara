@@ -1,19 +1,13 @@
-import { useState, useEffect } from "react";
 import ItemsCarousel from "@/components/common/carousel/ItemsCarousel";
 import AmazingOfferProductCard from "@/components/products/AmazingOfferProductCard";
 import AmazingOfferIntroSlide from "./AmazingOfferIntroSlide";
 import Image from "next/image";
-import { ProductCollection } from "@/store/useHomepageStore";
 import StaticOfferCard from "@/components/common/carousel/StatixOfferCard";
-import { Skeleton } from "@/components/ui/skeleton";
+import { getCollectionByType } from "@/lib/data-fetching";
 
-interface AmazingOfferSectionProps {
-  collection: ProductCollection;
-}
+export default async function AmazingOfferSection() {
+  const collection = await getCollectionByType("DISCOUNTED");
 
-export default function AmazingOfferSection({
-  collection,
-}: AmazingOfferSectionProps) {
   if (!collection || !collection.products || collection.products.length === 0) {
     return null;
   }

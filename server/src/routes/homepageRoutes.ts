@@ -18,6 +18,7 @@ import {
   getVideoShowcaseItems,
   addVideoShowcaseItem,
   deleteVideoShowcaseItem,
+  fetchCollectionByType,
 } from "../controllers/homepageController";
 
 const router = express.Router();
@@ -71,6 +72,7 @@ router.post("/banners/track-click/:id", trackBannerClick);
 
 // --- Product Collection Routes ---
 router.get("/collections", getProductCollections);
+router.get("/collections/by-type", fetchCollectionByType);
 router.post(
   "/collections/create",
   authenticateUser,
