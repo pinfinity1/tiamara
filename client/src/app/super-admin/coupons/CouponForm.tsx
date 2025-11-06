@@ -2,6 +2,7 @@
 
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import type { Resolver, SubmitHandler } from "react-hook-form";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,10 +32,7 @@ const couponSchema = z.object({
   code: z.string().min(3, "کد باید حداقل ۳ کاراکتر باشد."),
   discountType: z.enum(["PERCENTAGE", "FIXED"]),
   discountValue: z.coerce.number().min(0, "مقدار تخفیف نمی‌تواند منفی باشد."),
-  expireDate: z.date({
-    required_error: "تاریخ انقضا الزامی است.",
-    invalid_type_error: "فرمت تاریخ نامعتبر است.",
-  }),
+  expireDate: z.coerce.date().refine((v) => !!v, "تاریخ انقضا الزامی است."),
   usageLimit: z.coerce.number().int().min(1, "حداقل یکبار استفاده مجاز است."),
   isActive: z.boolean().default(true),
 });
@@ -45,6 +43,8 @@ type CouponFormData = z.infer<typeof couponSchema>;
 interface CouponFormProps {
   onFinished: () => void;
 }
+
+const resolver = zodResolver(couponSchema) as Resolver<CouponFormData>;
 
 export default function CouponForm({ onFinished }: CouponFormProps) {
   const { createCoupon, updateCoupon, selectedCoupon } = useCouponStore();
@@ -59,7 +59,7 @@ export default function CouponForm({ onFinished }: CouponFormProps) {
     reset,
     formState: { errors, isSubmitting },
   } = useForm<CouponFormData>({
-    resolver: zodResolver(couponSchema),
+    resolver,
     defaultValues: {
       code: "",
       discountType: "PERCENTAGE",

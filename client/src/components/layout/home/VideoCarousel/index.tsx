@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEmblaCarouselSetup } from "./useEmblaCarouselSetup";
 import { VideoSlide } from "./VideoSlide";
-import type { Product } from "./ProductCard";
+import type { Product } from "@/store/useProductStore";
 
 interface CarouselItem {
   id: string;

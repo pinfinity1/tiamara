@@ -1,0 +1,58 @@
+# /var/www/tiamara/docker-compose.prod.yml
+
+services:
+  postgres:
+    image: postgres:13
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    # پورت دیتابیس به بیرون باز نیست (امنیت)
+
+  server:
+    image: ghcr.io/YOUR_GITHUB_USERNAME/tiamara-server:latest
+    restart: always
+    ports:
+      - "5000:5000" # Nginx به این پورت وصل می‌شود
+    environment:
+      # !! بازنویسی حیاتی آدرس دیتابیس برای شبکه داکر !!
+      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+
+      # --- خواندن بقیه متغیرها از فایل .env ---
+      JWT_SECRET: ${JWT_SECRET}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ZARINPAL_MERCHANT_ID: ${ZARINPAL_MERCHANT_ID}
+      ZARINPAL_API_REQUEST: ${ZARINPAL_API_REQUEST}
+      ZARINPAL_API_VERIFY: ${ZARINPAL_API_VERIFY}
+      ZARINPAL_GATEWAY_URL: ${ZARINPAL_GATEWAY_URL}
+      CLIENT_URL: ${CLIENT_URL}
+      SERVER_URL: ${SERVER_URL}
+    depends_on:
+      - postgres
+
+  client:
+    image: ghcr.io/YOUR_GITHUB_USERNAME/tiamara-client:latest
+    restart: always
+    ports:
+      - "3000:3000" # Nginx به این پورت وصل می‌شود
+    environment:
+      # --- خواندن متغیرهای کلاینت از فایل .env ---
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_URL: ${AUTH_URL}
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+      ARCJET_KEY: ${ARCJET_KEY}
+      API_BASE_URL_SERVER: ${API_BASE_URL_SERVER}
+      NEXT_PUBLIC_CHAT_ENABLED: ${NEXT_PUBLIC_CHAT_ENABLED}
+    depends_on:
+      - server
+
+volumes:
+  postgres-data:
+# نحوه استفاده در محیط توسعه
+# docker-compose -f docker-compose.prod.yml up --build

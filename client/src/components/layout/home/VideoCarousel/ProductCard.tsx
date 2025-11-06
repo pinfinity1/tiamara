@@ -14,16 +14,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 
-export interface Product {
-  id: string;
-  slug: string;
-  name: string;
-  price: number;
-  images?: { url: string }[];
-  brand?: {
-    name: string;
-  };
-}
+import type { Product } from "@/store/useProductStore";
 
 interface ProductCardProps {
   product: Product;

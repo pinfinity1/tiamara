@@ -1,7 +1,8 @@
 // client/src/components/layout/home/VideoCarousel/VideoSlide.tsx (نسخه اصلاح شده)
 
 import React, { useRef, useEffect } from "react";
-import { ProductCard, type Product } from "./ProductCard";
+import { ProductCard } from "./ProductCard";
+import type { Product } from "@/store/useProductStore";
 import { Volume2, VolumeX } from "lucide-react";
 
 // Props ها کمی تغییر کرده تا با VideoCarousel هماهنگ شود

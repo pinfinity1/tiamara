@@ -20,6 +20,8 @@ import {
   useOrderStore,
   OrderStatus,
   statusTranslations,
+  paymentStatusTranslations,
+  getPaymentStatusVariant,
 } from "@/store/useOrderStore";
 import { useShallow } from "zustand/react/shallow";
 import Image from "next/image";
@@ -37,7 +39,6 @@ import Link from "next/link";
 import { format } from "date-fns-jalali";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { paymentStatusTranslations, getPaymentStatusVariant } from "./page";
 
 export default function OrderDetailsModal() {
   const { selectedOrder, setSelectedOrder, updateOrderStatus, isLoading } =

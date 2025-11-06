@@ -1,0 +1,14 @@
+# client/Dockerfile.dev
+FROM node:18-alpine
+WORKDIR /app
+
+# فقط پکیج‌ها را نصب می‌کنیم
+COPY package.json package-lock.json* ./
+RUN npm install
+
+# پورت dev سرور Next.js
+EXPOSE 3000
+
+# دستور اجرای dev
+# سورس کد بعداً از طریق docker-compose مپ (Mount) می‌شود
+CMD ["npm", "run", "dev"]

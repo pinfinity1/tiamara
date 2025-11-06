@@ -7,6 +7,9 @@ import {
   Order,
   OrderStatus,
   PaymentStatus,
+  statusTranslations,
+  paymentStatusTranslations,
+  getPaymentStatusVariant,
 } from "@/store/useOrderStore";
 import {
   Table,
@@ -30,33 +33,6 @@ import { Eye, Search, X } from "lucide-react";
 import { format } from "date-fns-jalali";
 import { useDebounce } from "@/hooks/use-debounce";
 import OrderDetailsModal from "./OrderDetailsModal";
-
-export const statusTranslations: Record<OrderStatus, string> = {
-  PENDING: "در انتظار",
-  PROCESSING: "در حال پردازش",
-  SHIPPED: "ارسال شده",
-  DELIVERED: "تحویل شده",
-};
-
-export const paymentStatusTranslations: Record<PaymentStatus, string> = {
-  PENDING: "در انتظار پرداخت",
-  COMPLETED: "پرداخت موفق",
-  FAILED: "پرداخت ناموفق",
-  CANCELLED: "لغو شده",
-};
-
-export const getPaymentStatusVariant = (status: PaymentStatus) => {
-  switch (status) {
-    case "COMPLETED":
-      return "bg-green-100 text-green-800 border-green-300";
-    case "FAILED":
-      return "bg-red-100 text-red-800 border-red-300";
-    case "CANCELLED":
-      return "bg-gray-100 text-gray-800 border-gray-300";
-    default:
-      return "bg-yellow-100 text-yellow-800 border-yellow-300";
-  }
-};
 
 export default function AdminOrdersPage() {
   // --- START OF CHANGES ---

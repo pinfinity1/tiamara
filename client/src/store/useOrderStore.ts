@@ -57,6 +57,26 @@ export const statusTranslations: Record<OrderStatus, string> = {
   DELIVERED: "تحویل داده شده",
 };
 
+export const paymentStatusTranslations: Record<PaymentStatus, string> = {
+  PENDING: "در انتظار پرداخت",
+  COMPLETED: "پرداخت موفق",
+  FAILED: "پرداخت ناموفق",
+  CANCELLED: "لغو شده",
+};
+
+export const getPaymentStatusVariant = (status: PaymentStatus) => {
+  switch (status) {
+    case "COMPLETED":
+      return "bg-green-100 text-green-800 border-green-300";
+    case "FAILED":
+      return "bg-red-100 text-red-800 border-red-300";
+    case "CANCELLED":
+      return "bg-gray-100 text-gray-800 border-gray-300";
+    default:
+      return "bg-yellow-100 text-yellow-800 border-yellow-300";
+  }
+};
+
 // --- Zustand Store Definition ---
 interface OrderState {
   userOrders: Order[];
