@@ -29,19 +29,6 @@ export default async function HomePage() {
   const allBrands = await fetchAllBrands();
   const videoShowcaseItems = await getVideoShowcaseItems();
 
-  const carouselItems = videoShowcaseItems.map((item) => ({
-    ...item, // کپی کردن id, videoUrl و سایر فیلدها
-    product: {
-      ...item.product, // کپی کردن تمام فیلدهای محصول
-      // این خط خطا را برطرف می‌کند:
-      // اگر item.product.brand وجود دارد (null یا undefined نیست)، آن را به { name: ... } تبدیل کن
-      // در غیر این صورت، آن را undefined قرار بده
-      brand: item.product?.brand
-        ? { name: item.product.brand.name }
-        : undefined,
-    },
-  }));
-
   return (
     <div className="min-h-screen bg-white">
       <HomeBannerCarousel banners={homepageBanners} />
@@ -62,7 +49,7 @@ export default async function HomePage() {
 
       <SkinProfilePromptBanner />
 
-      <VideoCarousel items={carouselItems} />
+      <VideoCarousel items={videoShowcaseItems} />
 
       <FeaturedBrands brands={allBrands} />
 
