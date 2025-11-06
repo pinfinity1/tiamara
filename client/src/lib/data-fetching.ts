@@ -84,7 +84,7 @@ export async function getCollectionByType(
 ): Promise<ProductCollection | null> {
   try {
     // ما به یک اندپوینت جدید در بک‌اند نیاز داریم
-    // مثلاً: /homepage/collections/by-type?type=POPULAR
+    // مثلاً: /homepage/collections/by-type?type=BEST_SELLING
     const response = await axiosPublic.get(`/homepage/collections/by-type`, {
       params: {
         type: type, // ✅ فقط type ارسال می‌شود

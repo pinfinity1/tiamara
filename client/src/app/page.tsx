@@ -3,7 +3,7 @@ import AmazingOfferSection from "@/components/layout/home/AmazingOfferSection";
 import BrandsProductSection from "@/components/layout/home/BrandsProductSection";
 import HomeBannerCarousel from "@/components/layout/home/HomeBannerCarousel";
 import NewsletterSignUp from "@/components/layout/home/NewsletterSignUp";
-import PopularProductSection from "@/components/layout/home/PopularProductSection";
+import BestSellingProductSection from "@/components/layout/home/BestSellingProductSection";
 import WhyChooseUs from "@/components/layout/home/WhyChooseUs";
 import {
   fetchAllBrands,
@@ -35,7 +35,7 @@ export default async function HomePage() {
 
       <AmazingOfferSection />
 
-      <PopularProductSection />
+      <BestSellingProductSection />
 
       <BrandsProductSection collectionType="BRAND_SPOTLIGHT_1" />
 
