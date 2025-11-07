@@ -21,7 +21,7 @@ services:
     restart: always
     ports:
       - "5001:3001" # Nginx به این پورت وصل می‌شود
-    command: sh -c "npx prisma migrate deploy && npm start"
+    command: sh -c "npx prisma migrate deploy && node dist/prisma/seed.js && npm start"
     environment:
       # !! بازنویسی حیاتی آدرس دیتابیس برای شبکه داکر !!
       DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"

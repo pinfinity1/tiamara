@@ -8,43 +8,33 @@ async function main() {
   const adminPassword = "123456";
   const adminName = "Super Admin";
 
-  const existingSuperAdmin = await prisma.user.findUnique({
-    where: { phone: adminPhone },
+  // --- کد اصلاح شده ---
+  // پسورد را در هر صورت هش می‌کنیم
+  const hashedPassword = await bcrypt.hash(adminPassword, 10);
+
+  // از دستور upsert استفاده می‌کنیم
+  const superAdminUser = await prisma.user.upsert({
+    where: { phone: adminPhone }, // با این شماره تلفن پیدا کن
+    update: {
+      // اگر پیدا شد: اطلاعاتش را به‌روز کن و مطمئن شو ادمین است
+      name: adminName,
+      password: hashedPassword,
+      role: "SUPER_ADMIN", // <-- نقش را تضمین می‌کند
+    },
+    create: {
+      // اگر پیدا نشد: یک کاربر جدید با نقش ادمین بساز
+      phone: adminPhone,
+      name: adminName,
+      password: hashedPassword,
+      role: "SUPER_ADMIN",
+    },
   });
 
-  if (!existingSuperAdmin) {
-    const hashedPassword = await bcrypt.hash(adminPassword, 10);
-    const superAdminUser = await prisma.user.create({
-      data: {
-        phone: adminPhone,
-        name: adminName,
-        password: hashedPassword,
-        role: "SUPER_ADMIN",
-      },
-    });
-    console.log(
-      "Super admin created successfully with phone:",
-      superAdminUser.phone
-    );
-  } else {
-    console.log("Super admin already exists. Skipping creation.");
-  }
-
-  // const hashedPassword = await bcrypt.hash(adminPassword, 10);
-
-  // const superAdminUser = await prisma.user.create({
-  //   data: {
-  //     phone: adminPhone,
-  //     name: adminName,
-  //     password: hashedPassword,
-  //     role: "SUPER_ADMIN",
-  //   },
-  // });
-
-  // console.log(
-  //   "Super admin created successfully with phone:",
-  //   superAdminUser.phone
-  // );
+  console.log(
+    "Super admin created or updated successfully with phone:",
+    superAdminUser.phone
+  );
+  // --- پایان کد اصلاح شده ---
 
   console.log("Start seeding shipping methods...");
 

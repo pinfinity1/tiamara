@@ -10,9 +10,9 @@ export const metadata: Metadata = {
   metadataBase: new URL("http://www.tiamara.ir"),
   title: {
     template: "%s | تیامارا",
-    default: "تیامارا | لوازم آرایشی و بهداشتی اورجینال",
+    default: "تیامارا | لوازم آرایشی و بهداشتی",
   },
-  description: "لوازم آرایشی و بهداشتی اورجینال، آراستن ، لطافت و زیبایی",
+  description: "لوازم آرایشی و بهداشتی ، آراستن ، لطافت و زیبایی",
 };
 
 const organizationSchema = {
@@ -23,7 +23,7 @@ const organizationSchema = {
   logo: "https://www.tiamara.ir/images/Logo/tiamara-logo.png",
   contactPoint: {
     "@type": "ContactPoint",
-    telephone: "+98-21-12345678",
+    telephone: "+98-9397155826",
     contactType: "customer service",
   },
 };
