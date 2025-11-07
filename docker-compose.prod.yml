@@ -58,6 +58,7 @@ services:
       ARCJET_KEY: ${ARCJET_KEY}
       API_BASE_URL_SERVER: ${API_BASE_URL_SERVER}
       NEXT_PUBLIC_CHAT_ENABLED: ${NEXT_PUBLIC_CHAT_ENABLED}
+      ARCJET_ENV: "development"
     depends_on:
       - server
 

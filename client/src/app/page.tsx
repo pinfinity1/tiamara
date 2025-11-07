@@ -37,9 +37,9 @@ export default async function HomePage() {
 
       <BestSellingProductSection />
 
-      <BrandsProductSection collectionType="BRAND_SPOTLIGHT_1" />
+      <BrandsProductSection collectionType="BRAND" />
 
-      <BrandsProductSection collectionType="BRAND_SPOTLIGHT_2" />
+      {/* <BrandsProductSection collectionType="BRAND_SPOTLIGHT_2" /> */}
 
       {/* <div className="py-12 lg:py-16 space-y-12 lg:space-y-16">
         {homepageCollections.map((collection) => (

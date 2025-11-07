@@ -423,13 +423,13 @@ export const getProductCollections = async (
     });
 
     const finalCollections = collections.map((collection) => {
-      if (collection.type === "DISCOUNTED") {
+      if (collection.type === SectionType.DISCOUNTED) {
         return { ...collection, products: discountedProducts };
       }
-      if (collection.type === "BEST_SELLING") {
+      if (collection.type === SectionType.BEST_SELLING) {
         return { ...collection, products: bestSellingProducts };
       }
-      if (collection.type === "BRAND" && collection.brandId) {
+      if (collection.type === SectionType.BRAND && collection.brandId) {
         return {
           ...collection,
           products: brandProducts
@@ -465,28 +465,23 @@ export const fetchCollectionByType = async (
       return;
     }
 
-    // --- اصلاح اصلی ---
-    // باید رشته ورودی را به Enum تعریف شده در Prisma کست کنید
     const collectionType = type as SectionType;
 
-    // ۱. کالکشن را بر اساس نوع پیدا کن
-    const collection: ProductCollectionWithRelations | null =
-      await prisma.productCollection.findFirst({
-        where: {
-          type: collectionType, // <--- از متغیر کست شده استفاده کنید
-        },
-        include: {
-          products: {
-            // محصولاتی که به صورت دستی لینک شده‌اند را شامل شود
-            include: {
-              images: { take: 1 },
-              brand: true,
-              category: true,
-            },
+    const collection = await prisma.productCollection.findFirst({
+      where: {
+        type: collectionType,
+      },
+      include: {
+        brand: true,
+        products: {
+          include: {
+            images: { take: 1 },
+            brand: true,
+            category: true,
           },
-          brand: true,
         },
-      });
+      },
+    });
 
     if (!collection) {
       res
@@ -495,51 +490,48 @@ export const fetchCollectionByType = async (
       return;
     }
 
-    // ۲. محصولات را بر اساس نوع کالکشن فچ کن (منطق شما در این بخش کاملا درست بود)
-    if (collection.type === "DISCOUNTED") {
+    // --- ۲. اصلاح بخش 'if/else' ---
+    // (مقایسه با Enum به جای رشته)
+    if (collection.type === SectionType.DISCOUNTED) {
       const discountedProducts = await prisma.product.findMany({
         where: { discount_price: { not: null } },
         orderBy: { createdAt: "desc" },
         take: 10,
         include: { images: { take: 1 }, brand: true, category: true },
       });
-      // محصولات را به کالکشن نهایی اضافه کن
       res.status(200).json({
         success: true,
         collection: { ...collection, products: discountedProducts },
       });
-    } else if (collection.type === "BEST_SELLING") {
+    } else if (collection.type === SectionType.BEST_SELLING) {
       const bestSellingProducts = await prisma.product.findMany({
         orderBy: { soldCount: "desc" },
         take: 10,
         include: { images: { take: 1 }, brand: true, category: true },
       });
-      // محصولات را به کالکشن نهایی اضافه کن
       res.status(200).json({
         success: true,
         collection: { ...collection, products: bestSellingProducts },
       });
-    } else if (collection.type === "BRAND" && collection.brandId) {
+    } else if (collection.type === SectionType.BRAND && collection.brandId) {
+      // (این مورد هم باید Enum باشد، اگر 'BRAND' در Enum شما وجود دارد)
       const brandProducts = await prisma.product.findMany({
         where: { brandId: collection.brandId },
         orderBy: { createdAt: "desc" },
         take: 10,
         include: { images: { take: 1 }, brand: true, category: true },
       });
-      // محصولات را به کالکشن نهایی اضافه کن
       res.status(200).json({
         success: true,
         collection: { ...collection, products: brandProducts },
       });
     } else {
-      // برای حالت "MANUAL"
-      // محصولات از همان کوئری اولیه (در 'include') لود شده‌اند
+      // برای حالت "MANUAL" یا هر حالت دیگری
       res.status(200).json({ success: true, collection: collection });
     }
   } catch (error) {
     console.error("Error fetching product collection by type:", error);
 
-    // مدیریت خطای احتمالی اگر 'type' ورودی معتبر نباشد
     if (error instanceof Error && error.message.includes("Invalid")) {
       res.status(400).json({
         success: false,
@@ -561,6 +553,7 @@ export const createProductCollection = async (
 ): Promise<void> => {
   try {
     const { title, type, productIds, brandId, location } = req.body;
+    const collectionType = type as SectionType;
     const file = req.file;
     let imageUrl: string | undefined = undefined;
 
@@ -575,7 +568,7 @@ export const createProductCollection = async (
     const collection = await prisma.productCollection.create({
       data: {
         title,
-        type,
+        type: collectionType,
         location: location || "homepage",
         brandId: type === "BRAND" ? brandId : null,
         imageUrl,
