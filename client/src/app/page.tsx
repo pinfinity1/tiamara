@@ -32,29 +32,19 @@ export default async function HomePage() {
   return (
     <div className="min-h-screen bg-white">
       <HomeBannerCarousel banners={homepageBanners} />
-
       {/* <AmazingOfferSection /> */}
-
       {/* <BestSellingProductSection /> */}
-
       {/* <BrandsProductSection collectionType="BRAND" /> */}
-
       {/* <BrandsProductSection collectionType="BRAND_SPOTLIGHT_2" /> */}
-
       {/* <div className="py-12 lg:py-16 space-y-12 lg:space-y-16">
         {homepageCollections.map((collection) => (
           <ProductSection key={collection.id} collection={collection} />
         ))}
       </div> */}
-
       <SkinProfilePromptBanner />
-
       <VideoCarousel items={videoShowcaseItems} />
-
       <FeaturedBrands brands={allBrands} />
-
       <WhyChooseUs />
-
       <NewsletterSignUp />
     </div>
   );

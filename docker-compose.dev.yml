@@ -1,4 +1,6 @@
 # /docker-compose.dev.yml
+# نسخه‌ی بازنویسی شده برای رفع مشکل node_modules
+
 services:
   postgres:
     image: postgres:13
@@ -17,15 +19,14 @@ services:
       context: ./server
       dockerfile: Dockerfile.dev
     volumes:
+      # !! --- تغییر اصلی اینجاست --- !!
+      # ما مستقیماً کل پوشه سرور، (شامل node_modules) را از مک شما مپ می‌کنیم
       - ./server:/app
-      - /app/node_modules
     ports:
-      - "5000:5000" # پورت سرور
+      - "5001:3001" # (پورت صحیح که قبلاً اصلاح کردیم)
     environment:
-      # !! بازنویسی آدرس دیتابیس برای شبکه داکر !!
       DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
-
-      # --- خواندن بقیه متغیرها از فایل .env ---
+      # ... (بقیه متغیرهای شما)
       JWT_SECRET: ${JWT_SECRET}
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
@@ -45,12 +46,13 @@ services:
       context: ./client
       dockerfile: Dockerfile.dev
     volumes:
+      # !! --- تغییر اصلی اینجاست --- !!
+      # اینجا هم پوشه‌ی node_modules جداگانه را حذف می‌کنیم
       - ./client:/app
-      - /app/node_modules
     ports:
       - "3000:3000"
     environment:
-      # --- خواندن متغیرهای کلاینت از فایل .env ---
+      # ... (بقیه متغیرهای شما)
       AUTH_SECRET: ${AUTH_SECRET}
       AUTH_URL: ${AUTH_URL}
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
@@ -62,5 +64,3 @@ services:
 
 volumes:
   postgres-data:
-# نحوه استفاده در محیط توسعه
-# docker-compose -f docker-compose.dev.yml up --build

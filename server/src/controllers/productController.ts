@@ -67,15 +67,15 @@ export const getProductFilters = async (
     ]);
 
     const skinTypes = (skinTypesRaw as any[])
-      .map((item) => item.value)
+      .map((item: any) => item.value)
       .filter(Boolean)
       .sort();
     const concerns = (concernsRaw as any[])
-      .map((item) => item.value)
+      .map((item: any) => item.value)
       .filter(Boolean)
       .sort();
     const productForms = productFormsRaw
-      .map((item) => item.product_form)
+      .map((item: any) => item.product_form)
       .filter(Boolean)
       .sort() as string[];
 
@@ -316,7 +316,7 @@ export const getProductsByIds = async (
     });
 
     const sortedProducts = ids
-      .map((id) => products.find((p) => p.id === id))
+      .map((id) => products.find((p: any) => p.id === id))
       .filter(Boolean);
 
     res.status(200).json({ success: true, products: sortedProducts });
@@ -383,12 +383,12 @@ export const updateProduct = async (
         };
 
         // Optionally, delete from Cloudinary as well
-        const imagesToDeleteFromCloud = existingProduct.images.filter((img) =>
-          idsToDelete.includes(img.id)
+        const imagesToDeleteFromCloud = existingProduct.images.filter(
+          (img: any) => idsToDelete.includes(img.id)
         );
         if (imagesToDeleteFromCloud.length > 0) {
           const publicIdsForCloudinary = imagesToDeleteFromCloud.map(
-            (img) => `tiamara/${img.url.split("/").pop()?.split(".")[0]}`
+            (img: any) => `tiamara/${img.url.split("/").pop()?.split(".")[0]}`
           );
           await cloudinary.api.delete_resources(publicIdsForCloudinary);
         }
