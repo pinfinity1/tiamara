@@ -13,6 +13,12 @@ export const metadata: Metadata = {
     default: "تیامارا | لوازم آرایشی و بهداشتی",
   },
   description: "لوازم آرایشی و بهداشتی ، آراستن ، لطافت و زیبایی",
+  verification: {
+    other: {
+      // این خط، متاتگ <meta name="enamad" content="48644659" /> را می‌سازد
+      enamad: "48644659",
+    },
+  },
 };
 
 const organizationSchema = {
