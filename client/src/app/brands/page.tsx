@@ -62,9 +62,8 @@ const BrandsPage = async () => {
                 <Image
                   src={brand.logoUrl || "/images/placeholder.png"}
                   alt={brand.name}
-                  layout="fill"
-                  className="w-[50%] h-[50%]"
-                  objectFit="cover"
+                  fill
+                  className="w-[50%] h-[50%] object-cover"
                 />
               </div>
               <h3 className="font-semibold text-gray-800">{brand.name}</h3>

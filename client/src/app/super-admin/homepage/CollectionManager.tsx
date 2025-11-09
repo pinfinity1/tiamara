@@ -407,9 +407,8 @@ function CollectionManager() {
                   <Image
                     src={preview}
                     alt="پیش‌نمایش بنر"
-                    layout="fill"
-                    objectFit="cover"
-                    className="rounded-md"
+                    fill
+                    className="object-cover rounded-md"
                   />
                 </div>
               )}

@@ -1,6 +1,14 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Phone, Mail, Instagram, Twitter, Facebook } from "lucide-react";
+import {
+  Phone,
+  Mail,
+  Instagram,
+  Twitter,
+  Facebook,
+  MessageCircle,
+  Send,
+} from "lucide-react";
 import logo from "../../../public/images/Logo/tiamara-logo-1.png";
 
 const Footer = () => {
@@ -9,7 +17,10 @@ const Footer = () => {
       <div className="container mx-auto px-4 py-10">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
           <div className="col-span-2 lg:col-span-1 flex flex-col items-center text-center md:items-start md:text-right">
-            <Link href="/" className="mb-4 w-[180px] h-[60px] overflow-hidden">
+            <Link
+              href="/"
+              className="mb-4 w-[180px] mx-auto h-[60px] overflow-hidden"
+            >
               <Image
                 src={logo}
                 alt="Tiamara Logo"
@@ -20,7 +31,7 @@ const Footer = () => {
             </Link>
             <p className="text-sm leading-relaxed">
               تیامارا، مقصد شما برای کشف زیبایی و اصالت. ما بهترین محصولات
-              آرایشی و بهداشتی اورجینال را با عشق برای شما فراهم می‌کنیم.
+              آرایشی و بهداشتی را با عشق برای شما فراهم می‌کنیم.
             </p>
           </div>
 
@@ -94,38 +105,43 @@ const Footer = () => {
             <div className="space-y-3 text-sm">
               <div className="flex items-center gap-2">
                 <Mail className="w-5 h-5 text-primary" />
-                <span>info@tiamara.ir</span>
+                <p className="text-gray-600">tiamara.official@gmail.com</p>
               </div>
               <div className="flex items-center gap-2">
                 <Phone className="w-5 h-5 text-primary" />
-                <span>۰۲۱-۱۲۳۴۵۶۷۸</span>
+                <p className="text-gray-600" dir="ltr">
+                  ۰۳۸-۳۳۳۵۲۱۲۲
+                </p>
               </div>
             </div>
-            <div className="flex gap-4 mt-6">
-              <a
-                href="#"
+            <div className="flex space-x-4 space-x-reverse mt-2">
+              <Link
+                href="https://instagram.com/tiamara.official"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-gray-500 hover:text-primary transition-colors"
+                className="bg-gray-300 hover:bg-gray-200 p-1 rounded transition-all duration-150"
+                aria-label="Instagram"
               >
-                <Instagram className="w-6 h-6" />
-              </a>
-              <a
-                href="#"
+                <Instagram className="w-5 h-5 text-primary" />
+              </Link>
+              <Link
+                href="https://wa.me/989397155826"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-gray-500 hover:text-primary transition-colors"
+                className="bg-gray-300 hover:bg-gray-200 p-1 rounded transition-all duration-150"
+                aria-label="WhatsApp"
               >
-                <Twitter className="w-6 h-6" />
-              </a>
-              <a
-                href="#"
+                <MessageCircle className="w-5 h-5 text-primary" />
+              </Link>
+              {/* <Link
+                href="#" // TODO: لینک تلگرام خود را اینجا قرار دهید
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-gray-500 hover:text-primary transition-colors"
+                className="text-gray-400 hover:text-gray-300"
+                aria-label="Telegram"
               >
-                <Facebook className="w-6 h-6" />
-              </a>
+                <Send className="h-6 w-6" />
+              </Link> */}
             </div>
           </div>
         </div>

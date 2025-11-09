@@ -25,9 +25,20 @@ export default function ContactUsPage() {
                 <Phone className="h-6 w-6 text-primary" />
               </div>
               <div className="mr-4">
-                <h3 className="font-semibold">تلفن پشتیبانی</h3>
+                <h3 className="font-semibold">تلفن ثابت</h3>
                 <p className="text-gray-600" dir="ltr">
-                  ۰۲۱-۱۲۳۴۵۶۷۸
+                  ۰۳۸-۳۳۳۵۲۱۲۲
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center">
+              <div className="bg-primary/10 p-3 rounded-full">
+                <Phone className="h-6 w-6 text-primary" />
+              </div>
+              <div className="mr-4">
+                <h3 className="font-semibold">تماس (واتس‌اپ و موبایل)</h3>
+                <p className="text-gray-600" dir="ltr">
+                  ۰۹۳۹ ۷۱۵ ۵۸۲۶
                 </p>
               </div>
             </div>
@@ -37,7 +48,7 @@ export default function ContactUsPage() {
               </div>
               <div className="mr-4">
                 <h3 className="font-semibold">ایمیل</h3>
-                <p className="text-gray-600">info@tiamara.com</p>
+                <p className="text-gray-600">tiamara.official@gmail.com</p>
               </div>
             </div>
             <div className="flex items-start">
@@ -45,10 +56,12 @@ export default function ContactUsPage() {
                 <MapPin className="h-6 w-6 text-primary" />
               </div>
               <div className="mr-4">
-                <h3 className="font-semibold">آدرس</h3>
+                <h3 className="font-semibold">آدرس (محل پردازش سفارشات)</h3>
                 <p className="text-gray-600">
-                  [استان، شهر، خیابان اصلی، کوچه فرعی، پلاک و واحد خود را اینجا
-                  وارد کنید]
+                  استان چهارمحال و بختیاری، شهرکرد، بلوار معلم، کوچه ۱۳، ساختمان
+                  ۳۶، واحد ۴
+                  <br />
+                  کدپستی: ۸۸۱۴۸۵۶۳۱۵
                 </p>
               </div>
             </div>

@@ -20,9 +20,8 @@ export default function ProductSection({ collection }: ProductSectionProps) {
           <Image
             src={collection.imageUrl}
             alt={collection.title}
-            layout="fill"
-            objectFit="cover"
-            className="z-0"
+            fill
+            className="object-cover z-0"
           />
           <div className="absolute inset-0 bg-black/50 z-10"></div>
           <div className="relative z-20 text-white">

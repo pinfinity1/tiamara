@@ -12,7 +12,7 @@ export default function TermsPage() {
       <div className="container mx-auto px-4 py-12 md:py-16">
         <div className="max-w-4xl mx-auto prose prose-lg prose-rtl text-justify">
           <h1>قوانین و مقررات فروشگاه تیامارا</h1>
-          <p>آخرین به‌روزرسانی: [تاریخ امروز را وارد کنید]</p>
+          <p>آخرین به‌روزرسانی: ۱۸ آبان ۱۴۰۴</p>
           <p>
             استفاده شما از وب‌سایت فروشگاه آنلاین تیامارا به آدرس www.tiamara.ir
             و سفارش كالا از اين پايگاه به معنی توافق کامل شما با شرايط و ضوابط

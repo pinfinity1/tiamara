@@ -4,7 +4,14 @@ import Link from "next/link";
 import Image from "next/image";
 import { Menu, Instagram } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import {
   Accordion,
   AccordionContent,
@@ -37,11 +44,14 @@ const MobileNav = ({
           </Button>
         </SheetTrigger>
         <SheetContent side="right" className="w-[300px] p-0 flex flex-col">
-          <div className="p-4 border-b">
-            <Link href="/" onClick={() => setIsOpen(false)}>
-              <Image src={logo} alt="Logo" width={120} height={56} />
-            </Link>
-          </div>
+          <SheetHeader>
+            <SheetTitle>
+              <Link href="/" onClick={() => setIsOpen(false)}>
+                <Image src={logo} alt="Logo" width={120} height={56} />
+              </Link>
+            </SheetTitle>
+            <SheetDescription className="sr-only">تیامارا</SheetDescription>
+          </SheetHeader>
           <nav className="flex-1 overflow-y-auto">
             <div className="p-4 flex flex-col gap-4">
               <Link
@@ -107,16 +117,17 @@ const MobileNav = ({
             <p className="text-xs text-muted-foreground mb-4">
               تیامارا، مقصد شما برای کشف زیبایی و اصالت.
             </p>
-            <Button variant="outline" className="w-full" asChild>
-              <a
-                href="https://instagram.com"
+            <div className="mt-4">
+              <Link
+                href="https://instagram.com/tiamara.official"
                 target="_blank"
                 rel="noopener noreferrer"
+                className="flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
               >
-                <Instagram className="w-4 h-4 ml-2" />
+                <Instagram className="ml-2 h-5 w-5" />
                 ما را در اینستاگرام دنبال کنید
-              </a>
-            </Button>
+              </Link>
+            </div>
           </div>
         </SheetContent>
       </Sheet>

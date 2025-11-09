@@ -22,7 +22,7 @@ function LoginPage() {
           src={banner}
           alt="Register"
           fill
-          style={{ objectFit: "cover", objectPosition: "center" }}
+          className="object-cover object-center"
           priority
         />
       </div>

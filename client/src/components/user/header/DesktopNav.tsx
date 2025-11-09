@@ -68,9 +68,8 @@ const DesktopNav = ({ isVisible, brands, categories }: DesktopNavProps) => {
                   <Image
                     src="/images/brand-banner.png"
                     alt="Brands"
-                    layout="fill"
-                    objectFit="cover"
-                    className="pointer-events-none"
+                    fill
+                    className="object-cover pointer-events-none"
                   />
                   <div className="absolute inset-0 bg-black/15 backdrop-blur-[2px] rounded-md flex items-center justify-center w-full h-full">
                     <span className="text-white text-lg font-semibold">
@@ -104,9 +103,8 @@ const DesktopNav = ({ isVisible, brands, categories }: DesktopNavProps) => {
                   <Image
                     src="/images/category-banner.png"
                     alt="Categories"
-                    layout="fill"
-                    objectFit="cover"
-                    className="pointer-events-none"
+                    fill
+                    className="object-cover pointer-events-none"
                   />
                   <div className="absolute inset-0 bg-black/15 backdrop-blur-[2px] rounded-md flex items-center justify-center w-full h-full">
                     <span className="text-white text-lg font-semibold">
