@@ -1,0 +1,35 @@
+name: Deploy to Production
+
+# این اکشن زمانی اجرا می‌شود که به برنچ main پوش کنید
+on:
+    push:
+        branches:
+            - main # یا هر اسم برنچی که برای پروداکشن استفاده می‌کنید
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Deploy to Server
+              # از این اکشن محبوب برای اجرای دستورات SSH استفاده می‌کنیم
+              uses: appleboy/ssh-action@master
+              with:
+                  host: ${{ secrets.SERVER_HOST }} # رازهایی که در مرحله بعد می‌سازیم
+                  username: ${{ secrets.SERVER_USER }}
+                  password: ${{ secrets.SERVER_PASS }}
+                  script: |
+                      # 1. به پوشه پروژه بروید
+                      cd /var/www/tiamara
+
+                      # 2. آخرین تغییرات را از گیت بگیرید (تغییرات Dockerfile و ...)
+                      git pull origin main
+
+                      # 3. ایمیج‌ها را دوباره (بدون کش) بیلد کنید تا تغییرات اعمال شوند
+                      docker-compose -f docker-compose.prod.yml build --no-cache
+
+                      # 4. کانتینرها را با ایمیج‌های جدید اجرا کنید
+                      docker-compose -f docker-compose.prod.yml up -d
+
+                      # 5. (اختیاری ولی به شدت توصیه می‌شود) پاکسازی ایمیج‌های قدیمی
+                      docker system prune -f
