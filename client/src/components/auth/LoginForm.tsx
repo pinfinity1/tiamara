@@ -160,7 +160,6 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
         </div>
       );
 
-    // ... (بقیه case ها بدون تغییر باقی می‌مانند)
     case "otp":
       return (
         <div className="relative">
