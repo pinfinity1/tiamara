@@ -1,13 +1,5 @@
-# client/.dockerignore
-
-# نادیده گرفتن پکیج‌های لوکال
+# .dockerignore for client
 node_modules
-
-# نادیده گرفتن فایل‌های بیلد لوکال
 .next
-
-# نادیده گرفتن پوشه گیت
 .git
-
-# نادیده گرفتن فایل‌های متغیر محیطی
-.env
+.env.local
