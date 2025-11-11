@@ -101,6 +101,8 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
               required
               value={phone}
               onChange={(e) => handleNumericInputChange(e, setPhone)}
+              pattern="[0-9]*"
+              maxLength={11}
             />
           </div>
           <Button type="submit" disabled={isLoading} className="w-full">
