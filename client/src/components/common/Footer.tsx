@@ -1,28 +1,19 @@
 import Image from "next/image";
 import Link from "next/link";
-import {
-  Phone,
-  Mail,
-  Instagram,
-  Twitter,
-  Facebook,
-  MessageCircle,
-  Send,
-} from "lucide-react";
-import logo from "../../../public/images/Logo/tiamara-logo-1.png";
+import { Phone, Mail, Instagram, MessageCircle, Send } from "lucide-react";
 
 const Footer = () => {
   return (
     <footer className="bg-gray-50 border-t border-gray-200 text-gray-700">
       <div className="container mx-auto px-4 py-10">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
-          <div className="col-span-2 lg:col-span-1 flex flex-col items-center text-center md:items-start md:text-right">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 gap-x-10">
+          <div className="col-span-2 flex flex-col items-center text-center md:items-start md:text-right">
             <Link
               href="/"
               className="mb-4 w-[180px] mx-auto h-[60px] overflow-hidden"
             >
               <Image
-                src={logo}
+                src="/images/Logo/tiamara-logo-1.png"
                 alt="Tiamara Logo"
                 width={180}
                 height={60}
@@ -30,15 +21,21 @@ const Footer = () => {
               />
             </Link>
             <p className="text-sm leading-relaxed">
-              تیامارا، مقصد شما برای کشف زیبایی و اصالت. ما بهترین محصولات
-              آرایشی و بهداشتی را با عشق برای شما فراهم می‌کنیم.
+              تیامارا فراتر از یک فروشگاه؛ روایتی از زیبایی، اصالت و اعتماد است.
+              ما در تیامارا با تکیه بر کیفیت، انتخاب‌گری هوشمندانه و شناخت عمیق
+              از نیازهای شما، مجموعه‌ای برگزیده از محصولات آرایشی و بهداشتی را
+              ارائه می‌کنیم. رسالت ما خلق تجربه‌ای متمایز و الهام‌بخش است؛
+              تجربه‌ای که نشان می‌دهد زیبایی تنها یک ظاهر نیست، بلکه یک سبک
+              زندگی است. با تیامارا، هر انتخاب قدمی‌ست به سوی درخشیدن واقعی.
             </p>
           </div>
 
           {/* بخش دسترسی سریع */}
-          <div>
-            <h3 className="font-bold text-lg mb-4">دسترسی سریع</h3>
-            <ul className="space-y-2 text-sm">
+          <div className="flex flex-col lg:items-center">
+            <h3 className="w-full border-b text-center pb-2 font-bold text-lg mb-4">
+              دسترسی سریع
+            </h3>
+            <ul className="flex-1 flex flex-col gap-3 px-4 text-sm">
               <li>
                 <Link href="/" className="hover:text-primary transition-colors">
                   فروشگاه
@@ -72,9 +69,11 @@ const Footer = () => {
           </div>
 
           {/* بخش خدمات مشتریان */}
-          <div>
-            <h3 className="font-bold text-lg mb-4">خدمات مشتریان</h3>
-            <ul className="space-y-2 text-sm">
+          <div className="flex flex-col lg:items-center">
+            <h3 className="w-full border-b text-center pb-2 font-bold text-lg mb-4">
+              خدمات مشتریان
+            </h3>
+            <ul className="flex-1 flex flex-col gap-3 px-4 text-sm">
               <li>
                 <Link
                   href="/terms"
@@ -100,10 +99,10 @@ const Footer = () => {
           </div>
 
           {/* بخش تماس با ما و شبکه‌های اجتماعی */}
-          <div>
+          <div className="col-span-2 sm:col-span-1">
             <h3 className="font-bold text-lg mb-4">با ما در ارتباط باشید</h3>
             <div className="space-y-3 text-sm">
-              <div className="flex items-center gap-2">
+              <div className="w-full flex items-center gap-2">
                 <Mail className="w-5 h-5 text-primary" />
                 <p className="text-gray-600">tiamara.official@gmail.com</p>
               </div>
@@ -143,6 +142,16 @@ const Footer = () => {
                 <Send className="h-6 w-6" />
               </Link> */}
             </div>
+          </div>
+
+          <div className="col-span-2 sm:col-span-1 h-full w-fit flex justify-center">
+            <div
+              dangerouslySetInnerHTML={{
+                __html: `
+                <a referrerpolicy='origin' target='_blank' href='https://trustseal.enamad.ir/?id=672658&Code=pA64y9sggyyLkyovKNjjEnAtkMFg42Uh'><img referrerpolicy='origin' src='https://trustseal.enamad.ir/logo.aspx?id=672658&Code=pA64y9sggyyLkyovKNjjEnAtkMFg42Uh' alt='' style='cursor:pointer' code='pA64y9sggyyLkyovKNjjEnAtkMFg42Uh'></a>
+              `,
+              }}
+            />
           </div>
         </div>
 
