@@ -26,7 +26,8 @@ export const sendManualOtp = async (phoneNumber: string, code: string) => {
     : `0${phoneNumber}`;
 
   // --- منطق Production در برابر Development ---
-  if (process.env.NODE_ENV !== "production") {
+  // !! تصحیح شد: شرط باید === "production" باشد !!
+  if (process.env.NODE_ENV === "production") {
     // --- حالت پروداکشن: ارسال پیامک واقعی ---
     if (!API_KEY || !TEMPLATE_ID) {
       console.error(
@@ -36,27 +37,25 @@ export const sendManualOtp = async (phoneNumber: string, code: string) => {
     }
 
     try {
-      // !! تصحیح شد: body با حروف کوچک بر اساس مستندات !!
       const body = {
         mobile: receptor,
         templateId: Number(TEMPLATE_ID),
         parameters: [
           {
-            name: "Code", // این نام باید با نام پارامتر در الگوی شما یکی باشد
+            name: "CODE",
             value: code,
           },
         ],
       };
 
-      // !! تصحیح شد: آدرس endpoint بر اساس مستندات !!
       const response = await smsClient.post("/send/verify", body);
 
       console.log(
         `[Production] SMS.IR Sent: Status ${response.data.status} to ${receptor}`
       );
-      // بر اساس مستندات شما، status: 1 به معنای موفقیت است
+
       if (response.data.status === 1) {
-        return response.data.data.messageId; // بازگرداندن MessageId
+        return response.data.data.messageId;
       } else {
         throw new Error(`SMS.IR Error: ${response.data.message}`);
       }
@@ -72,6 +71,11 @@ export const sendManualOtp = async (phoneNumber: string, code: string) => {
     console.log("=================================================");
     console.log(
       `[DEVELOPMENT MODE] SMS to ${receptor}: TemplateID: ${TEMPLATE_ID}, Code: ${code}`
+    );
+    console.log("=================================================");
+    // مطمئن شوید که API_KEY و TEMPLATE_ID در حالت توسعه هم لاگ می‌شوند تا از وجودشان مطمئن شوید
+    console.log(
+      `[DEVELOPMENT MODE] API_KEY Loaded: ${!!API_KEY}, TEMPLATE_ID Loaded: ${!!TEMPLATE_ID}`
     );
     console.log("=================================================");
     return `dev-message-id-${Date.now()}`;

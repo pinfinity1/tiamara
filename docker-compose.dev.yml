@@ -1,6 +1,3 @@
-# /docker-compose.dev.yml
-# نسخه‌ی بازنویسی شده برای رفع مشکل node_modules
-
 services:
   postgres:
     image: postgres:13
@@ -19,25 +16,22 @@ services:
       context: ./server
       dockerfile: Dockerfile.dev
     volumes:
-      # !! --- تغییر اصلی اینجاست --- !!
       # ما مستقیماً کل پوشه سرور، (شامل node_modules) را از مک شما مپ می‌کنیم
       - ./server:/app
     ports:
       - "5001:3001" # (پورت صحیح که قبلاً اصلاح کردیم)
+
+    # !! --- بخش اصلاح شده --- !!
+    # به جای لیست کردن دستی، فقط به فایل .env ریشه اشاره کنید
+    env_file:
+      - ./.env
+    # متغیر DATABASE_URL باید بازنویسی شود تا به سرویس postgres اشاره کند
+    # (چون مقدار آن در .env ریشه به localhost اشاره دارد)
     environment:
       DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
-      # ... (بقیه متغیرهای شما)
-      JWT_SECRET: ${JWT_SECRET}
-      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
-      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
-      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      ZARINPAL_MERCHANT_ID: ${ZARINPAL_MERCHANT_ID}
-      ZARINPAL_API_REQUEST: ${ZARINPAL_API_REQUEST}
-      ZARINPAL_API_VERIFY: ${ZARINPAL_API_VERIFY}
-      ZARINPAL_GATEWAY_URL: ${ZARINPAL_GATEWAY_URL}
-      CLIENT_URL: ${CLIENT_URL}
-      SERVER_URL: ${SERVER_URL}
+      NODE_ENV: development
+    # !! --- پایان اصلاح --- !!
+
     depends_on:
       - postgres
 
@@ -46,19 +40,17 @@ services:
       context: ./client
       dockerfile: Dockerfile.dev
     volumes:
-      # !! --- تغییر اصلی اینجاست --- !!
       # اینجا هم پوشه‌ی node_modules جداگانه را حذف می‌کنیم
       - ./client:/app
     ports:
       - "3000:3000"
-    environment:
-      # ... (بقیه متغیرهای شما)
-      AUTH_SECRET: ${AUTH_SECRET}
-      AUTH_URL: ${AUTH_URL}
-      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
-      ARCJET_KEY: ${ARCJET_KEY}
-      API_BASE_URL_SERVER: ${API_BASE_URL_SERVER}
-      NEXT_PUBLIC_CHAT_ENABLED: ${NEXT_PUBLIC_CHAT_ENABLED}
+
+    # !! --- بخش اصلاح شده --- !!
+    # اینجا هم فقط به فایل .env ریشه اشاره کنید
+    env_file:
+      - ./.env
+    # !! --- پایان اصلاح --- !!
+
     depends_on:
       - server
 

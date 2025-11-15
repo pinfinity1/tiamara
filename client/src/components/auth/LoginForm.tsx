@@ -1,13 +1,52 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthProcessStore } from "@/store/useAuthProcessStore";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowRight } from "lucide-react"; // ایمپورت آیکون فلش
+import { ArrowRight, Eye, EyeOff, Loader2 } from "lucide-react";
+
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Progress } from "@/components/ui/progress";
+
+const OTP_DURATION = 120;
+
+// (Schema اعتبارسنجی Zod بدون تغییر باقی می‌ماند)
+const passwordValidationSchema = z
+  .object({
+    otp: z.string().length(6, "کد تایید باید ۶ رقم باشد."),
+    password: z
+      .string()
+      .min(8, "رمز عبور باید حداقل ۸ کاراکتر باشد.")
+      .regex(/[A-Z]/, "رمز عبور باید شامل حداقل یک حرف بزرگ باشد.")
+      .regex(/[a-z]/, "رمز عبور باید شامل حداقل یک حرف کوچک باشد.")
+      .regex(/[0-9]/, "رمز عبور باید شامل حداقل یک عدد باشد."),
+    confirmPassword: z
+      .string()
+      .min(8, "تکرار رمز عبور باید حداقل ۸ کاراکتر باشد."),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "رمزهای عبور یکسان نیستند.",
+    path: ["confirmPassword"],
+  });
+
+const setupPasswordSchema = passwordValidationSchema.omit({ otp: true });
+type SetupPasswordFormValues = z.infer<typeof setupPasswordSchema>;
+const resetPasswordSchema = passwordValidationSchema;
+type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
 
 interface LoginFormProps {
   onSuccess?: () => void;
@@ -28,12 +67,81 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
     setPasswordAndFinalize,
   } = useAuthProcessStore();
 
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [otp, setOtp] = useState("");
+  const [passwordSimple, setPasswordSimple] = useState("");
+  const [otpSimple, setOtpSimple] = useState("");
+  const [isTimerActive, setIsTimerActive] = useState(false);
+  const [countdown, setCountdown] = useState(OTP_DURATION);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const router = useRouter();
   const { toast } = useToast();
+
+  const setupForm = useForm<SetupPasswordFormValues>({
+    resolver: zodResolver(setupPasswordSchema),
+    defaultValues: { password: "", confirmPassword: "" },
+    mode: "onTouched",
+  });
+
+  const resetForm = useForm<ResetPasswordFormValues>({
+    resolver: zodResolver(resetPasswordSchema),
+    defaultValues: { otp: "", password: "", confirmPassword: "" },
+    mode: "onTouched",
+  });
+
+  // --- !! ۲. محاسبه مقدار Progress Bar !! ---
+  // این مقدار از ۱۰۰ (شروع) به ۰ (پایان) می‌رسد
+  const progressValue = (countdown / OTP_DURATION) * 100;
+
+  // (توابع کمکی formatTime, useEffect ها, handleResendOtp, handleSuccess... بدون تغییر)
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${String(minutes).padStart(2, "0")}:${String(
+      remainingSeconds
+    ).padStart(2, "0")}`;
+  };
+
+  useEffect(() => {
+    if (step === "otp" || step === "forgot-password-reset") {
+      setIsTimerActive(true);
+      setCountdown(OTP_DURATION);
+      if (step === "forgot-password-reset") {
+        resetForm.reset();
+      }
+    } else if (step === "force-password-setup") {
+      setupForm.reset();
+    } else {
+      setIsTimerActive(false);
+    }
+  }, [step, setupForm, resetForm]);
+
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout | undefined = undefined;
+    if (isTimerActive && countdown > 0) {
+      intervalId = setInterval(() => {
+        setCountdown((prev) => prev - 1);
+      }, 1000);
+    } else if (countdown === 0) {
+      setIsTimerActive(false);
+    }
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [isTimerActive, countdown]);
+
+  const handleResendOtp = () => {
+    if (isLoading || isTimerActive) return;
+    if (step === "otp") {
+      checkPhone(phone, true);
+    } else if (step === "forgot-password-reset") {
+      requestPasswordReset();
+    }
+    setIsTimerActive(true);
+    setCountdown(OTP_DURATION);
+  };
 
   const handleSuccess = () => {
     if (onSuccess) {
@@ -54,21 +162,17 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
     }
   };
 
-  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password !== confirmPassword) {
-      toast({ title: "رمزهای عبور یکسان نیستند.", variant: "destructive" });
-      return;
-    }
-    const success = await resetPassword(otp, password);
+  const onPasswordSetupSubmit = (data: SetupPasswordFormValues) => {
+    setPasswordAndFinalize(data.password, handleSuccess);
+  };
+
+  const onPasswordResetSubmit = async (data: ResetPasswordFormValues) => {
+    const success = await resetPassword(data.otp, data.password);
     if (success) {
-      setOtp("");
-      setPassword("");
-      setConfirmPassword("");
+      resetForm.reset();
     }
   };
 
-  // کامپوننت دکمه بازگشت برای استفاده مجدد
   const BackButton = ({ onClick }: { onClick: () => void }) => (
     <div className="absolute top-0 right-0">
       <Button type="button" variant="ghost" size="icon" onClick={onClick}>
@@ -77,14 +181,16 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
     </div>
   );
 
-  // نمایش فرم‌ها بر اساس مرحله فعلی
   switch (step) {
+    // (case "phone" و case "password" بدون تغییر)
     case "phone":
       return (
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            checkPhone(phone);
+            const normalizedPhone = phone.startsWith("0") ? phone : `0${phone}`;
+            setPhone(normalizedPhone);
+            checkPhone(normalizedPhone);
           }}
           className="space-y-4"
           noValidate
@@ -106,7 +212,14 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
             />
           </div>
           <Button type="submit" disabled={isLoading} className="w-full">
-            {isLoading ? "در حال ارسال..." : "ادامه"}
+            {isLoading ? (
+              <>
+                در حال ارسال
+                <Loader2 className="h-4 w-4 animate-spin" />
+              </>
+            ) : (
+              "ادامه"
+            )}
           </Button>
         </form>
       );
@@ -118,25 +231,49 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              finalLogin("password", { password }, handleSuccess);
+              finalLogin(
+                "password",
+                { password: passwordSimple },
+                handleSuccess
+              );
             }}
             className="space-y-4 pt-10"
             noValidate
           >
             <h2 className="text-center text-xl font-semibold">رمز عبور</h2>
-            <div className="space-y-1">
+            <div className="space-y-1 relative">
               <Label htmlFor="password">رمز عبور خود را وارد کنید</Label>
               <Input
                 id="password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 dir="ltr"
                 required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={passwordSimple}
+                onChange={(e) => setPasswordSimple(e.target.value)}
               />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute bottom-1 right-1 h-7 w-7 text-gray-500"
+                onClick={() => setShowPassword((prev) => !prev)}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </Button>
             </div>
             <Button type="submit" disabled={isLoading} className="w-full">
-              {isLoading ? "در حال ورود..." : "ورود"}
+              {isLoading ? (
+                <>
+                  در حال ورود
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                </>
+              ) : (
+                "ورود"
+              )}
             </Button>
             <div className="flex justify-between items-center text-xs">
               <Button
@@ -162,6 +299,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
         </div>
       );
 
+    // --- !! ۳. case "otp" به‌روز شد !! ---
     case "otp":
       return (
         <div className="relative">
@@ -169,7 +307,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              finalLogin("otp", { otp }, handleSuccess);
+              finalLogin("otp", { otp: otpSimple }, handleSuccess);
             }}
             className="space-y-4 pt-10"
             noValidate
@@ -191,14 +329,31 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
                 dir="ltr"
                 maxLength={6}
                 required
-                value={otp}
-                onChange={(e) => handleNumericInputChange(e, setOtp)}
+                value={otpSimple}
+                onChange={(e) => handleNumericInputChange(e, setOtpSimple)}
               />
             </div>
+
+            {/* --- !! تگ Progress اضافه شد !! --- */}
+            {isTimerActive && (
+              <Progress
+                value={progressValue}
+                className="w-full transition-all duration-300"
+              />
+            )}
+
             <Button type="submit" disabled={isLoading} className="w-full">
-              {isLoading ? "در حال بررسی..." : "تایید و ورود"}
+              {isLoading ? (
+                <>
+                  در حال بررسی
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                </>
+              ) : (
+                "تایید و ورود"
+              )}
             </Button>
-            <div className="flex justify-start items-center text-xs">
+
+            <div className="flex justify-between items-center text-xs">
               {userHasPassword && (
                 <Button
                   type="button"
@@ -209,68 +364,123 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
                   ورود با رمز عبور
                 </Button>
               )}
+              <div className="flex-grow"></div>
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                onClick={handleResendOtp}
+                disabled={isTimerActive || isLoading}
+                className="text-primary disabled:opacity-50"
+              >
+                {!isTimerActive && "ارسال مجدد کد"}
+              </Button>
             </div>
           </form>
         </div>
       );
 
+    // (case "force-password-setup" بدون تغییر)
     case "force-password-setup":
       return (
-        // این مرحله دکمه بازگشت ندارد چون اجباری است
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (password.length < 6) {
-              toast({
-                title: "رمز عبور باید حداقل ۶ کاراکتر باشد.",
-                variant: "destructive",
-              });
-              return;
-            }
-            if (password !== confirmPassword) {
-              toast({
-                title: "رمزهای عبور یکسان نیستند.",
-                variant: "destructive",
-              });
-              return;
-            }
-            setPasswordAndFinalize(password, handleSuccess);
-          }}
-          className="space-y-4"
-          noValidate
-        >
-          <h2 className="text-center text-xl font-semibold">تکمیل ثبت‌نام</h2>
-          <p className="text-center text-sm text-gray-600">
-            برای امنیت حساب خود، لطفا یک رمز عبور انتخاب کنید.
-          </p>
-          <div className="space-y-1">
-            <Label htmlFor="password-setup">رمز عبور</Label>
-            <Input
-              id="password-setup"
-              type="password"
-              dir="ltr"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+        <Form {...setupForm}>
+          <form
+            onSubmit={setupForm.handleSubmit(onPasswordSetupSubmit)}
+            className="space-y-4"
+            noValidate
+          >
+            <h2 className="text-center text-xl font-semibold">تکمیل ثبت‌نام</h2>
+            <p className="text-center text-sm text-gray-600">
+              برای امنیت حساب خود، لطفا یک رمز عبور قوی انتخاب کنید.
+            </p>
+
+            <FormField
+              control={setupForm.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>رمز عبور</FormLabel>
+                  <div className="relative">
+                    <FormControl>
+                      <Input
+                        type={showPassword ? "text" : "password"}
+                        dir="ltr"
+                        autoComplete="new-password"
+                        {...field}
+                      />
+                    </FormControl>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute bottom-1 right-1 h-7 w-7 text-gray-500"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="confirm-password-setup">تکرار رمز عبور</Label>
-            <Input
-              id="confirm-password-setup"
-              type="password"
-              dir="ltr"
-              required
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+
+            <FormField
+              control={setupForm.control}
+              name="confirmPassword"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>تکرار رمز عبور</FormLabel>
+                  <div className="relative">
+                    <FormControl>
+                      <Input
+                        type={showConfirmPassword ? "text" : "password"}
+                        dir="ltr"
+                        autoComplete="new-password"
+                        {...field}
+                      />
+                    </FormControl>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute bottom-1 right-1 h-7 w-7 text-gray-500"
+                      onClick={() => setShowConfirmPassword((prev) => !prev)}
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-          <Button type="submit" disabled={isLoading} className="w-full">
-            {isLoading ? "در حال ذخیره..." : "ذخیره و ورود"}
-          </Button>
-        </form>
+
+            <Button
+              type="submit"
+              disabled={setupForm.formState.isSubmitting}
+              className="w-full"
+            >
+              {setupForm.formState.isSubmitting ? (
+                <>
+                  در حال ذخیره
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                </>
+              ) : (
+                "ذخیره و ورود"
+              )}
+            </Button>
+          </form>
+        </Form>
       );
 
+    // (case "forgot-password-phone" بدون تغییر)
     case "forgot-password-phone":
       return (
         <div className="relative">
@@ -278,6 +488,10 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              const normalizedPhone = phone.startsWith("0")
+                ? phone
+                : `0${phone}`;
+              setPhone(normalizedPhone);
               requestPasswordReset();
             }}
             className="space-y-4 pt-10"
@@ -299,65 +513,161 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
               />
             </div>
             <Button type="submit" disabled={isLoading} className="w-full">
-              {isLoading ? "در حال ارسال..." : "ارسال کد"}
+              {isLoading ? (
+                <>
+                  در حال ارسال
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                </>
+              ) : (
+                "ارسال کد"
+              )}
             </Button>
           </form>
         </div>
       );
 
+    // --- !! ۴. case "forgot-password-reset" به‌روز شد !! ---
     case "forgot-password-reset":
       return (
         <div className="relative">
           <BackButton onClick={() => setStep("forgot-password-phone")} />
-          <form
-            onSubmit={handleResetPasswordSubmit}
-            className="space-y-4 pt-10"
-            noValidate
-          >
-            <h2 className="text-center text-xl font-semibold">
-              بازنشانی رمز عبور
-            </h2>
-            <div className="space-y-1">
-              <Label htmlFor="otp-reset">کد تایید</Label>
-              <Input
-                id="otp-reset"
-                type="text"
-                inputMode="numeric"
-                dir="ltr"
-                maxLength={6}
-                required
-                value={otp}
-                onChange={(e) => handleNumericInputChange(e, setOtp)}
+          <Form {...resetForm}>
+            <form
+              onSubmit={resetForm.handleSubmit(onPasswordResetSubmit)}
+              className="space-y-4 pt-10"
+              noValidate
+            >
+              <h2 className="text-center text-xl font-semibold">
+                بازنشانی رمز عبور
+              </h2>
+
+              <FormField
+                control={resetForm.control}
+                name="otp"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>کد تایید</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        dir="ltr"
+                        maxLength={6}
+                        {...field}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (/^[0-9]*$/.test(value)) {
+                            field.onChange(value);
+                          }
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="password-reset">رمز عبور جدید</Label>
-              <Input
-                id="password-reset"
-                type="password"
-                dir="ltr"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+
+              {isTimerActive && (
+                <Progress
+                  value={progressValue}
+                  className="w-full transition-all duration-1000"
+                />
+              )}
+
+              <FormField
+                control={resetForm.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>رمز عبور جدید</FormLabel>
+                    <div className="relative">
+                      <FormControl>
+                        <Input
+                          type={showPassword ? "text" : "password"}
+                          dir="ltr"
+                          autoComplete="new-password"
+                          {...field}
+                        />
+                      </FormControl>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute bottom-1 right-1 h-7 w-7 text-gray-500"
+                        onClick={() => setShowPassword((prev) => !prev)}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="confirm-password-reset">
-                تکرار رمز عبور جدید
-              </Label>
-              <Input
-                id="confirm-password-reset"
-                type="password"
-                dir="ltr"
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+              <FormField
+                control={resetForm.control}
+                name="confirmPassword"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>تکرار رمز عبور جدید</FormLabel>
+                    <div className="relative">
+                      <FormControl>
+                        <Input
+                          type={showConfirmPassword ? "text" : "password"}
+                          dir="ltr"
+                          autoComplete="new-password"
+                          {...field}
+                        />
+                      </FormControl>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute bottom-1 right-1 h-7 w-7 text-gray-500"
+                        onClick={() => setShowConfirmPassword((prev) => !prev)}
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <Button type="submit" disabled={isLoading} className="w-full">
-              {isLoading ? "در حال ذخیره..." : "تغییر رمز عبور"}
-            </Button>
-          </form>
+              <Button
+                type="submit"
+                disabled={resetForm.formState.isSubmitting}
+                className="w-full"
+              >
+                {resetForm.formState.isSubmitting ? (
+                  <>
+                    در حال ذخیره
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  </>
+                ) : (
+                  "تغییر رمز عبور"
+                )}
+              </Button>
+              <div className="flex justify-end items-center text-xs">
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  onClick={handleResendOtp}
+                  disabled={isTimerActive || isLoading}
+                  className="text-primary disabled:opacity-50"
+                >
+                  {!isTimerActive && "ارسال مجدد کد"}
+                </Button>
+              </div>
+            </form>
+          </Form>
         </div>
       );
 

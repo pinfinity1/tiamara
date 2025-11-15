@@ -5,9 +5,19 @@ import { SignJWT, jwtVerify } from "jose";
 import { generateAndSaveOtp, verifyOtp } from "../utils/otpUtils";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 
-async function generateTokens(userId: string, phone: string, role: string) {
+async function generateTokens(
+  userId: string,
+  phone: string,
+  role: string,
+  requiresPasswordSetup: boolean
+) {
   const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
-  const accessToken = await new SignJWT({ userId, phone, role })
+  const accessToken = await new SignJWT({
+    userId,
+    phone,
+    role,
+    requiresPasswordSetup,
+  })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("15m") // Lifespan set to 15 minutes
@@ -35,7 +45,6 @@ export const checkPhoneAndSendOtpController = async (
   res: Response
 ): Promise<void> => {
   try {
-    // *** تغییر کلیدی ۱: دریافت forceOtp از body ***
     const { phone, forceOtp } = req.body;
     if (!phone) {
       res
@@ -46,8 +55,6 @@ export const checkPhoneAndSendOtpController = async (
 
     const user = await prisma.user.findUnique({ where: { phone } });
 
-    // *** تغییر کلیدی ۲: شرط جدید برای ارسال OTP ***
-    // OTP ارسال می‌شود اگر: ۱. درخواست اجباری باشد ۲. کاربر جدید باشد ۳. کاربر رمز عبور نداشته باشد
     if (forceOtp || !user || !user.password) {
       const otp = await generateAndSaveOtp(phone);
       console.log(
@@ -60,7 +67,6 @@ export const checkPhoneAndSendOtpController = async (
         hasPassword: !!user?.password,
       });
     } else {
-      // جریان استاندارد برای کاربری که رمز عبور دارد
       console.log(`\n\n▶️ Password login flow for ${phone}\n\n`);
       res.status(200).json({
         success: true,
@@ -76,9 +82,6 @@ export const checkPhoneAndSendOtpController = async (
       .json({ success: false, message: "Failed to process request" });
   }
 };
-
-// ... (بقیه توابع کنترلر بدون تغییر باقی می‌مانند)
-// loginWithOtpController, setPasswordController, loginWithPasswordController, etc.
 
 export const loginWithOtpController = async (
   req: Request,
@@ -112,12 +115,15 @@ export const loginWithOtpController = async (
       await prisma.cart.create({ data: { userId: user.id } });
     }
 
+    const requiresSetup = !user.password;
+
     await mergeGuestCartWithUserCart(user.id, cartId);
 
     const { accessToken, refreshToken } = await generateTokens(
       user.id,
       user.phone!,
-      user.role
+      user.role,
+      requiresSetup
     );
 
     res.clearCookie("cartId", {
@@ -136,7 +142,7 @@ export const loginWithOtpController = async (
         phone: user.phone,
         role: user.role,
         isNewUser: isNewUser,
-        requiresPasswordSetup: !user.password,
+        requiresPasswordSetup: requiresSetup,
       },
       accessToken,
       refreshToken,
@@ -174,7 +180,6 @@ export const setPasswordController = async (
       prisma.session.deleteMany({
         where: { userId: userId },
       }),
-      // Also revoke refresh tokens when password is set
       prisma.refreshToken.updateMany({
         where: { userId: userId },
         data: { revoked: true },
@@ -218,7 +223,8 @@ export const loginWithPasswordController = async (
     const { accessToken, refreshToken } = await generateTokens(
       user.id,
       user.phone!,
-      user.role
+      user.role,
+      false
     );
 
     res.clearCookie("cartId", {
@@ -236,6 +242,7 @@ export const loginWithPasswordController = async (
         name: user.name,
         phone: user.phone,
         role: user.role,
+        requiresPasswordSetup: false,
       },
       accessToken,
       refreshToken,
@@ -258,14 +265,12 @@ export const logoutController = async (
         data: { revoked: true },
       });
     }
-
     res.clearCookie("cartId", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
     });
-
     res.json({
       success: true,
       message: "User logged out successfully",
@@ -324,10 +329,13 @@ export const refreshTokenController = async (
       return;
     }
 
+    const requiresSetup = !user.password;
+
     const { accessToken, refreshToken: newRefreshToken } = await generateTokens(
       user.id,
       user.phone!,
-      user.role
+      user.role,
+      requiresSetup
     );
 
     await prisma.refreshToken.update({
@@ -417,7 +425,6 @@ export const resetPasswordController = async (
       prisma.session.deleteMany({
         where: { userId: user.id },
       }),
-      // Also revoke refresh tokens when password is reset
       prisma.refreshToken.updateMany({
         where: { userId: user.id },
         data: { revoked: true },
@@ -455,13 +462,11 @@ async function mergeGuestCartWithUserCart(
     });
 
     if (userItem) {
-      // اگر محصول در سبد کاربر بود، تعداد را جمع می‌زنیم
       await prisma.cartItem.update({
         where: { id: userItem.id },
         data: { quantity: { increment: guestItem.quantity } },
       });
     } else {
-      // در غیر این صورت، آیتم را از سبد مهمان به سبد کاربر منتقل می‌کنیم
       await prisma.cartItem.update({
         where: { id: guestItem.id },
         data: { cartId: userCart.id },
@@ -469,11 +474,9 @@ async function mergeGuestCartWithUserCart(
     }
   }
 
-  // پس از انتقال آیتم‌ها، سبد خرید مهمان را حذف می‌کنیم
   try {
     await prisma.cart.delete({ where: { id: guestCartId } });
   } catch (e) {
-    // ممکن است آیتمی برای انتقال وجود نداشته باشد و سبد مهمان خود به خود حذف شود
     console.log("Guest cart was likely empty and already cleaned up.");
   }
 }

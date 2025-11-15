@@ -99,7 +99,7 @@ const Footer = () => {
           </div>
 
           {/* بخش تماس با ما و شبکه‌های اجتماعی */}
-          <div className="col-span-2 sm:col-span-1">
+          <div className="col-span-1 sm:col-span-2 w-fit">
             <h3 className="font-bold text-lg mb-4">با ما در ارتباط باشید</h3>
             <div className="space-y-3 text-sm">
               <div className="w-full flex items-center gap-2">
