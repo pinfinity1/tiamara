@@ -14,6 +14,8 @@ async function getNextOrderNumber() {
   return counter.lastOrderNumber;
 }
 
+const SERVER_URL = process.env.SERVER_URL || "http://localhost:3001";
+
 /**
  * ایجاد یک سفارش اولیه (pending) قبل از ارسال به درگاه پرداخت
  */
@@ -101,7 +103,7 @@ export const createFinalOrder = async (
         },
       });
 
-      const paymentUrl = `http://localhost:3001/api/payment/create?orderId=${newOrder.id}&amount=${newOrder.total}`;
+      const paymentUrl = `${SERVER_URL}/api/payment/create?orderId=${newOrder.id}`;
 
       // برگرداندن مقادیر مورد نیاز از تراکنش
       return { orderId: newOrder.id, paymentUrl };
