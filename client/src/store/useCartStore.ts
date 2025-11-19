@@ -1,5 +1,3 @@
-// client/src/store/useCartStore.ts
-
 import { create } from "zustand";
 import axiosAuth from "@/lib/axios";
 import { toast } from "@/hooks/use-toast";
@@ -19,18 +17,22 @@ interface CartState {
   items: CartItem[];
   isLoading: boolean;
   error: string | null;
+  pendingItemIds: Set<string>;
   fetchCart: () => Promise<void>;
   addToCart: (item: Omit<CartItem, "id">) => Promise<void>;
-  updateCartItemQuantity: (itemId: string, quantity: number) => Promise<void>;
+  updateCartItemQuantity: (itemId: string, quantity: number) => void;
   removeFromCart: (itemId: string) => Promise<void>;
   clearCart: () => Promise<void>;
   clearLocalCart: () => void;
 }
 
+const debounceTimers = new Map<string, NodeJS.Timeout>();
+
 export const useCartStore = create<CartState>((set, get) => ({
   items: [],
   isLoading: false,
   error: null,
+  pendingItemIds: new Set<string>(),
 
   fetchCart: async () => {
     set({ isLoading: true });
@@ -48,7 +50,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       }));
       set({ items: fetchedItems, isLoading: false });
     } catch (error) {
-      set({ error: "Failed to fetch cart.", isLoading: false });
+      set({ error: "Failed to fetch cart", isLoading: false });
     }
   },
 
@@ -58,12 +60,10 @@ export const useCartStore = create<CartState>((set, get) => ({
     );
 
     if (existingItem) {
-      // If item already exists, just update the quantity
       get().updateCartItemQuantity(existingItem.id, existingItem.quantity + 1);
       return;
     }
 
-    // Optimistically add the new item
     const tempId = `temp-${Date.now()}`;
     const newItem = { ...item, id: tempId };
     set((state) => ({ items: [...state.items, newItem] }));
@@ -73,61 +73,96 @@ export const useCartStore = create<CartState>((set, get) => ({
         productId: item.productId,
         quantity: item.quantity,
       });
-      // Re-fetch to get the real ID and confirm
       await get().fetchCart();
     } catch (error) {
       toast({ title: "خطا در افزودن به سبد", variant: "destructive" });
-      // Revert on error
-      set((state) => ({
-        items: state.items.filter((i) => i.id !== tempId),
-      }));
+      set((state) => ({ items: state.items.filter((i) => i.id !== tempId) }));
     }
   },
 
-  updateCartItemQuantity: async (itemId, quantity) => {
+  updateCartItemQuantity: (itemId, quantity) => {
     const originalItems = get().items;
     const itemToUpdate = originalItems.find((item) => item.id === itemId);
 
-    if (!itemToUpdate || quantity < 1 || quantity > itemToUpdate.stock) {
-      return;
-    }
+    if (!itemToUpdate || quantity < 1 || quantity > itemToUpdate.stock) return;
 
-    // Optimistic update
+    // 1. آپدیت فوری UI
     const newItems = originalItems.map((item) =>
       item.id === itemId ? { ...item, quantity } : item
     );
     set({ items: newItems });
 
-    try {
-      await axiosAuth.put(`/cart/item/${itemId}`, { quantity });
-      // No re-fetch needed on success, the local state is already correct
-    } catch (error) {
-      toast({ title: "خطا در آپدیت سبد", variant: "destructive" });
-      // Revert on error
-      set({ items: originalItems });
-    }
+    // 2. افزودن به لیست انتظار
+    set((state) => ({
+      pendingItemIds: new Set(state.pendingItemIds).add(itemId),
+    }));
+
+    // 3. مدیریت تایمر
+    if (debounceTimers.has(itemId)) clearTimeout(debounceTimers.get(itemId)!);
+
+    const newTimer = setTimeout(async () => {
+      try {
+        await axiosAuth.put(`/cart/item/${itemId}`, { quantity });
+      } catch (error) {
+        // 🛑 FIX مهم: بررسی وضعیت آیتم قبل از بازگردانی
+        // اگر آیتم در حین ارسال درخواست توسط کاربر حذف شده باشد، نباید آن را برگردانیم.
+        const isItemStillInCart = get().items.some((i) => i.id === itemId);
+
+        if (!isItemStillInCart) {
+          // کاربر آیتم را حذف کرده، پس خطای آپدیت مهم نیست. نادیده بگیر.
+          return;
+        }
+
+        toast({ title: "خطا در آپدیت سبد", variant: "destructive" });
+        set({ items: originalItems });
+      } finally {
+        set((state) => {
+          const newSet = new Set(state.pendingItemIds);
+          newSet.delete(itemId);
+          return { pendingItemIds: newSet };
+        });
+        debounceTimers.delete(itemId);
+      }
+    }, 700);
+
+    debounceTimers.set(itemId, newTimer);
   },
 
   removeFromCart: async (itemId: string) => {
+    // 1. کنسل کردن هرگونه تایمر آپدیت فعال برای این آیتم
+    // این یعنی اگر کاربر سریع روی (-) و بعد (حذف) زد، درخواست آپدیت اصلا ارسال نمی‌شود.
+    if (debounceTimers.has(itemId)) {
+      clearTimeout(debounceTimers.get(itemId)!);
+      debounceTimers.delete(itemId);
+    }
+
     const originalItems = get().items;
 
-    // Optimistic update
-    const newItems = originalItems.filter((item) => item.id !== itemId);
-    set({ items: newItems });
+    // 2. حذف فوری از UI
+    set((state) => ({
+      items: state.items.filter((item) => item.id !== itemId),
+      // آیتم را از لیست pending هم حذف می‌کنیم تا UI قفل نماند
+      pendingItemIds: new Set(
+        [...state.pendingItemIds].filter((id) => id !== itemId)
+      ),
+    }));
 
     try {
       await axiosAuth.delete(`/cart/item/${itemId}`);
-      // No re-fetch needed
     } catch (error) {
       toast({ title: "خطا در حذف از سبد", variant: "destructive" });
-      // Revert on error
+      // فقط در صورت خطای واقعی حذف، آیتم را برگردان
       set({ items: originalItems });
     }
   },
 
   clearCart: async () => {
+    debounceTimers.forEach((timer) => clearTimeout(timer));
+    debounceTimers.clear();
+
     const originalItems = get().items;
-    set({ items: [] });
+    set({ items: [], pendingItemIds: new Set() });
+
     try {
       await axiosAuth.delete("/cart/clear");
     } catch (error) {
@@ -137,6 +172,13 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 
   clearLocalCart: () => {
-    set({ items: [], isLoading: false, error: null });
+    debounceTimers.forEach((timer) => clearTimeout(timer));
+    debounceTimers.clear();
+    set({
+      items: [],
+      isLoading: false,
+      error: null,
+      pendingItemIds: new Set(),
+    });
   },
 }));

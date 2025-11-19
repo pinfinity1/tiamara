@@ -1,5 +1,4 @@
 "use client";
-
 import { useCartStore } from "@/store/useCartStore";
 import { SessionProvider, useSession } from "next-auth/react";
 import { signOut } from "next-auth/react";
@@ -7,7 +6,7 @@ import { useEffect } from "react";
 
 const SessionManager = ({ children }: { children: React.ReactNode }) => {
   const { data: session, status } = useSession();
-  const { fetchCart, clearLocalCart } = useCartStore();
+  const { fetchCart } = useCartStore();
 
   useEffect(() => {
     if (session?.error === "RefreshAccessTokenError") {
@@ -19,13 +18,10 @@ const SessionManager = ({ children }: { children: React.ReactNode }) => {
   }, [session]);
 
   useEffect(() => {
-    if (status === "authenticated") {
+    if (status !== "loading") {
       fetchCart();
     }
-    if (status === "unauthenticated") {
-      clearLocalCart();
-    }
-  }, [status, fetchCart, clearLocalCart]);
+  }, [status, fetchCart]);
 
   return <>{children}</>;
 };

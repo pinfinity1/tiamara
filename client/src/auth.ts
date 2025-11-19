@@ -48,7 +48,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         loginType: { label: "Login Type", type: "text" },
       },
       async authorize(credentials): Promise<User | null> {
-        const cartId = (await cookies()).get("cartId")?.value;
+        const sessionId = (await cookies()).get("sessionId")?.value;
         const { phone, password, otp, loginType } = credentials;
 
         if (!phone) {
@@ -57,7 +57,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         try {
           let response;
-          const cookieHeader = cartId ? { Cookie: `cartId=${cartId}` } : {};
+          const cookieHeader = sessionId
+            ? { Cookie: `sessionId=${sessionId}` }
+            : {};
           if (loginType === "password") {
             if (!password) throw new Error("Password is required.");
             response = await axiosPublic.post(

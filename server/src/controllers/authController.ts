@@ -1,3 +1,5 @@
+// server/src/controllers/authController.ts
+
 import { prisma } from "../server";
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
@@ -5,6 +7,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { generateAndSaveOtp, verifyOtp } from "../utils/otpUtils";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 
+// --- تابع کمکی تولید توکن ---
 async function generateTokens(
   userId: string,
   phone: string,
@@ -20,25 +23,100 @@ async function generateTokens(
   })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("15m") // Lifespan set to 15 minutes
+    .setExpirationTime("15m")
     .sign(secret);
 
   const refreshToken = await new SignJWT({ userId })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("7d") // Lifespan set to 7 days
+    .setExpirationTime("7d")
     .sign(secret);
 
   await prisma.refreshToken.create({
     data: {
       userId: userId,
       token: refreshToken,
-      expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+      expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     },
   });
 
   return { accessToken, refreshToken };
 }
+
+// --- تابع کمکی ادغام سبد خرید ---
+async function mergeGuestCartWithUserCart(
+  userId: string,
+  guestSessionId: string
+) {
+  if (!guestSessionId) return;
+
+  // 1. پیدا کردن/ساخت سبد کاربر
+  let userCart = await prisma.cart.findUnique({ where: { userId } });
+  if (!userCart) {
+    userCart = await prisma.cart.create({ data: { userId } });
+  }
+
+  // 2. پیدا کردن سبد مهمان (با sessionId)
+  const guestCart = await prisma.cart.findUnique({
+    where: { sessionId: guestSessionId },
+    include: { items: true },
+  });
+
+  if (!guestCart || guestCart.items.length === 0) {
+    // اگر سبد مهمان خالی بود یا وجود نداشت، فقط اگر وجود داشت پاکش کن تا تمیز شود
+    if (guestCart) {
+      try {
+        await prisma.cart.delete({ where: { id: guestCart.id } });
+      } catch (e) {}
+    }
+    return;
+  }
+
+  console.log(
+    `🔄 Merging Guest Cart (Session: ${guestSessionId}) to User Cart (User: ${userId})`
+  );
+
+  await prisma.$transaction(async (tx) => {
+    for (const guestItem of guestCart.items) {
+      const userItem = await tx.cartItem.findFirst({
+        where: { cartId: userCart!.id, productId: guestItem.productId },
+      });
+
+      if (userItem) {
+        // A. آیتم تکراری: تعداد را اضافه کن
+        await tx.cartItem.update({
+          where: { id: userItem.id },
+          data: { quantity: { increment: guestItem.quantity } },
+        });
+        // آیتم مهمان را پاک کن
+        await tx.cartItem.delete({ where: { id: guestItem.id } });
+      } else {
+        // B. آیتم جدید: مالکیت را به سبد کاربر منتقل کن
+        await tx.cartItem.update({
+          where: { id: guestItem.id },
+          data: { cartId: userCart!.id },
+        });
+      }
+    }
+
+    // 3. حذف کامل سبد مهمان
+    await tx.cart.delete({ where: { id: guestCart.id } });
+
+    // 4. پاکسازی sessionId از سبد کاربر (چون دیگر مهمان نیست)
+    if (userCart!.sessionId) {
+      await tx.cart.update({
+        where: { id: userCart!.id },
+        data: { sessionId: null },
+      });
+    }
+
+    console.log("✅ Guest cart merged and deleted.");
+  });
+}
+
+// ==========================================
+//               CONTROLLERS
+// ==========================================
 
 export const checkPhoneAndSendOtpController = async (
   req: Request,
@@ -57,29 +135,24 @@ export const checkPhoneAndSendOtpController = async (
 
     if (forceOtp || !user || !user.password) {
       const otp = await generateAndSaveOtp(phone);
-      console.log(
-        `\n\n✅ OTP for ${phone}: ${otp} (Forced or New/No-Pass User)\n\n`
-      );
+      console.log(`✅ OTP for ${phone}: ${otp}`);
       res.status(200).json({
         success: true,
-        message: "OTP sent successfully.",
+        message: "OTP sent.",
         userExists: !!user,
         hasPassword: !!user?.password,
       });
     } else {
-      console.log(`\n\n▶️ Password login flow for ${phone}\n\n`);
       res.status(200).json({
         success: true,
-        message: "User has a password. Proceed to password entry.",
+        message: "Password required.",
         userExists: true,
         hasPassword: true,
       });
     }
   } catch (error) {
-    console.error("Error in checkPhoneAndSendOtpController:", error);
-    res
-      .status(500)
-      .json({ success: false, message: "Failed to process request" });
+    console.error("Check Phone Error:", error);
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -89,18 +162,18 @@ export const loginWithOtpController = async (
 ): Promise<void> => {
   try {
     const { phone, otp } = req.body;
-    const { cartId } = req.cookies;
+    const { sessionId } = req.cookies;
 
     if (!phone || !otp) {
       res
         .status(400)
-        .json({ success: false, error: "Phone and OTP are required" });
+        .json({ success: false, error: "Required fields missing" });
       return;
     }
 
     const isOtpValid = await verifyOtp(phone, otp);
     if (!isOtpValid) {
-      res.status(401).json({ success: false, error: "Invalid or expired OTP" });
+      res.status(401).json({ success: false, error: "Invalid OTP" });
       return;
     }
 
@@ -108,30 +181,21 @@ export const loginWithOtpController = async (
     let isNewUser = false;
 
     if (!user) {
-      user = await prisma.user.create({
-        data: { phone, role: "USER" },
-      });
+      user = await prisma.user.create({ data: { phone, role: "USER" } });
       isNewUser = true;
-      await prisma.cart.create({ data: { userId: user.id } });
     }
 
-    const requiresSetup = !user.password;
-
-    await mergeGuestCartWithUserCart(user.id, cartId);
+    // انجام عملیات ادغام سبد خرید
+    if (sessionId) {
+      await mergeGuestCartWithUserCart(user.id, sessionId);
+    }
 
     const { accessToken, refreshToken } = await generateTokens(
       user.id,
       user.phone!,
       user.role,
-      requiresSetup
+      !user.password
     );
-
-    res.clearCookie("cartId", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-    });
 
     res.status(200).json({
       success: true,
@@ -141,57 +205,15 @@ export const loginWithOtpController = async (
         name: user.name,
         phone: user.phone,
         role: user.role,
-        isNewUser: isNewUser,
-        requiresPasswordSetup: requiresSetup,
+        isNewUser,
+        requiresPasswordSetup: !user.password,
       },
       accessToken,
       refreshToken,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Login with OTP failed" });
-  }
-};
-
-export const setPasswordController = async (
-  req: AuthenticatedRequest,
-  res: Response
-): Promise<void> => {
-  try {
-    const { password } = req.body;
-    const userId = req.user?.userId;
-
-    if (!userId) {
-      res.status(401).json({ success: false, error: "Unauthorized" });
-      return;
-    }
-    if (!password) {
-      res.status(400).json({ success: false, error: "Password is required" });
-      return;
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    await prisma.$transaction([
-      prisma.user.update({
-        where: { id: userId },
-        data: { password: hashedPassword },
-      }),
-      prisma.session.deleteMany({
-        where: { userId: userId },
-      }),
-      prisma.refreshToken.updateMany({
-        where: { userId: userId },
-        data: { revoked: true },
-      }),
-    ]);
-
-    res
-      .status(200)
-      .json({ success: true, message: "Password set successfully" });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Failed to set password" });
+    console.error("Login OTP Error:", error);
+    res.status(500).json({ error: "Login failed" });
   }
 };
 
@@ -201,24 +223,24 @@ export const loginWithPasswordController = async (
 ): Promise<void> => {
   try {
     const { phone, password } = req.body;
-    const { cartId } = req.cookies;
+    const { sessionId } = req.cookies;
 
-    const user = await prisma.user.findUnique({
-      where: { phone },
-    });
-
+    const user = await prisma.user.findUnique({ where: { phone } });
     if (!user || !user.password) {
       res.status(401).json({ success: false, error: "Invalid credentials" });
       return;
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
+    const isValid = await bcrypt.compare(password, user.password);
+    if (!isValid) {
       res.status(401).json({ success: false, error: "Invalid credentials" });
       return;
     }
 
-    await mergeGuestCartWithUserCart(user.id, cartId);
+    // انجام عملیات ادغام سبد خرید
+    if (sessionId) {
+      await mergeGuestCartWithUserCart(user.id, sessionId);
+    }
 
     const { accessToken, refreshToken } = await generateTokens(
       user.id,
@@ -227,16 +249,9 @@ export const loginWithPasswordController = async (
       false
     );
 
-    res.clearCookie("cartId", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-    });
-
     res.status(200).json({
       success: true,
-      message: "Login successfully",
+      message: "Login successful",
       user: {
         id: user.id,
         name: user.name,
@@ -248,7 +263,7 @@ export const loginWithPasswordController = async (
       refreshToken,
     });
   } catch (error) {
-    console.error(error);
+    console.error("Login Password Error:", error);
     res.status(500).json({ error: "Login failed" });
   }
 };
@@ -265,18 +280,9 @@ export const logoutController = async (
         data: { revoked: true },
       });
     }
-    res.clearCookie("cartId", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-    });
-    res.json({
-      success: true,
-      message: "User logged out successfully",
-    });
+    // نکته مهم: کوکی sessionId را پاک نمی‌کنیم تا کاربر بتواند به عنوان مهمان ادامه دهد
+    res.json({ success: true, message: "Logged out" });
   } catch (error) {
-    console.error("Logout error:", error);
     res.status(500).json({ success: false, message: "Logout failed" });
   }
 };
@@ -285,16 +291,9 @@ export const refreshTokenController = async (
   req: Request,
   res: Response
 ): Promise<void> => {
-  console.log("📥 Refresh request body:", req.body);
-
   const { token } = req.body;
   if (!token) {
-    res.clearCookie("next-auth.session-token");
-    res.clearCookie("next-auth.csrf-token");
-    res.clearCookie("next-auth.callback-url");
-    res
-      .status(401)
-      .json({ success: false, message: "Refresh token is required." });
+    res.status(401).json({ success: false, message: "Token required" });
     return;
   }
 
@@ -302,16 +301,8 @@ export const refreshTokenController = async (
     const storedToken = await prisma.refreshToken.findUnique({
       where: { token, revoked: false },
     });
-
-    console.log("🔍 Found in DB:", storedToken);
-
     if (!storedToken || storedToken.expires < new Date()) {
-      res.clearCookie("next-auth.session-token");
-      res.clearCookie("next-auth.csrf-token");
-      res.clearCookie("next-auth.callback-url");
-      res
-        .status(401)
-        .json({ success: false, message: "Invalid or expired refresh token." });
+      res.status(401).json({ success: false, message: "Invalid token" });
       return;
     }
 
@@ -322,22 +313,16 @@ export const refreshTokenController = async (
       where: { id: payload.userId as string },
     });
     if (!user) {
-      res.clearCookie("next-auth.session-token");
-      res.clearCookie("next-auth.csrf-token");
-      res.clearCookie("next-auth.callback-url");
-      res.status(404).json({ success: false, message: "User not found." });
+      res.status(404).json({ success: false, message: "User not found" });
       return;
     }
-
-    const requiresSetup = !user.password;
 
     const { accessToken, refreshToken: newRefreshToken } = await generateTokens(
       user.id,
       user.phone!,
       user.role,
-      requiresSetup
+      !user.password
     );
-
     await prisma.refreshToken.update({
       where: { id: storedToken.id },
       data: { revoked: true },
@@ -347,10 +332,37 @@ export const refreshTokenController = async (
       .status(200)
       .json({ success: true, accessToken, refreshToken: newRefreshToken });
   } catch (error) {
-    res.clearCookie("next-auth.session-token");
-    res.clearCookie("next-auth.csrf-token");
-    res.clearCookie("next-auth.callback-url");
-    res.status(401).json({ success: false, message: "Invalid refresh token." });
+    res.status(401).json({ success: false, message: "Invalid token" });
+  }
+};
+
+export const setPasswordController = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { password } = req.body;
+    const userId = req.user?.userId;
+    if (!userId || !password) {
+      res.status(400).json({ success: false, error: "Invalid data" });
+      return;
+    }
+
+    const hashed = await bcrypt.hash(password, 10);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashed },
+    });
+
+    // Optional: Clear sessions/tokens if needed
+    await prisma.refreshToken.updateMany({
+      where: { userId },
+      data: { revoked: true },
+    });
+
+    res.status(200).json({ success: true, message: "Password set" });
+  } catch (error) {
+    res.status(500).json({ error: "Failed" });
   }
 };
 
@@ -360,13 +372,6 @@ export const requestPasswordResetController = async (
 ): Promise<void> => {
   try {
     const { phone } = req.body;
-    if (!phone) {
-      res
-        .status(400)
-        .json({ success: false, message: "Phone number is required" });
-      return;
-    }
-
     const user = await prisma.user.findUnique({ where: { phone } });
     if (!user) {
       res.status(404).json({ success: false, message: "User not found" });
@@ -374,16 +379,10 @@ export const requestPasswordResetController = async (
     }
 
     const otp = await generateAndSaveOtp(phone);
-    console.log(`\n\n✅ Password Reset OTP for ${phone}: ${otp}\n\n`);
-
-    res
-      .status(200)
-      .json({ success: true, message: "Password reset OTP sent." });
-  } catch (error) {
-    console.error("Error in requestPasswordResetController:", error);
-    res
-      .status(500)
-      .json({ success: false, message: "Failed to process request" });
+    console.log(`RESET OTP: ${otp}`);
+    res.status(200).json({ success: true, message: "OTP sent" });
+  } catch (e) {
+    res.status(500).json({ success: false });
   }
 };
 
@@ -393,90 +392,25 @@ export const resetPasswordController = async (
 ): Promise<void> => {
   try {
     const { phone, otp, password } = req.body;
-    if (!phone || !otp || !password) {
-      res.status(400).json({
-        success: false,
-        message: "Phone, OTP, and new password are required.",
-      });
+    if (!(await verifyOtp(phone, otp))) {
+      res.status(401).json({ success: false, message: "Invalid OTP" });
       return;
     }
 
-    const isOtpValid = await verifyOtp(phone, otp);
-    if (!isOtpValid) {
-      res
-        .status(401)
-        .json({ success: false, message: "Invalid or expired OTP." });
-      return;
-    }
+    const hashed = await bcrypt.hash(password, 10);
+    await prisma.user.update({ where: { phone }, data: { password: hashed } });
 
+    // Revoke tokens for security
     const user = await prisma.user.findUnique({ where: { phone } });
-    if (!user) {
-      res.status(404).json({ success: false, message: "User not found." });
-      return;
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    await prisma.$transaction([
-      prisma.user.update({
-        where: { phone },
-        data: { password: hashedPassword },
-      }),
-      prisma.session.deleteMany({
-        where: { userId: user.id },
-      }),
-      prisma.refreshToken.updateMany({
+    if (user) {
+      await prisma.refreshToken.updateMany({
         where: { userId: user.id },
         data: { revoked: true },
-      }),
-    ]);
-
-    res
-      .status(200)
-      .json({ success: true, message: "Password reset successfully." });
-  } catch (error) {
-    console.error("Error in resetPasswordController:", error);
-    res
-      .status(500)
-      .json({ success: false, message: "Failed to reset password." });
-  }
-};
-
-async function mergeGuestCartWithUserCart(
-  userId: string,
-  guestCartId?: string
-) {
-  if (!guestCartId) return;
-
-  const userCart = await prisma.cart.findUnique({ where: { userId } });
-  const guestCart = await prisma.cart.findUnique({
-    where: { id: guestCartId },
-    include: { items: true },
-  });
-
-  if (!guestCart || !userCart) return;
-
-  for (const guestItem of guestCart.items) {
-    const userItem = await prisma.cartItem.findFirst({
-      where: { cartId: userCart.id, productId: guestItem.productId },
-    });
-
-    if (userItem) {
-      await prisma.cartItem.update({
-        where: { id: userItem.id },
-        data: { quantity: { increment: guestItem.quantity } },
-      });
-    } else {
-      await prisma.cartItem.update({
-        where: { id: guestItem.id },
-        data: { cartId: userCart.id },
       });
     }
-  }
 
-  try {
-    await prisma.cart.delete({ where: { id: guestCartId } });
+    res.status(200).json({ success: true, message: "Password reset" });
   } catch (e) {
-    console.log("Guest cart was likely empty and already cleaned up.");
+    res.status(500).json({ success: false });
   }
-}
+};
