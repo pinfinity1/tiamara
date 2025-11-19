@@ -357,7 +357,8 @@ model Address {
   city          String
   fullAddress   String   
   postalCode    String
-  // --- End of Corrected Fields ---
+
+  isDeleted     Boolean  @default(false)
 
   isDefault     Boolean  @default(false)
   createdAt     DateTime @default(now())

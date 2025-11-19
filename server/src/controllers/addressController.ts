@@ -1,4 +1,4 @@
-// pinfinity1/tiamara/tiamara-8e92556f045803ca932111049e478472a72d8f9b/server/src/controllers/addressController.ts
+// server/src/controllers/addressController.ts
 
 import { Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
@@ -29,7 +29,7 @@ export const createAddress = async (
     const newAddress = await prisma.$transaction(async (tx) => {
       if (isDefault) {
         await tx.address.updateMany({
-          where: { userId },
+          where: { userId, isDeleted: false }, // فقط آدرس‌های زنده را آپدیت کن
           data: { isDefault: false },
         });
       }
@@ -44,6 +44,7 @@ export const createAddress = async (
           postalCode,
           phone,
           isDefault: isDefault || false,
+          isDeleted: false, // به صورت پیش‌فرض زنده است
         },
       });
 
@@ -52,23 +53,20 @@ export const createAddress = async (
 
     res.status(201).json({ success: true, address: newAddress });
   } catch (e) {
-    console.error("Error creating address:", e); // Log the full error to the console
+    console.error("Error creating address:", e);
 
     if (e instanceof Prisma.PrismaClientValidationError) {
-      res
-        .status(400)
-        .json({
-          success: false,
-          message: "Invalid data provided.",
-          details: e.message,
-        });
+      res.status(400).json({
+        success: false,
+        message: "Invalid data provided.",
+        details: e.message,
+      });
     } else {
       res.status(500).json({ success: false, message: "Some error occured" });
     }
   }
 };
 
-// ... (Rest of the controller functions remain the same)
 export const updateAddress = async (
   req: AuthenticatedRequest,
   res: Response
@@ -94,7 +92,7 @@ export const updateAddress = async (
     const updatedAddress = await prisma.$transaction(async (tx) => {
       if (isDefault) {
         await tx.address.updateMany({
-          where: { userId, NOT: { id } },
+          where: { userId, NOT: { id }, isDeleted: false }, // فقط آدرس‌های زنده
           data: { isDefault: false },
         });
       }
@@ -121,6 +119,7 @@ export const updateAddress = async (
     res.status(500).json({ success: false, message: "Some error occured" });
   }
 };
+
 export const getAddresses = async (
   req: AuthenticatedRequest,
   res: Response
@@ -136,7 +135,10 @@ export const getAddresses = async (
     }
 
     const fetchAllAddresses = await prisma.address.findMany({
-      where: { userId },
+      where: {
+        userId,
+        isDeleted: false, // <--- مهم: فقط آدرس‌های حذف نشده
+      },
       orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
     });
 
@@ -152,6 +154,7 @@ export const getAddresses = async (
   }
 };
 
+// --- تغییر اصلی اینجاست (Soft Delete) ---
 export const deleteAddress = async (
   req: AuthenticatedRequest,
   res: Response
@@ -165,7 +168,7 @@ export const deleteAddress = async (
     }
 
     const addressToDelete = await prisma.address.findFirst({
-      where: { id, userId },
+      where: { id, userId, isDeleted: false },
     });
 
     if (!addressToDelete) {
@@ -174,14 +177,20 @@ export const deleteAddress = async (
     }
 
     await prisma.$transaction(async (tx) => {
-      await tx.address.delete({
+      // به جای delete، آن را آپدیت می‌کنیم
+      await tx.address.update({
         where: { id },
+        data: {
+          isDeleted: true, // علامت‌گذاری به عنوان حذف شده
+          isDefault: false, // از حالت پیش‌فرض خارج می‌شود
+        },
       });
 
+      // اگر آدرس حذف شده پیش‌فرض بود، بعدی را پیش‌فرض کن
       if (addressToDelete.isDefault) {
         const nextAddress = await tx.address.findFirst({
-          where: { userId },
-          orderBy: { createdAt: "asc" },
+          where: { userId, isDeleted: false }, // فقط بین زنده‌ها بگرد
+          orderBy: { createdAt: "desc" }, // معمولاً آخرین آدرس ساخته شده منطقی‌تر است
         });
 
         if (nextAddress) {
@@ -197,6 +206,7 @@ export const deleteAddress = async (
       .status(200)
       .json({ success: true, message: "Address deleted successfully!" });
   } catch (e) {
+    console.error("Delete error:", e);
     res.status(500).json({ success: false, message: "Some error occured" });
   }
 };

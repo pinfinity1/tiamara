@@ -1,3 +1,5 @@
+// client/src/store/useAddressStore.ts
+
 import axiosAuth from "@/lib/axios";
 import { create } from "zustand";
 
@@ -16,7 +18,7 @@ interface AddressStore {
   addresses: Address[];
   isLoading: boolean;
   error: string | null;
-  selectedAddress: string | null; // آدرس انتخاب شده
+  selectedAddress: string | null;
   fetchAddresses: () => Promise<void>;
   createAddress: (address: Omit<Address, "id">) => Promise<Address | null>;
   updateAddress: (
@@ -30,21 +32,29 @@ interface AddressStore {
 
 export const useAddressStore = create<AddressStore>((set, get) => ({
   addresses: [],
-  isLoading: false,
+
+  // ✅ FIX: مقدار اولیه باید true باشد تا جلوی پرش مودال گرفته شود
+  isLoading: true,
+
   error: null,
   selectedAddress: null,
+
   fetchAddresses: async () => {
     set({ isLoading: true, error: null });
     try {
       const response = await axiosAuth.get(`/address/get-address`);
-      const fetchedAddresses: Address[] = response.data.address;
+      // هندل کردن حالتی که بک‌اند ممکن است در کلید addresses یا address بفرستد
+      const fetchedAddresses: Address[] =
+        response.data.address || response.data.addresses || [];
+
       set({ addresses: fetchedAddresses, isLoading: false });
 
-      // Automatically select default or first address after fetching
+      // انتخاب خودکار آدرس پیش‌فرض یا اولین آدرس
       const currentSelected = get().selectedAddress;
       const selectedExists = fetchedAddresses.some(
         (a) => a.id === currentSelected
       );
+
       if (!currentSelected || !selectedExists) {
         const defaultAddress = fetchedAddresses.find((a) => a.isDefault);
         if (defaultAddress) {
@@ -59,14 +69,14 @@ export const useAddressStore = create<AddressStore>((set, get) => ({
       set({ isLoading: false, error: "Failed to fetch addresses" });
     }
   },
+
   setSelectedAddress: (id) => set({ selectedAddress: id }),
+
   createAddress: async (address) => {
     set({ isLoading: true, error: null });
     try {
       const response = await axiosAuth.post(`/address/add-address`, address);
-      const wasEmpty = get().addresses.length === 0;
       await get().fetchAddresses();
-      // If it was the first address, it's now selected automatically by fetchAddresses
       set({ isLoading: false });
       return response.data.address;
     } catch (e) {
@@ -74,6 +84,7 @@ export const useAddressStore = create<AddressStore>((set, get) => ({
       return null;
     }
   },
+
   setDefaultAddress: async (id: string) => {
     try {
       await axiosAuth.put(`/address/update-address/${id}`, { isDefault: true });
@@ -82,7 +93,7 @@ export const useAddressStore = create<AddressStore>((set, get) => ({
       console.error("Failed to set default address", error);
     }
   },
-  // ... other functions (updateAddress, deleteAddress) remain the same
+
   updateAddress: async (id, address) => {
     set({ isLoading: true, error: null });
     try {
@@ -98,15 +109,23 @@ export const useAddressStore = create<AddressStore>((set, get) => ({
       return null;
     }
   },
+
   deleteAddress: async (id) => {
     set({ isLoading: true, error: null });
     try {
       await axiosAuth.delete(`/address/delete-address/${id}`);
+      // آپدیت خوش‌بینانه برای حذف سریع از UI
       set((state) => ({
         addresses: state.addresses.filter((address) => address.id !== id),
-        isLoading: false,
+        // اگر آدرس حذف شده همان آدرس انتخابی بود، انتخاب را ریست کن
+        selectedAddress:
+          state.selectedAddress === id ? null : state.selectedAddress,
       }));
+
+      // فچ دوباره برای اطمینان از هماهنگی با سرور (و انتخاب آدرس جدید اگر لازم بود)
       await get().fetchAddresses();
+
+      set({ isLoading: false });
       return true;
     } catch (e) {
       set({ isLoading: false, error: "Failed to delete address" });
