@@ -8,20 +8,28 @@ export const cartSessionMiddleware = (
   res: Response,
   next: NextFunction
 ) => {
-  // اگر کاربر کوکی sessionId نداشت، یکی براش می‌سازیم
-  if (!req.cookies.sessionId) {
-    const sessionId = uuidv4();
+  let sessionId = req.cookies.sessionId;
 
-    // تنظیمات کوکی
+  if (!sessionId) {
+    sessionId = uuidv4();
+
+    // تعیین دامنه کوکی
+    // در پروداکشن باید .tiamara.ir باشد تا بین api و سایت اصلی شیر شود
+    const domain =
+      process.env.NODE_ENV === "production" ? ".tiamara.ir" : undefined;
+
     res.cookie("sessionId", sessionId, {
-      httpOnly: true, // امنیت: جاوااسکریپت کلاینت بهش دسترسی نداره
-      secure: process.env.NODE_ENV === "production", // در پروداکشن فقط https
-      maxAge: 365 * 24 * 60 * 60 * 1000, // انقضا: ۱ سال
+      httpOnly: true,
+      // نکته مهم: اگر هنوز SSL ندارید (آدرس با http است)، secure باید false باشد
+      // فعلاً false می‌گذاریم تا مشکل حل شود، بعداً که SSL گرفتید true کنید.
+      secure: true,
+      maxAge: 365 * 24 * 60 * 60 * 1000, // 1 سال
       sameSite: "lax",
-      path: "/", // در تمام صفحات سایت معتبر است
+      path: "/",
+      domain: domain, // <--- این خط کلید حل مشکل است
     });
 
-    // اضافه کردن به req برای استفاده در کنترلرها
+    // اضافه کردن به req
     req.cookies.sessionId = sessionId;
   }
 
