@@ -1,75 +1,110 @@
 // client/src/components/checkout/FinalReviewView.tsx
-
 "use client";
 
 import { useAddressStore } from "@/store/useAddressStore";
 import { useCheckoutStore } from "@/store/useCheckoutStore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import CartView from "./CartView";
-import { Home, Truck } from "lucide-react";
+import { MapPin, Truck, Edit2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
-const FinalReviewView = () => {
-  // دریافت آدرس انتخاب شده از استور آدرس
-  const selectedAddress = useAddressStore(
-    (state) => state.addresses.find((a) => a.isDefault) || state.addresses[0]
+// این کامپوننت باید قابلیت ویرایش هم داشته باشد (مثلا دکمه برگشت به مرحله قبل)
+interface FinalReviewViewProps {
+  onEditStep: (step: number) => void;
+}
+
+const FinalReviewView = ({ onEditStep }: FinalReviewViewProps) => {
+  const selectedAddress = useAddressStore((state) =>
+    state.addresses.find((a) => a.id === state.selectedAddress)
   );
-
-  // دریافت روش ارسال انتخاب شده از استور پرداخت
   const { shippingMethod } = useCheckoutStore();
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>بازبینی نهایی سفارش</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* بخش محصولات */}
-        <div>
-          <h3 className="font-semibold text-lg mb-3">محصولات</h3>
-          {/* نمایش دوباره سبد خرید */}
-          <CartView />
-        </div>
+    <div className="space-y-6">
+      {/* کارت‌های خلاصه وضعیت */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* آدرس */}
+        <Card className="bg-primary/5 border-primary/20 shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between py-3 pb-2">
+            <CardTitle className="text-sm font-bold flex items-center gap-2 text-primary">
+              <MapPin className="w-4 h-4" />
+              آدرس تحویل گیرنده
+            </CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-xs text-primary hover:text-primary/80 hover:bg-primary/10"
+              onClick={() => onEditStep(2)}
+            >
+              <Edit2 className="w-3 h-3 ml-1" />
+              ویرایش
+            </Button>
+          </CardHeader>
+          <CardContent className="text-sm space-y-1 pb-3">
+            {selectedAddress ? (
+              <>
+                <p className="font-bold text-gray-800">
+                  {selectedAddress.recipientName}
+                </p>
+                <p className="text-gray-600 leading-tight">
+                  {selectedAddress.province}، {selectedAddress.city}،{" "}
+                  {selectedAddress.fullAddress}
+                </p>
+                <div className="flex gap-4 mt-2 text-xs text-gray-500">
+                  <span>کدپستی: {selectedAddress.postalCode}</span>
+                  <span>تلفن: {selectedAddress.phone}</span>
+                </div>
+              </>
+            ) : (
+              <p className="text-red-500">آدرس انتخاب نشده است</p>
+            )}
+          </CardContent>
+        </Card>
 
-        <Separator />
+        {/* روش ارسال */}
+        <Card className="bg-blue-50/50 border-blue-100 shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between py-3 pb-2">
+            <CardTitle className="text-sm font-bold flex items-center gap-2 text-blue-700">
+              <Truck className="w-4 h-4" />
+              روش ارسال
+            </CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-100"
+              onClick={() => onEditStep(2)}
+            >
+              <Edit2 className="w-3 h-3 ml-1" />
+              ویرایش
+            </Button>
+          </CardHeader>
+          <CardContent className="text-sm space-y-1 pb-3">
+            {shippingMethod ? (
+              <>
+                <p className="font-bold text-gray-800">{shippingMethod.name}</p>
+                <p className="text-gray-600 text-xs">
+                  {shippingMethod.description}
+                </p>
+                <p className="mt-2 font-medium text-blue-600">
+                  هزینه:{" "}
+                  {shippingMethod.cost > 0
+                    ? `${shippingMethod.cost.toLocaleString("fa-IR")} تومان`
+                    : "رایگان / پس‌کرایه"}
+                </p>
+              </>
+            ) : (
+              <p className="text-red-500">روش ارسال انتخاب نشده است</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
-        {/* بخش اطلاعات ارسال */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Home className="h-5 w-5 text-gray-600" />
-            <h3 className="font-semibold text-lg">آدرس ارسال</h3>
-          </div>
-          {selectedAddress ? (
-            <div className="p-4 bg-gray-50 rounded-md border text-sm text-gray-700">
-              <p className="font-medium">{selectedAddress.recipientName}</p>
-              <p>{`${selectedAddress.province}, ${selectedAddress.city}, ${selectedAddress.fullAddress}`}</p>
-              <p>کد پستی: {selectedAddress.postalCode}</p>
-              <p>شماره تماس: {selectedAddress.phone}</p>
-            </div>
-          ) : (
-            <p className="text-red-500">آدرسی انتخاب نشده است!</p>
-          )}
-        </div>
-
-        <Separator />
-
-        {/* بخش روش ارسال */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Truck className="h-5 w-5 text-gray-600" />
-            <h3 className="font-semibold text-lg">روش ارسال</h3>
-          </div>
-          {shippingMethod ? (
-            <div className="p-4 bg-gray-50 rounded-md border text-sm text-gray-700">
-              <p className="font-medium">{shippingMethod.name}</p>
-              <p>{shippingMethod.description}</p>
-            </div>
-          ) : (
-            <p className="text-red-500">روش ارسالی انتخاب نشده است!</p>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+      {/* لیست محصولات (فقط خواندنی‌تر شده) */}
+      <div className="opacity-90">
+        <h3 className="font-bold text-lg mb-3 px-2">مرور کالاها</h3>
+        <CartView />
+      </div>
+    </div>
   );
 };
 

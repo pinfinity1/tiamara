@@ -4,25 +4,27 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
+  // --- تنظیمات سوپر ادمین ---
   const adminPhone = "09397155826";
-  const adminPassword = "123456";
+  const adminPassword = "123456"; // رمز عبور اولیه
   const adminName = "Super Admin";
 
-  // --- کد اصلاح شده ---
-  // پسورد را در هر صورت هش می‌کنیم
+  console.log("Checking/Creating Super Admin...");
+
+  // هش کردن پسورد
   const hashedPassword = await bcrypt.hash(adminPassword, 10);
 
-  // از دستور upsert استفاده می‌کنیم
+  // ساخت یا آپدیت ادمین
   const superAdminUser = await prisma.user.upsert({
-    where: { phone: adminPhone }, // با این شماره تلفن پیدا کن
+    where: { phone: adminPhone },
     update: {
-      // اگر پیدا شد: اطلاعاتش را به‌روز کن و مطمئن شو ادمین است
+      // اگر کاربر وجود داشت، مطمئن می‌شویم نقش و پسوردش صحیح است
       name: adminName,
       password: hashedPassword,
-      role: "SUPER_ADMIN", // <-- نقش را تضمین می‌کند
+      role: "SUPER_ADMIN",
     },
     create: {
-      // اگر پیدا نشد: یک کاربر جدید با نقش ادمین بساز
+      // اگر کاربر وجود نداشت، آن را می‌سازیم
       phone: adminPhone,
       name: adminName,
       password: hashedPassword,
@@ -31,55 +33,17 @@ async function main() {
   });
 
   console.log(
-    "Super admin created or updated successfully with phone:",
+    "Super admin processed successfully. Phone:",
     superAdminUser.phone
   );
-  // --- پایان کد اصلاح شده ---
 
-  console.log("Start seeding shipping methods...");
-
-  await prisma.shippingMethod.upsert({
-    where: { code: "pishaz" },
-    update: {},
-    create: {
-      code: "pishaz",
-      name: "پست پیشتاز",
-      description: "۳ تا ۵ روز کاری",
-      cost: 35000,
-      isActive: true,
-    },
-  });
-
-  await prisma.shippingMethod.upsert({
-    where: { code: "tipax" },
-    update: {},
-    create: {
-      code: "tipax",
-      name: "تیپاکس (پس کرایه)",
-      description: "۲ تا ۳ روز کاری",
-      cost: 0,
-      isActive: true,
-    },
-  });
-
-  await prisma.shippingMethod.upsert({
-    where: { code: "home_delivery" },
-    update: {},
-    create: {
-      code: "home_delivery",
-      name: "تحویل درب منزل (ارسال با پیک)",
-      description: "ارسال سریع در محدوده شهری (۱ تا ۴ ساعت)",
-      cost: 25000,
-      isActive: true,
-    },
-  });
-
-  console.log("Shipping methods seeded successfully.");
+  // --- بخش Shipping Methods کاملاً حذف شد ---
+  // چون مدیریت آن اکنون از طریق پنل ادمین انجام می‌شود.
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    console.error("Error in seed:", e);
     process.exit(1);
   })
   .finally(async () => {

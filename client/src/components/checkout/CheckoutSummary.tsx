@@ -1,17 +1,12 @@
-// client/src/components/checkout/CheckoutSummary.tsx (نسخه اصلاح‌شده)
-
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useMemo } from "react";
 import { useCartStore } from "@/store/useCartStore";
 import { useOrderStore } from "@/store/useOrderStore";
-import { useUserStore } from "@/store/useUserStore";
 import { useAddressStore } from "@/store/useAddressStore";
-import { useToast } from "@/hooks/use-toast";
-import { useAuthModalStore } from "@/store/useAuthModalStore";
-import axiosAuth from "@/lib/axios";
 import { useCheckoutStore } from "@/store/useCheckoutStore";
+import { useToast } from "@/hooks/use-toast";
+import axiosAuth from "@/lib/axios";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -23,14 +18,13 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { Label } from "@/components/ui/label";
 import {
-  CheckCircle,
   Loader2,
-  PercentSquare,
-  ChevronRight,
-  ChevronLeft,
-} from "lucide-react";
+  ArrowLeft,
+  ArrowRight,
+  Ticket,
+  ShieldCheck,
+} from "lucide-react"; // ArrowRight اضافه شد
 
 interface AppliedCoupon {
   id: string;
@@ -41,27 +35,21 @@ interface AppliedCoupon {
 
 interface CheckoutSummaryProps {
   isUserLoggedIn: boolean;
-  currentStep: number;
-  onNextStep: () => void;
-  onPrevStep: () => void;
+  step: number;
+  onNext: () => void;
+  onPrev: () => void; // ✅ اضافه شد
 }
 
 export default function CheckoutSummary({
   isUserLoggedIn,
-  currentStep,
-  onNextStep,
-  onPrevStep,
+  step,
+  onNext,
+  onPrev, // ✅ دریافت پراپ
 }: CheckoutSummaryProps) {
-  const router = useRouter();
   const { toast } = useToast();
-  const { onOpen: openAuthModal } = useAuthModalStore();
   const { items: cartItems } = useCartStore();
   const { createFinalOrder, isLoading: isPaymentProcessing } = useOrderStore();
-  const { userProfile, fetchProfile } = useUserStore();
-  const selectedAddressId = useAddressStore(
-    (state) =>
-      state.addresses.find((a) => a.isDefault)?.id || state.addresses[0]?.id
-  );
+  const { selectedAddress: selectedAddressId } = useAddressStore();
   const { shippingMethod } = useCheckoutStore();
 
   const [couponCode, setCouponCode] = useState("");
@@ -71,37 +59,24 @@ export default function CheckoutSummary({
   const [couponError, setCouponError] = useState<string | null>(null);
   const [isCouponLoading, setIsCouponLoading] = useState(false);
 
-  const shippingCost = useMemo(() => {
-    if (currentStep >= 3 && shippingMethod) {
-      return shippingMethod.cost;
-    }
-    return 0;
-  }, [currentStep, shippingMethod]);
-
-  useEffect(() => {
-    if (isUserLoggedIn && !userProfile) {
-      fetchProfile();
-    }
-  }, [isUserLoggedIn, userProfile, fetchProfile]);
-
-  const cartTotal = useMemo(
+  // محاسبات مالی
+  const itemsTotal = useMemo(
     () => cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0),
     [cartItems]
   );
 
-  const finalTotal = useMemo(() => {
-    let total = cartTotal;
-    if (appliedCoupon) {
-      if (appliedCoupon.discountType === "FIXED") {
-        total = Math.max(0, total - appliedCoupon.discountValue);
-      } else {
-        const discountAmount = total * (appliedCoupon.discountValue / 100);
-        total = Math.round(total - discountAmount);
-      }
-    }
-    return total + shippingCost;
-  }, [cartTotal, appliedCoupon, shippingCost]);
+  const shippingCost = step >= 2 && shippingMethod ? shippingMethod.cost : 0;
 
+  const discountAmount = useMemo(() => {
+    if (!appliedCoupon) return 0;
+    if (appliedCoupon.discountType === "FIXED")
+      return appliedCoupon.discountValue;
+    return Math.round(itemsTotal * (appliedCoupon.discountValue / 100));
+  }, [itemsTotal, appliedCoupon]);
+
+  const finalTotal = Math.max(0, itemsTotal + shippingCost - discountAmount);
+
+  // هندل کردن کد تخفیف
   const handleApplyCoupon = async () => {
     if (!couponCode) return;
     setIsCouponLoading(true);
@@ -112,182 +87,161 @@ export default function CheckoutSummary({
       });
       if (response.data.isValid) {
         setAppliedCoupon(response.data.coupon);
-        toast({ title: "کد تخفیف با موفقیت اعمال شد." });
+        toast({
+          title: "کد تخفیف اعمال شد",
+          className: "bg-green-600 text-white",
+        });
       } else {
-        setCouponError(response.data.message || "کد تخفیف نامعتبر است.");
-        setAppliedCoupon(null);
+        setCouponError("کد نامعتبر است");
       }
     } catch (error: any) {
-      setCouponError(error.response?.data?.message || "کد تخفیف نامعتبر است.");
-      setAppliedCoupon(null);
+      setCouponError(error.response?.data?.message || "خطا در بررسی کد");
     } finally {
       setIsCouponLoading(false);
     }
   };
 
+  // هندل کردن پرداخت نهایی
   const handlePlaceOrder = async () => {
-    if (!selectedAddressId) {
-      toast({
-        title: "لطفاً یک آدرس را برای ارسال انتخاب کنید.",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (!shippingMethod) {
-      toast({
-        title: "لطفاً روش ارسال را انتخاب کنید.",
-        variant: "destructive",
-      });
+    if (!selectedAddressId || !shippingMethod) {
+      toast({ title: "اطلاعات ارسال ناقص است", variant: "destructive" });
       return;
     }
 
-    const orderData = {
+    const result = await createFinalOrder({
       addressId: selectedAddressId,
       couponId: appliedCoupon?.id,
       shippingMethodId: shippingMethod.code,
-    };
-
-    const result = await createFinalOrder(orderData);
+    });
 
     if (result.success && result.paymentUrl) {
-      toast({ title: "در حال انتقال به صفحه پرداخت..." });
       window.location.href = result.paymentUrl;
     } else {
-      toast({
-        title: "خطا در ثبت سفارش. لطفاً دوباره تلاش کنید.",
-        variant: "destructive",
-      });
+      toast({ title: "خطا در ایجاد سفارش", variant: "destructive" });
     }
   };
 
-  const getButtonText = () => {
-    switch (currentStep) {
-      case 1:
-        return "ادامه و انتخاب آدرس";
-      case 2:
-        return "ادامه و انتخاب روش ارسال";
-      case 3:
-        return "ادامه و بازبینی نهایی";
-      default:
-        return "پرداخت و ثبت نهایی";
-    }
+  const handleMainAction = () => {
+    if (step === 3) handlePlaceOrder();
+    else onNext();
+  };
+
+  // متن دکمه اصلی بر اساس مرحله
+  const getButtonContent = () => {
+    if (step === 3 && isPaymentProcessing)
+      return <Loader2 className="animate-spin" />;
+    if (!isUserLoggedIn) return "ورود برای ادامه خرید";
+    if (step === 1) return "ثبت سفارش و ارسال";
+    if (step === 2) return "تایید و بازبینی نهایی";
+    return "پرداخت آنلاین";
   };
 
   return (
-    <Card className="shadow-md">
-      <CardHeader>
-        <CardTitle className="text-xl font-bold">خلاصه پرداخت</CardTitle>
+    <Card className="shadow-lg border-0 sticky top-24 overflow-hidden">
+      <CardHeader className="bg-gray-50/50 border-b pb-4">
+        <CardTitle className="text-base font-bold text-gray-800">
+          فاکتور نهایی
+        </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex justify-between text-sm text-gray-600">
-          <span>جمع کل</span>
-          <span>{cartTotal.toLocaleString("fa-IR")} تومان</span>
-        </div>
 
-        {appliedCoupon && (
-          <div className="flex justify-between text-sm text-green-600 font-medium">
-            <span>تخفیف ({appliedCoupon.code})</span>
-            <span>
-              -{" "}
-              {(cartTotal - finalTotal + shippingCost).toLocaleString("fa-IR")}{" "}
-              تومان
+      <CardContent className="space-y-4 pt-6">
+        <div className="space-y-3 text-sm">
+          <div className="flex justify-between text-gray-600">
+            <span>قیمت کالاها ({cartItems.length})</span>
+            <span className="font-medium">
+              {itemsTotal.toLocaleString("fa-IR")} تومان
             </span>
           </div>
-        )}
 
-        <div className="flex justify-between text-sm text-gray-600">
-          <span>هزینه ارسال</span>
-          <span>
-            {currentStep < 3
-              ? "در مرحله بعد محاسبه می‌شود"
-              : shippingCost > 0
-              ? `${shippingCost.toLocaleString("fa-IR")} تومان`
-              : "رایگان"}
-          </span>
+          <div className="flex justify-between text-gray-600">
+            <span>هزینه ارسال</span>
+            <span className="font-medium">
+              {step < 2
+                ? "محاسبه در مرحله بعد"
+                : shippingCost === 0
+                ? "رایگان"
+                : `${shippingCost.toLocaleString("fa-IR")} تومان`}
+            </span>
+          </div>
+
+          {appliedCoupon && (
+            <div className="flex justify-between text-green-600 bg-green-50 p-2 rounded animate-in fade-in">
+              <span>تخفیف کد</span>
+              <span>{discountAmount.toLocaleString("fa-IR")}- تومان</span>
+            </div>
+          )}
         </div>
 
         <Separator />
 
-        <div className="flex justify-between font-bold text-lg">
-          <span>مبلغ نهایی</span>
-          <span>{finalTotal.toLocaleString("fa-IR")} تومان</span>
+        <div className="flex justify-between items-center">
+          <span className="font-bold text-gray-800">مبلغ قابل پرداخت</span>
+          <span className="font-bold text-xl text-primary">
+            {finalTotal.toLocaleString("fa-IR")} تومان
+          </span>
         </div>
-      </CardContent>
 
-      {isUserLoggedIn && currentStep > 1 && (
-        <CardContent className="border-t pt-4">
-          <div className="space-y-2">
-            <Label htmlFor="coupon" className="flex items-center gap-2">
-              <PercentSquare className="w-4 h-4" />
-              کد تخفیف دارید؟
-            </Label>
-            <div className="flex gap-2">
+        {/* بخش کد تخفیف */}
+        {isUserLoggedIn && step > 1 && (
+          <div className="pt-2 animate-in slide-in-from-top-2">
+            <div className="relative flex items-center">
+              <Ticket className="absolute right-3 w-4 h-4 text-gray-400" />
               <Input
-                id="coupon"
-                placeholder="کد تخفیف"
+                placeholder="کد تخفیف دارید؟"
+                className="pr-9 h-10 text-sm bg-gray-50 focus:bg-white transition-colors"
                 value={couponCode}
                 onChange={(e) => setCouponCode(e.target.value)}
-                disabled={!!appliedCoupon || isCouponLoading}
+                disabled={!!appliedCoupon}
               />
               <Button
+                size="sm"
+                variant="ghost"
+                className="absolute left-1 h-8 text-xs font-bold text-primary hover:text-primary/80 hover:bg-transparent"
                 onClick={handleApplyCoupon}
-                disabled={isCouponLoading || !!appliedCoupon}
-                className="px-6"
+                disabled={isCouponLoading || !couponCode || !!appliedCoupon}
               >
                 {isCouponLoading ? (
-                  <Loader2 className="animate-spin" />
-                ) : appliedCoupon ? (
-                  <CheckCircle />
+                  <Loader2 className="w-3 h-3 animate-spin" />
                 ) : (
-                  "اعمال"
+                  "ثبت"
                 )}
               </Button>
             </div>
             {couponError && (
-              <p className="text-xs text-red-500 mt-1">{couponError}</p>
+              <p className="text-xs text-red-500 mt-1 mr-1">{couponError}</p>
             )}
           </div>
-        </CardContent>
-      )}
+        )}
+      </CardContent>
 
-      <CardFooter className="flex-col gap-2 pt-4">
-        {isUserLoggedIn ? (
-          <>
-            {currentStep < 4 ? (
-              <Button className="w-full h-12 text-lg" onClick={onNextStep}>
-                {getButtonText()}
-                <ChevronLeft className="mr-2 h-5 w-5" />
-              </Button>
-            ) : (
-              <Button
-                className="w-full h-12 text-lg font-bold"
-                onClick={handlePlaceOrder}
-                disabled={isPaymentProcessing}
-              >
-                {isPaymentProcessing ? (
-                  <Loader2 className="animate-spin" />
-                ) : (
-                  "پرداخت و ثبت نهایی"
-                )}
-              </Button>
-            )}
+      <CardFooter className="flex-col gap-3 bg-gray-50/30 p-4 border-t">
+        {/* دکمه اصلی (بعدی) */}
+        <Button
+          className="w-full h-12 text-base shadow-md shadow-primary/20 hover:shadow-primary/40 transition-all"
+          onClick={handleMainAction}
+          disabled={step === 3 && isPaymentProcessing}
+        >
+          {getButtonContent()}
+          {step < 3 && <ArrowLeft className="mr-2 w-4 h-4" />}
+        </Button>
 
-            {currentStep > 1 && currentStep <= 4 && (
-              <Button
-                variant="ghost"
-                className="w-full text-gray-600"
-                onClick={onPrevStep}
-              >
-                <ChevronRight className="ml-2 h-5 w-5" />
-                بازگشت به مرحله قبل
-              </Button>
-            )}
-          </>
-        ) : (
-          <Button className="w-full h-12 text-lg" onClick={onNextStep}>
-            ورود برای ادامه خرید
+        {/* ✅ دکمه جدید بازگشت به مرحله قبل */}
+        {step > 1 && (
+          <Button
+            variant="outline"
+            className="w-full h-10 text-sm text-gray-600 hover:text-gray-900 border-gray-300"
+            onClick={onPrev}
+            disabled={isPaymentProcessing}
+          >
+            <ArrowRight className="ml-2 w-4 h-4" />
+            بازگشت به مرحله قبل
           </Button>
         )}
+
+        <div className="flex items-center justify-center gap-2 text-xs text-gray-400 mt-1">
+          <ShieldCheck className="w-3 h-3" />
+          <span>تضمین امنیت پرداخت و اصالت کالا</span>
+        </div>
       </CardFooter>
     </Card>
   );

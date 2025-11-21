@@ -1,3 +1,4 @@
+// client/src/components/checkout/CartView.tsx
 "use client";
 
 import { useCartStore } from "@/store/useCartStore";
@@ -6,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Minus, Plus, Trash2, ShoppingCart, Loader2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import ImagePlaceholder from "../common/ImagePlaceholder";
+import ImagePlaceholder from "@/components/common/ImagePlaceholder";
 
 export default function CartView() {
   const { items, updateCartItemQuantity, removeFromCart, pendingItemIds } =
@@ -14,95 +15,119 @@ export default function CartView() {
 
   if (items.length === 0) {
     return (
-      <div className="text-center py-16">
-        <ShoppingCart className="mx-auto h-12 w-12 text-gray-400" />
-        <h2 className="mt-4 text-2xl font-semibold">سبد خرید شما خالی است</h2>
-        <p className="mt-2 text-sm text-gray-500">
-          به نظر می‌رسد هنوز محصولی به سبد خرید خود اضافه نکرده‌اید.
+      <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
+        <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center">
+          <ShoppingCart className="h-10 w-10 text-gray-400" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-800">
+          سبد خرید شما خالی است
+        </h2>
+        <p className="text-gray-500 max-w-xs mx-auto">
+          شما هنوز هیچ محصولی را به سبد خرید خود اضافه نکرده‌اید.
         </p>
-        <Button asChild className="mt-6">
-          <Link href="/products">رفتن به فروشگاه</Link>
+        <Button asChild variant="default" size="lg" className="mt-4">
+          <Link href="/products">مشاهده محصولات</Link>
         </Button>
       </div>
     );
   }
 
   return (
-    <Card className="shadow-md">
-      <CardHeader>
-        <CardTitle className="text-xl font-bold">سبد خرید شما</CardTitle>
+    <Card className="border-none shadow-none sm:border sm:shadow-sm">
+      <CardHeader className="px-0 sm:px-6">
+        <CardTitle className="text-lg sm:text-xl font-bold flex items-center gap-2">
+          <ShoppingCart className="w-5 h-5 text-primary" />
+          لیست سفارشات
+          <span className="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+            {items.length} کالا
+          </span>
+        </CardTitle>
       </CardHeader>
-      <CardContent className="divide-y divide-gray-200">
+      <CardContent className="px-0 sm:px-6 divide-y divide-dashed divide-gray-200">
         {items.map((item) => {
           const isPending = pendingItemIds.has(item.id);
           return (
-            <div key={item.id} className="flex items-center gap-4 py-4">
-              <div className="relative h-20 w-20 sm:h-24 sm:w-24 flex-shrink-0 overflow-hidden rounded-md border">
+            <div key={item.id} className="flex gap-4 py-6 first:pt-0 last:pb-0">
+              {/* تصویر محصول */}
+              <Link
+                href={`/products/${item.slug}`}
+                className="relative h-24 w-24 sm:h-32 sm:w-32 flex-shrink-0 overflow-hidden rounded-xl border bg-white"
+              >
                 {item.image ? (
                   <Image
                     src={item.image}
                     alt={item.name}
                     fill
-                    sizes="100px"
-                    className="object-cover"
+                    className="object-cover hover:scale-105 transition-transform duration-300"
                   />
                 ) : (
                   <ImagePlaceholder />
                 )}
-              </div>
-              <div className="flex-1 flex flex-col gap-2">
-                <div className="flex justify-between items-start">
+              </Link>
+
+              {/* جزئیات */}
+              <div className="flex-1 flex flex-col justify-between py-1">
+                <div className="space-y-1">
                   <Link href={`/products/${item.slug}`}>
-                    <span className="font-semibold text-sm sm:text-base text-gray-800 hover:text-primary">
+                    <h3 className="font-bold text-sm sm:text-base text-gray-800 hover:text-primary line-clamp-2 leading-relaxed">
                       {item.name}
-                    </span>
+                    </h3>
                   </Link>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-red-500 hover:text-red-600"
-                    onClick={() => removeFromCart(item.id)}
-                    disabled={isPending}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  {/* اگر ویژگی خاصی مثل رنگ دارید اینجا نمایش دهید */}
                 </div>
-                <div className="flex justify-between items-center">
-                  <p className="text-sm font-medium text-gray-600">
-                    {item.price.toLocaleString("fa-IR")}{" "}
-                    <span className="text-xs">تومان</span>
-                  </p>
-                  <div className="flex items-center gap-1 rounded-lg border p-0.5">
+
+                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mt-2">
+                  {/* کنترل تعداد */}
+                  <div className="flex items-center bg-gray-50 border rounded-lg h-9 w-fit">
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7"
+                      className="h-full w-9 rounded-r-lg rounded-l-none hover:bg-white hover:text-primary"
                       onClick={() =>
                         updateCartItemQuantity(item.id, item.quantity + 1)
                       }
                       disabled={item.quantity >= item.stock || isPending}
                     >
-                      <Plus className="h-4 w-4" />
+                      <Plus className="h-3.5 w-3.5" />
                     </Button>
-                    <span className="w-8 text-center font-bold text-base relative">
-                      {isPending && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-white/80">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        </div>
+                    <span className="w-8 text-center font-medium text-sm relative">
+                      {isPending ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin mx-auto text-primary" />
+                      ) : (
+                        item.quantity
                       )}
-                      {item.quantity.toLocaleString("fa-IR")}
                     </span>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7"
-                      onClick={() =>
-                        updateCartItemQuantity(item.id, item.quantity - 1)
-                      }
-                      disabled={item.quantity <= 1 || isPending}
+                      className="h-full w-9 rounded-l-lg rounded-r-none hover:bg-white hover:text-red-500"
+                      onClick={() => {
+                        if (item.quantity === 1) removeFromCart(item.id);
+                        else updateCartItemQuantity(item.id, item.quantity - 1);
+                      }}
+                      disabled={isPending}
                     >
-                      <Minus className="h-4 w-4" />
+                      {item.quantity === 1 ? (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      ) : (
+                        <Minus className="h-3.5 w-3.5" />
+                      )}
                     </Button>
+                  </div>
+
+                  {/* قیمت */}
+                  <div className="text-left">
+                    <p className="text-lg font-bold text-gray-900">
+                      {(item.price * item.quantity).toLocaleString("fa-IR")}
+                      <span className="text-xs font-normal text-gray-500 mr-1">
+                        تومان
+                      </span>
+                    </p>
+                    {item.quantity > 1 && (
+                      <p className="text-xs text-gray-400">
+                        هر عدد: {item.price.toLocaleString("fa-IR")}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

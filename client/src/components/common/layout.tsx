@@ -23,8 +23,20 @@ const ChatWidget = dynamic(
   { ssr: false } // بسیار مهم: این کامپوننت هرگز در سرور رندر نمی‌شود
 );
 
-const pathsNotToShowHeaders = ["/auth", "/super-admin", "/chat"];
-const pathsNotToShowLayout = ["/auth", "/super-admin", "/chat"];
+const pathsNotToShowHeaders = [
+  "/auth",
+  "/super-admin",
+  "/chat",
+  "/checkout",
+  "/payment-result",
+];
+const pathsNotToShowLayout = [
+  "/auth",
+  "/super-admin",
+  "/chat",
+  "/checkout",
+  "/payment-result",
+];
 
 function CommonLayout({
   children,

@@ -13,7 +13,6 @@ export interface OrderItem {
   quantity: number;
   price: number;
   product?: {
-    // This can be included for admin details
     slug?: string;
     images: { url: string }[];
   };
@@ -83,14 +82,17 @@ interface OrderState {
   adminOrders: Order[];
   selectedOrder: Order | null;
   isLoading: boolean;
-  isPaymentProcessing: boolean; // For handling payment redirection state
+  isPaymentProcessing: boolean;
   error: string | null;
 
   // User-facing actions
   getOrdersByUserId: () => Promise<void>;
+
+  // ✅ تغییر اصلی اینجاست: اضافه کردن shippingMethodId به تایپ ورودی
   createFinalOrder: (data: {
     addressId: string;
     couponId?: string | null;
+    shippingMethodId: string;
   }) => Promise<{ success: boolean; paymentUrl?: string }>;
 
   // Admin-facing actions
@@ -124,9 +126,11 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     }
   },
 
+  // آپدیت شده برای دریافت shippingMethodId
   createFinalOrder: async (data) => {
     set({ isPaymentProcessing: true });
     try {
+      // ارسال shippingMethodId به سرور
       const response = await axiosAuth.post("/order/create-final-order", data);
       if (response.data.success) {
         return { success: true, paymentUrl: response.data.paymentUrl };
@@ -157,12 +161,10 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   updateOrderStatus: async (orderId, status) => {
     try {
       await axiosAuth.put(`/order/admin/status/${orderId}`, { status });
-      // Refresh both admin and potentially user orders list
       await get().fetchOrdersForAdmin({});
       if (get().userOrders.some((o) => o.id === orderId)) {
         await get().getOrdersByUserId();
       }
-      // Update the selected order if it's being viewed
       const currentSelected = get().selectedOrder;
       if (currentSelected && currentSelected.id === orderId) {
         set({ selectedOrder: { ...currentSelected, status } });
@@ -178,7 +180,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       set({ selectedOrder: null });
       return;
     }
-    set({ isLoading: true, selectedOrder: order }); // Show basic info immediately
+    set({ isLoading: true, selectedOrder: order });
     try {
       const response = await axiosAuth.get(`/order/admin/single/${order.id}`);
       if (response.data.success) {

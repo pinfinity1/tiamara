@@ -1,33 +1,37 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useCartStore } from "@/store/useCartStore";
-import { useUserStore } from "@/store/useUserStore";
-import { useEffect, useState } from "react";
-import CheckoutSkeleton from "./checkoutSkeleton";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAddressStore } from "@/store/useAddressStore";
+import { useCheckoutStore } from "@/store/useCheckoutStore";
+import { useAuthModalStore } from "@/store/useAuthModalStore";
+import CheckoutStepper from "@/components/checkout/CheckoutStepper";
 import CartView from "@/components/checkout/CartView";
 import CheckoutView from "@/components/checkout/CheckoutView";
-import CheckoutSummary from "@/components/checkout/CheckoutSummary";
-import { useAuthModalStore } from "@/store/useAuthModalStore";
-import ShippingMethodSelection from "./ShippingMethodSelection";
-import CheckoutStepper from "./CheckoutStepper";
+import ShippingMethodSelection, {
+  ShippingMethod,
+} from "@/components/checkout/ShippingMethodSelection";
 import FinalReviewView from "@/components/checkout/FinalReviewView";
+import CheckoutSummary from "@/components/checkout/CheckoutSummary";
+import { Loader2, ShoppingBag } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { toast } from "@/hooks/use-toast";
 
-// Props برای کامپوننت اصلی
 interface CheckoutClientProps {
   isUserLoggedIn: boolean;
+  initialShippingMethods: ShippingMethod[];
 }
 
 export default function CheckoutClient({
   isUserLoggedIn,
+  initialShippingMethods,
 }: CheckoutClientProps) {
   const { items, isLoading, fetchCart } = useCartStore();
+  const { selectedAddress } = useAddressStore();
+  const { shippingMethod } = useCheckoutStore();
   const { onOpen: openAuthModal } = useAuthModalStore();
 
-  // گام ۱: بازبینی سبد خرید
-  // گام ۲: انتخاب آدرس
-  // گام ۳: روش ارسال
-  // گام ۴: بازبینی نهایی و پرداخت
   const [step, setStep] = useState(1);
 
   useEffect(() => {
@@ -35,83 +39,120 @@ export default function CheckoutClient({
   }, [fetchCart]);
 
   const handleNextStep = () => {
-    if (!isUserLoggedIn && step === 1) {
-      // اگر کاربر لاگین نکرده و در مرحله اول است، مودال ورود را باز کن
-      openAuthModal();
-    } else {
-      // در غیر این صورت به مرحله بعد برو
-      setStep((s) => s + 1);
+    // اعتبارسنجی مرحله ۱
+    if (step === 1) {
+      if (!isUserLoggedIn) {
+        openAuthModal();
+        return;
+      }
+      setStep(2);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    // اعتبارسنجی مرحله ۲
+    if (step === 2) {
+      if (!selectedAddress) {
+        toast({
+          title: "آدرس را انتخاب کنید",
+          description: "برای ارسال کالا نیاز به انتخاب یا افزودن آدرس دارید.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!shippingMethod) {
+        toast({
+          title: "روش ارسال",
+          description: "لطفاً نحوه ارسال سفارش را مشخص کنید.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setStep(3);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
     }
   };
 
-  // تابع جدید برای بازگشت به مرحله قبل
   const handlePrevStep = () => {
-    setStep((s) => Math.max(1, s - 1)); // Math.max از رفتن به مرحله کمتر از 1 جلوگیری می‌کند
+    if (step > 1) {
+      setStep(step - 1);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
 
   if (isLoading) {
-    return <CheckoutSkeleton />;
-  }
-
-  // اگر سبد خرید خالی بود، فقط سبد را نمایش بده
-  if (!isLoading && items.length === 0) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold mb-6 text-center">سبد خرید</h1>
-        <CartView />
+      <div className="h-[60vh] flex flex-col items-center justify-center gap-4 text-gray-400">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+        <p>در حال بارگذاری سبد خرید...</p>
       </div>
     );
   }
 
-  // محتوای اصلی بر اساس مرحله فعلی
-  const renderStepContent = () => {
-    // برای تمام کاربران (مهمان و لاگین کرده)
-    if (step === 1) {
-      return <CartView />;
-    }
-
-    // فقط برای کاربران لاگین کرده
-    if (isUserLoggedIn) {
-      switch (step) {
-        case 2:
-          return <CheckoutView />; // انتخاب آدرس
-        case 3:
-          return <ShippingMethodSelection />; // انتخاب روش ارسال
-        case 4:
-          return <FinalReviewView />;
-        default:
-          return <CartView />;
-      }
-    }
-
-    return null; // اگر کاربر لاگین نیست و از مرحله ۱ گذشته، چیزی نشان نده
-  };
+  if (items.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl shadow-sm border border-dashed">
+        <ShoppingBag className="w-20 h-20 text-gray-200 mb-6" />
+        <h2 className="text-2xl font-bold text-gray-800">
+          سبد خرید شما خالی است
+        </h2>
+        <Button
+          asChild
+          className="mt-8 px-8 h-12 text-lg shadow-lg shadow-primary/20"
+        >
+          <Link href="/products">شروع خرید شگفت‌انگیز</Link>
+        </Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold mb-6 text-center">
-          {step === 1 ? "سبد خرید شما" : "تکمیل خرید"}
-        </h1>
+    <div className="animate-in fade-in duration-500">
+      <CheckoutStepper currentStep={step} />
 
-        {/* Stepper فقط در مراحل بعد از لاگین نمایش داده می‌شود */}
-        {isUserLoggedIn && step > 1 && (
-          <div className="max-w-4xl mx-auto mb-8">
-            <CheckoutStepper currentStep={step} />
-          </div>
-        )}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* ستون اصلی محتوا */}
+        <div className="lg:col-span-8 space-y-6">
+          {/* ✅ اصلاح مهم: استفاده از شرط برای رندر کردن (Mount/Unmount) */}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-          <div className="lg:col-span-2 space-y-6">{renderStepContent()}</div>
-          <div className="lg:col-span-1 sticky top-24">
-            {/* کامپوننت خلاصه، منطق دکمه‌ها را مدیریت خواهد کرد */}
-            <CheckoutSummary
-              isUserLoggedIn={isUserLoggedIn}
-              currentStep={step}
-              onNextStep={handleNextStep}
-              onPrevStep={handlePrevStep} // ارسال تابع جدید به عنوان prop
-            />
-          </div>
+          {/* مرحله ۱: سبد خرید */}
+          {step === 1 && (
+            <div className="block space-y-4 animate-in fade-in zoom-in-95 duration-300">
+              <CartView />
+            </div>
+          )}
+
+          {/* مرحله ۲: آدرس و ارسال */}
+          {step === 2 && (
+            <div className="space-y-8 animate-in slide-in-from-right-8 duration-500">
+              <section>
+                <CheckoutView />
+              </section>
+              <section>
+                <ShippingMethodSelection methods={initialShippingMethods} />
+              </section>
+            </div>
+          )}
+
+          {/* مرحله ۳: بازبینی نهایی */}
+          {step === 3 && (
+            <div className="block animate-in slide-in-from-right-8 duration-500">
+              <FinalReviewView onEditStep={(s) => setStep(s)} />
+            </div>
+          )}
+        </div>
+
+        {/* ستون کناری: خلاصه فاکتور */}
+        <div className="lg:col-span-4 relative">
+          <CheckoutSummary
+            step={step}
+            onNext={handleNextStep}
+            onPrev={handlePrevStep}
+            isUserLoggedIn={isUserLoggedIn}
+          />
         </div>
       </div>
     </div>

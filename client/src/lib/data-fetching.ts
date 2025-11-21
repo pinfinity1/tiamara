@@ -171,3 +171,14 @@ export async function fetchAllCategories(): Promise<Category[]> {
     return [];
   }
 }
+
+export async function getShippingMethods() {
+  try {
+    // از axiosPublic استفاده می‌کنیم چون روش‌های ارسال معمولاً اطلاعات عمومی هستند
+    const response = await axiosPublic.get("/shipping");
+    return response.data || [];
+  } catch (error) {
+    console.error("Failed to fetch shipping methods:", error);
+    return [];
+  }
+}

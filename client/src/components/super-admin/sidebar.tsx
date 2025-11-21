@@ -12,6 +12,7 @@ import {
   Package,
   Tag,
   Ticket,
+  Truck,
   LucideProps,
   LayoutGrid,
   ExternalLink,
@@ -68,6 +69,12 @@ const menuItems: MenuItem[] = [
     name: "کوپن‌ها",
     icon: Ticket,
     href: "/super-admin/coupons",
+    group: "بازاریابی",
+  },
+  {
+    name: "روش‌های ارسال",
+    icon: Truck,
+    href: "/super-admin/shipping",
     group: "بازاریابی",
   },
   {
