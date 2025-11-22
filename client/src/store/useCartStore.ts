@@ -30,12 +30,11 @@ const debounceTimers = new Map<string, NodeJS.Timeout>();
 
 export const useCartStore = create<CartState>((set, get) => ({
   items: [],
-  isLoading: false,
+  isLoading: true,
   error: null,
   pendingItemIds: new Set<string>(),
 
   fetchCart: async () => {
-    set({ isLoading: true });
     try {
       const response = await axiosAuth.get("/cart");
       const fetchedItems = response.data.cart.map((item: any) => ({

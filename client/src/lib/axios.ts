@@ -29,12 +29,29 @@ const axiosAuth = axios.create({
   withCredentials: true,
 });
 
-// 1. رهگیر درخواست (Request Interceptor)
+// 1. رهگیر درخواست (Request Interceptor) - اصلاح شده
 axiosAuth.interceptors.request.use(
   async (config) => {
     // فقط در سمت کلاینت (مرورگر) توکن را از سشن می‌خوانیم
     if (!isServer) {
       const session = await getSession();
+
+      // !! --- بخش جدید: جلوگیری از ارسال درخواست با توکن سوخته --- !!
+      // @ts-ignore
+      if (session?.error === "RefreshAccessTokenError") {
+        // اگر رفرش توکن فیل شده باشد، درخواست را لغو کن تا بار اضافه روی سرور نباشد
+        const controller = new AbortController();
+        config.signal = controller.signal;
+        controller.abort("Session expired"); // کنسل کردن درخواست
+
+        // هدایت فوری به لاگین برای جلوگیری از گیج شدن کاربر
+        if (window.location.pathname !== "/auth/login") {
+          window.location.href = "/auth/login";
+        }
+        return config;
+      }
+      // !! ------------------------------------------------------ !!
+
       // @ts-ignore
       if (session?.accessToken) {
         // @ts-ignore
@@ -52,16 +69,22 @@ axiosAuth.interceptors.response.use(
     return response;
   },
   async (error) => {
+    // اگر درخواست کنسل شده باشد (توسط AbortController بالا)، نیازی به پردازش خطا نیست
+    if (axios.isCancel(error)) {
+      return Promise.reject(error);
+    }
+
     // مدیریت خطای 401 فقط در سمت کلاینت مجاز است
-    // چون signOut روی سرور باعث کرش می‌شود
     if (!isServer) {
       const session = await getSession();
       if (
         error.response &&
         error.response.status === 401 &&
+        // @ts-ignore
         session?.error === "RefreshAccessTokenError"
       ) {
-        await signOut({ callbackUrl: "/" });
+        // خروج کامل و پاک کردن کوکی‌ها در سمت کلاینت
+        await signOut({ callbackUrl: "/auth/login", redirect: true });
       }
     }
     return Promise.reject(error);

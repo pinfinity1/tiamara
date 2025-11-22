@@ -1,5 +1,3 @@
-// client/src/app/account/UserAddresses.tsx
-
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -18,7 +16,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogClose,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -56,13 +53,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// --- تعریف اسکیما (اصلاح شده: کد پستی اجباری) ---
 const addressSchema = z.object({
   recipientName: z.string().min(3, "نام گیرنده باید حداقل ۳ حرف باشد."),
   province: z.string().min(1, "لطفاً استان را انتخاب کنید."),
   city: z.string().min(1, "لطفاً شهر را انتخاب کنید."),
   fullAddress: z.string().min(10, "آدرس پستی باید کامل و دقیق باشد."),
-  // FIX: کد پستی حالا اجباری است و باید ۱۰ رقم باشد
   postalCode: z.string().regex(/^\d{10}$/, "کد پستی باید دقیقاً ۱۰ رقم باشد."),
   phone: z.string().regex(/^09\d{9}$/, "شماره موبایل معتبر نیست"),
   isDefault: z.boolean().optional(),
@@ -119,7 +114,7 @@ export default function UserAddresses({
       city: "",
       province: "",
       postalCode: "",
-      phone: "",
+      phone: session?.user?.phone || "",
       isDefault: false,
     },
   });
@@ -127,6 +122,21 @@ export default function UserAddresses({
   useEffect(() => {
     if (!isDialogMode) fetchAddresses();
   }, [fetchAddresses, isDialogMode]);
+
+  // ✅ افکت جدید: اگر در حالت دیالوگ هستیم و آدرسی وجود ندارد، شماره کاربر را ست کن
+  useEffect(() => {
+    if (isDialogMode && addresses.length === 0 && session?.user?.phone) {
+      reset({
+        recipientName: "",
+        fullAddress: "",
+        city: "",
+        province: "",
+        postalCode: "",
+        phone: session.user.phone,
+        isDefault: true, // چون اولین آدرس است، پیش‌فرض باشد
+      });
+    }
+  }, [isDialogMode, addresses.length, session, reset]);
 
   const { defaultAddress, otherAddresses } = useMemo(() => {
     const defaultAddr = addresses.find((addr) => addr.isDefault) || null;
@@ -143,6 +153,7 @@ export default function UserAddresses({
       city: "",
       province: "",
       postalCode: "",
+      // اینجا هم مطمئن می‌شویم که شماره ست شود
       phone: session?.user?.phone || "",
       isDefault: addresses.length === 0,
     });
@@ -286,14 +297,19 @@ export default function UserAddresses({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>نام گیرنده</Label>
-          <Input {...register("recipientName")} />
+          <Input {...register("recipientName")} autoComplete="name" />
           <p className="text-red-500 text-xs">
             {errors.recipientName?.message}
           </p>
         </div>
         <div className="space-y-2">
           <Label>شماره موبایل</Label>
-          <Input {...register("phone")} dir="ltr" />
+          <Input
+            {...register("phone")}
+            dir="ltr"
+            type="tel"
+            autoComplete="tel"
+          />
           <p className="text-red-500 text-xs">{errors.phone?.message}</p>
         </div>
       </div>
@@ -314,6 +330,7 @@ export default function UserAddresses({
                     setValue("city", "");
                   }
                 }}
+                autoComplete="address-level1"
               >
                 <SelectTrigger>
                   <SelectValue placeholder="انتخاب استان" />
@@ -340,6 +357,7 @@ export default function UserAddresses({
                 value={field.value}
                 onValueChange={field.onChange}
                 disabled={!selectedProvinceId}
+                autoComplete="address-level2"
               >
                 <SelectTrigger>
                   <SelectValue placeholder="انتخاب شهر" />
@@ -359,14 +377,20 @@ export default function UserAddresses({
       </div>
       <div className="space-y-2">
         <Label>آدرس کامل</Label>
-        <Textarea {...register("fullAddress")} />
+        <Textarea {...register("fullAddress")} autoComplete="street-address" />
         <p className="text-red-500 text-xs">{errors.fullAddress?.message}</p>
       </div>
 
-      {/* بخش کد پستی اصلاح شده */}
       <div className="space-y-2 md:w-1/2">
         <Label>کد پستی</Label>
-        <Input {...register("postalCode")} placeholder="۱۰ رقم" dir="ltr" />
+        <Input
+          {...register("postalCode")}
+          placeholder="۱۰ رقم"
+          dir="ltr"
+          type="tel"
+          inputMode="numeric"
+          autoComplete="postal-code"
+        />
         {errors.postalCode && (
           <p className="text-red-500 text-xs">{errors.postalCode.message}</p>
         )}

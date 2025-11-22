@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import Script from "next/script"; // ✅ اضافه شد
 import { Phone, Mail, Instagram, MessageCircle, Send } from "lucide-react";
 
 const Footer = () => {
@@ -7,6 +8,7 @@ const Footer = () => {
     <footer className="bg-gray-50 border-t border-gray-200 text-gray-700">
       <div className="container mx-auto px-4 py-10">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 gap-x-10">
+          {/* بخش ۱: لوگو و توضیحات */}
           <div className="col-span-2 flex flex-col items-center text-center md:items-start md:text-right">
             <Link
               href="/"
@@ -30,7 +32,7 @@ const Footer = () => {
             </p>
           </div>
 
-          {/* بخش دسترسی سریع */}
+          {/* بخش ۲: دسترسی سریع */}
           <div className="flex flex-col lg:items-center">
             <h3 className="w-full border-b text-center pb-2 font-bold text-lg mb-4">
               دسترسی سریع
@@ -68,7 +70,7 @@ const Footer = () => {
             </ul>
           </div>
 
-          {/* بخش خدمات مشتریان */}
+          {/* بخش ۳: خدمات مشتریان */}
           <div className="flex flex-col lg:items-center">
             <h3 className="w-full border-b text-center pb-2 font-bold text-lg mb-4">
               خدمات مشتریان
@@ -98,7 +100,7 @@ const Footer = () => {
             </ul>
           </div>
 
-          {/* بخش تماس با ما و شبکه‌های اجتماعی */}
+          {/* بخش ۴: تماس با ما و شبکه‌های اجتماعی */}
           <div className="col-span-1 sm:col-span-2 w-fit">
             <h3 className="font-bold text-lg mb-4">با ما در ارتباط باشید</h3>
             <div className="space-y-3 text-sm">
@@ -132,26 +134,31 @@ const Footer = () => {
               >
                 <MessageCircle className="w-5 h-5 text-primary" />
               </Link>
-              {/* <Link
-                href="#" // TODO: لینک تلگرام خود را اینجا قرار دهید
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-400 hover:text-gray-300"
-                aria-label="Telegram"
-              >
-                <Send className="h-6 w-6" />
-              </Link> */}
             </div>
           </div>
 
-          <div className="col-span-2 sm:col-span-1 h-full w-fit flex justify-center">
+          {/* ✅ بخش ۵: نمادهای اعتماد (اصلاح شده) */}
+          <div className="col-span-2 sm:col-span-1 h-full w-full flex items-center justify-center gap-4">
+            {/* اسکریپت اینماد */}
             <div
+              className="bg-white p-2 rounded-xl shadow-sm border border-gray-100 flex items-center justify-center w-[85px] h-[85px]"
               dangerouslySetInnerHTML={{
                 __html: `
                 <a referrerpolicy='origin' target='_blank' href='https://trustseal.enamad.ir/?id=672658&Code=pA64y9sggyyLkyovKNjjEnAtkMFg42Uh'><img referrerpolicy='origin' src='https://trustseal.enamad.ir/logo.aspx?id=672658&Code=pA64y9sggyyLkyovKNjjEnAtkMFg42Uh' alt='' style='cursor:pointer' code='pA64y9sggyyLkyovKNjjEnAtkMFg42Uh'></a>
               `,
               }}
             />
+            {/* اسکریپت زرین‌پال */}
+            <div
+              className="bg-white p-2 rounded-xl shadow-sm border border-gray-100 flex items-center justify-center w-[85px] h-[85px]"
+              id="zarinpal"
+            >
+              <Script
+                src="https://www.zarinpal.com/webservice/TrustCode"
+                type="text/javascript"
+                strategy="lazyOnload"
+              />
+            </div>
           </div>
         </div>
 

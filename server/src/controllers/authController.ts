@@ -298,41 +298,87 @@ export const refreshTokenController = async (
   }
 
   try {
+    // 1. پیدا کردن توکن در دیتابیس
     const storedToken = await prisma.refreshToken.findUnique({
-      where: { token, revoked: false },
+      where: { token },
+      include: { user: true }, // یوزر را هم بگیرید
     });
-    if (!storedToken || storedToken.expires < new Date()) {
-      res.status(401).json({ success: false, message: "Invalid token" });
+
+    // 2. بررسی اعتبار توکن (آیا باطل شده یا منقضی شده؟)
+    // نکته امنیتی: اگر توکن باطل شده (Revoked) دوباره استفاده شد، یعنی دزدی توکن رخ داده!
+    // باید تمام توکن‌های کاربر را پاک کنید تا مجبور به لاگین مجدد شود.
+    if (!storedToken || storedToken.revoked) {
+      if (storedToken) {
+        // هشدار امنیتی: تلاش برای استفاده از توکن باطل شده
+        await prisma.refreshToken.deleteMany({
+          where: { userId: storedToken.userId },
+        });
+      }
+      res
+        .status(401)
+        .json({ success: false, message: "Invalid token (Reuse detected)" });
+      return;
+    }
+
+    if (storedToken.expires < new Date()) {
+      // اگر فقط تاریخش گذشته، پاکش کن
+      await prisma.refreshToken.delete({ where: { id: storedToken.id } });
+      res.status(401).json({ success: false, message: "Token expired" });
       return;
     }
 
     const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
-    const { payload } = await jwtVerify(token, secret);
 
-    const user = await prisma.user.findUnique({
-      where: { id: payload.userId as string },
-    });
+    // وریفای کردن امضای JWT
+    try {
+      await jwtVerify(token, secret);
+    } catch (err) {
+      // حتی اگر در دیتابیس باشد اما امضا خراب باشد
+      res
+        .status(401)
+        .json({ success: false, message: "Invalid JWT signature" });
+      return;
+    }
+
+    const user = storedToken.user;
     if (!user) {
       res.status(404).json({ success: false, message: "User not found" });
       return;
     }
 
+    // 3. تولید توکن‌های جدید
     const { accessToken, refreshToken: newRefreshToken } = await generateTokens(
       user.id,
       user.phone!,
       user.role,
       !user.password
     );
-    await prisma.refreshToken.update({
-      where: { id: storedToken.id },
-      data: { revoked: true },
-    });
+
+    // 4. عملیات اتمیک: توکن قبلی را باطل کن و توکن‌های خیلی قدیمی کاربر را پاک کن
+    await prisma.$transaction([
+      // باطل کردن توکن فعلی (به جای پاک کردن، برای امنیت نگهش می‌داریم تا اگر دوباره استفاده شد بفهمیم دزدی شده)
+      prisma.refreshToken.update({
+        where: { id: storedToken.id },
+        data: { revoked: true },
+      }),
+      // پاکسازی توکن‌های باطل شده‌ی قدیمی (مثلا قدیمی‌تر از ۲ روز) برای جلوگیری از پر شدن دیتابیس
+      prisma.refreshToken.deleteMany({
+        where: {
+          userId: user.id,
+          revoked: true,
+          createdAt: { lt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) },
+        },
+      }),
+    ]);
 
     res
       .status(200)
       .json({ success: true, accessToken, refreshToken: newRefreshToken });
   } catch (error) {
-    res.status(401).json({ success: false, message: "Invalid token" });
+    console.error("Refresh Token Error:", error);
+    res
+      .status(401)
+      .json({ success: false, message: "Invalid token processing" });
   }
 };
 

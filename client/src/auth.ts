@@ -168,40 +168,35 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async jwt({ token, user, account }) {
       if (account && user) {
-        console.log("✅ Login response user:", user);
+        return {
+          ...token,
+          accessToken: user.accessToken,
+          refreshToken: user.refreshToken,
+          expiresAt: Date.now() + 15 * 60 * 1000,
+          id: user.id,
+          role: user.role,
+          phone: user.phone,
+          requiresPasswordSetup: user.requiresPasswordSetup,
+        };
+      }
 
-        token.accessToken = user.accessToken;
-        token.refreshToken = user.refreshToken;
-
-        console.log("✅ Stored RefreshToken in JWT:", token.refreshToken);
-
-        token.accessTokenExpires = Date.now() + 15 * 60 * 1000;
-        token.id = user.id;
-        token.role = user.role;
-        token.phone = user.phone;
-        token.requiresPasswordSetup = user.requiresPasswordSetup;
+      if (Date.now() < (token.expiresAt as number) - 60000) {
         return token;
       }
 
-      if (Date.now() < token.accessTokenExpires) {
-        return token;
-      }
-
-      console.log("♻️ Refreshing token with:", token.refreshToken);
-
+      console.log("♻️ Refreshing token...");
       try {
         const response = await axiosPublic.post("/auth/refresh-token", {
           token: token.refreshToken,
         });
-        console.log("✅ Refresh response:", response.data);
 
         const { accessToken, refreshToken: newRefreshToken } = response.data;
 
         return {
           ...token,
           accessToken: accessToken,
-          accessTokenExpires: Date.now() + 15 * 60 * 1000,
-          refreshToken: newRefreshToken || token.refreshToken,
+          expiresAt: Date.now() + 15 * 60 * 1000,
+          refreshToken: newRefreshToken ?? token.refreshToken,
         };
       } catch (error) {
         console.error("RefreshAccessTokenError", error);
