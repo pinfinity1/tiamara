@@ -25,26 +25,37 @@ export interface Order {
   total: number;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
+  paymentRefId?: string | null;
+  paymentAuthority?: string | null;
+
   items: OrderItem[];
+
+  // ✅ اصلاح شده: اضافه شدن province
   address: {
     name: string;
     address: string;
     city: string;
+    province: string; // اضافه شد
     country: string;
     postalCode: string;
     phone: string;
   };
+
   user: {
     name: string | null;
     email: string | null;
     phone: string | null;
   };
+
   coupon?: {
     code: string;
     discountValue: number;
   } | null;
+
+  // ✅ اصلاح شده: اضافه شدن cost
   shippingMethod?: {
     name: string;
+    cost: number; // اضافه شد
   } | null;
 }
 
@@ -88,7 +99,6 @@ interface OrderState {
   // User-facing actions
   getOrdersByUserId: () => Promise<void>;
 
-  // ✅ تغییر اصلی اینجاست: اضافه کردن shippingMethodId به تایپ ورودی
   createFinalOrder: (data: {
     addressId: string;
     couponId?: string | null;
@@ -126,11 +136,9 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     }
   },
 
-  // آپدیت شده برای دریافت shippingMethodId
   createFinalOrder: async (data) => {
     set({ isPaymentProcessing: true });
     try {
-      // ارسال shippingMethodId به سرور
       const response = await axiosAuth.post("/order/create-final-order", data);
       if (response.data.success) {
         return { success: true, paymentUrl: response.data.paymentUrl };

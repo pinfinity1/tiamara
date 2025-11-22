@@ -139,26 +139,33 @@ const Footer = () => {
 
           {/* ✅ بخش ۵: نمادهای اعتماد (اصلاح شده) */}
           <div className="col-span-2 sm:col-span-1 h-full w-full flex items-center justify-center gap-4">
-            {/* اسکریپت اینماد */}
+            {/* اینماد */}
             <div
-              className="bg-white p-2 rounded-xl shadow-sm border border-gray-100 flex items-center justify-center w-[85px] h-[85px]"
+              className="bg-white p-2 rounded-xl shadow-sm border border-gray-100 flex items-center justify-center w-[85px] h-[85px] overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
               dangerouslySetInnerHTML={{
                 __html: `
-                <a referrerpolicy='origin' target='_blank' href='https://trustseal.enamad.ir/?id=672658&Code=pA64y9sggyyLkyovKNjjEnAtkMFg42Uh'><img referrerpolicy='origin' src='https://trustseal.enamad.ir/logo.aspx?id=672658&Code=pA64y9sggyyLkyovKNjjEnAtkMFg42Uh' alt='' style='cursor:pointer' code='pA64y9sggyyLkyovKNjjEnAtkMFg42Uh'></a>
-              `,
+      <a referrerpolicy='origin' target='_blank' href='https://trustseal.enamad.ir/?id=672658&Code=pA64y9sggyyLkyovKNjjEnAtkMFg42Uh'>
+        <img referrerpolicy='origin' src='https://trustseal.enamad.ir/logo.aspx?id=672658&Code=pA64y9sggyyLkyovKNjjEnAtkMFg42Uh' alt='' style='cursor:pointer; width: 100%; height: 100%; object-fit: contain;' code='pA64y9sggyyLkyovKNjjEnAtkMFg42Uh'>
+      </a>
+    `,
               }}
             />
-            {/* اسکریپت زرین‌پال */}
-            <div
-              className="bg-white p-2 rounded-xl shadow-sm border border-gray-100 flex items-center justify-center w-[85px] h-[85px]"
-              id="zarinpal"
+
+            {/* زرین‌پال (اصلاح شده: استفاده از عکس و لینک به جای اسکریپت) */}
+            <a
+              href="https://www.zarinpal.com/trustPage/tiamara.ir"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-white p-2 rounded-xl shadow-sm border border-gray-100 flex items-center justify-center w-[85px] h-[85px] overflow-hidden hover:shadow-md transition-shadow"
             >
-              <Script
-                src="https://www.zarinpal.com/webservice/TrustCode"
-                type="text/javascript"
-                strategy="lazyOnload"
+              <Image
+                src="/images/Logo/zarinpallogo.svg"
+                alt="پرداخت امن زرین‌پال"
+                width={60}
+                height={60}
+                className="object-contain w-full h-full"
               />
-            </div>
+            </a>
           </div>
         </div>
 

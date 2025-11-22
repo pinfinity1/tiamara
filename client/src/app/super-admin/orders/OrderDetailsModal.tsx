@@ -4,7 +4,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,6 +38,7 @@ import Link from "next/link";
 import { format } from "date-fns-jalali";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Copy, CreditCard } from "lucide-react";
 
 export default function OrderDetailsModal() {
   const { selectedOrder, setSelectedOrder, updateOrderStatus, isLoading } =
@@ -74,6 +74,11 @@ export default function OrderDetailsModal() {
     setIsUpdating(false);
   };
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: "کپی شد", duration: 1000 });
+  };
+
   const isDataReady = selectedOrder && !isLoading;
 
   return (
@@ -81,9 +86,14 @@ export default function OrderDetailsModal() {
       open={!!selectedOrder}
       onOpenChange={(isOpen) => !isOpen && setSelectedOrder(null)}
     >
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>جزئیات سفارش #{selectedOrder?.orderNumber}</DialogTitle>
+          <DialogTitle>
+            جزئیات سفارش{" "}
+            <span className="font-mono text-primary">
+              #{selectedOrder?.orderNumber}
+            </span>
+          </DialogTitle>
           <DialogDescription>
             ثبت شده در تاریخ{" "}
             {selectedOrder
@@ -99,7 +109,67 @@ export default function OrderDetailsModal() {
             <Skeleton className="h-20 w-full" />
           </div>
         ) : (
-          <div className="grid gap-6 py-4 max-h-[75vh] overflow-y-auto pr-4">
+          <div className="grid gap-6 py-4">
+            {/* ✅ بخش جدید: اطلاعات فنی تراکنش (مخصوص ادمین) */}
+            <Card className="bg-yellow-50/50 border-yellow-200">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-bold flex items-center gap-2 text-yellow-800">
+                  <CreditCard className="w-4 h-4" />
+                  اطلاعات فنی تراکنش (ادمین)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div className="flex flex-col gap-1">
+                  <span className="text-gray-500 text-xs">وضعیت پرداخت:</span>
+                  <Badge
+                    className={`w-fit ${getPaymentStatusVariant(
+                      selectedOrder.paymentStatus
+                    )}`}
+                  >
+                    {paymentStatusTranslations[selectedOrder.paymentStatus]}
+                  </Badge>
+                </div>
+
+                {/* Authority */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-gray-500 text-xs">
+                    Authority (شناسه شروع):
+                  </span>
+                  <div className="flex items-center gap-2 bg-white border p-1 rounded px-2 font-mono text-xs">
+                    <span className="truncate max-w-[200px]">
+                      {selectedOrder.paymentAuthority || "---"}
+                    </span>
+                    {selectedOrder.paymentAuthority && (
+                      <Copy
+                        className="w-3 h-3 cursor-pointer text-gray-400 hover:text-black"
+                        onClick={() =>
+                          copyToClipboard(selectedOrder.paymentAuthority!)
+                        }
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {/* RefID */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-gray-500 text-xs">
+                    RefID (کد پیگیری بانک):
+                  </span>
+                  <div className="flex items-center gap-2 bg-white border p-1 rounded px-2 font-mono text-xs font-bold text-gray-800">
+                    <span>{selectedOrder.paymentRefId || "---"}</span>
+                    {selectedOrder.paymentRefId && (
+                      <Copy
+                        className="w-3 h-3 cursor-pointer text-gray-400 hover:text-black"
+                        onClick={() =>
+                          copyToClipboard(selectedOrder.paymentRefId!)
+                        }
+                      />
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Customer & Address Details */}
             <div className="grid md:grid-cols-2 gap-6">
               <Card>
@@ -115,7 +185,9 @@ export default function OrderDetailsModal() {
                   </p>
                   <p>
                     <strong>تلفن:</strong>{" "}
-                    {selectedOrder.user.phone || "ثبت نشده"}
+                    <span dir="ltr">
+                      {selectedOrder.user.phone || "ثبت نشده"}
+                    </span>
                   </p>
                 </CardContent>
               </Card>
@@ -169,6 +241,7 @@ export default function OrderDetailsModal() {
                           <Link
                             href={`/products/${item.product?.slug || ""}`}
                             className="font-medium hover:underline"
+                            target="_blank"
                           >
                             {item.productName}
                           </Link>
@@ -222,21 +295,12 @@ export default function OrderDetailsModal() {
                       {selectedOrder.total.toLocaleString("fa-IR")} تومان
                     </span>
                   </div>
-                  <div className="flex justify-between items-center pt-2">
-                    <span>وضعیت پرداخت:</span>
-                    <Badge
-                      className={getPaymentStatusVariant(
-                        selectedOrder.paymentStatus
-                      )}
-                    >
-                      {paymentStatusTranslations[selectedOrder.paymentStatus]}
-                    </Badge>
-                  </div>
                 </CardContent>
               </Card>
+
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">وضعیت سفارش</CardTitle>
+                  <CardTitle className="text-lg">مدیریت وضعیت</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col space-y-4">
                   <div className="flex justify-between items-center">
@@ -246,7 +310,9 @@ export default function OrderDetailsModal() {
                     </Badge>
                   </div>
                   <div className="flex items-center gap-4">
-                    <label className="font-semibold">تغییر وضعیت:</label>
+                    <label className="font-semibold whitespace-nowrap">
+                      تغییر وضعیت:
+                    </label>
                     <Select
                       value={selectedOrder.status}
                       onValueChange={(val: OrderStatus) =>

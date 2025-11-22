@@ -193,29 +193,46 @@ export const getAllOrdersForAdmin = async (
 
     const where: Prisma.OrderWhereInput = {};
 
+    // فیلترهای وضعیت
     if (status && status !== "ALL") where.status = status as OrderStatus;
     if (paymentStatus && paymentStatus !== "ALL")
       where.paymentStatus = paymentStatus as PaymentStatus;
 
+    // منطق جستجوی پیشرفته (Search Logic)
     if (search) {
-      where.OR = [
-        { user: { name: { contains: search as string, mode: "insensitive" } } },
-        {
-          user: { email: { contains: search as string, mode: "insensitive" } },
-        },
-        { orderNumber: { equals: parseInt(search as string) || -1 } },
+      const searchStr = search as string;
+      const searchInt = parseInt(searchStr);
+
+      const orConditions: Prisma.OrderWhereInput[] = [
+        // 1. جستجو در اطلاعات کاربر
+        { user: { name: { contains: searchStr, mode: "insensitive" } } },
+        { user: { email: { contains: searchStr, mode: "insensitive" } } },
+        { user: { phone: { contains: searchStr, mode: "insensitive" } } }, // ✅ اضافه شد: جستجوی شماره موبایل
+
+        // 2. جستجو در اطلاعات پرداخت
+        { paymentRefId: { contains: searchStr, mode: "insensitive" } }, // کد پیگیری بانک
+        { paymentAuthority: { contains: searchStr, mode: "insensitive" } }, // شناسه پرداخت
       ];
+
+      // 3. جستجو در شماره سفارش (فقط اگر ورودی عدد باشد)
+      if (!isNaN(searchInt)) {
+        orConditions.push({ orderNumber: { equals: searchInt } });
+      }
+
+      where.OR = orConditions;
     }
 
     const orders = await prisma.order.findMany({
       where,
       orderBy: { createdAt: "desc" },
       include: {
-        user: { select: { name: true, email: true } },
+        // اطلاعات مورد نیاز برای نمایش در جدول
+        user: { select: { name: true, email: true, phone: true } },
       },
     });
     res.status(200).json({ success: true, orders });
   } catch (error) {
+    console.error("Error searching orders:", error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };

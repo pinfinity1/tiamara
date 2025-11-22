@@ -15,6 +15,8 @@ async function generateTokens(
   requiresPasswordSetup: boolean
 ) {
   const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
+
+  // تولید اکسس توکن
   const accessToken = await new SignJWT({
     userId,
     phone,
@@ -26,12 +28,14 @@ async function generateTokens(
     .setExpirationTime("15m")
     .sign(secret);
 
+  // تولید رفرش توکن
   const refreshToken = await new SignJWT({ userId })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")
     .sign(secret);
 
+  // ذخیره رفرش توکن در دیتابیس
   await prisma.refreshToken.create({
     data: {
       userId: userId,
@@ -43,6 +47,21 @@ async function generateTokens(
   return { accessToken, refreshToken };
 }
 
+// --- تابع کمکی برای ساخت فقط اکسس توکن (برای استفاده در شرایط مسابقه) ---
+async function generateAccessTokenOnly(user: any) {
+  const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
+  return await new SignJWT({
+    userId: user.id,
+    phone: user.phone,
+    role: user.role,
+    requiresPasswordSetup: !user.password,
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("15m")
+    .sign(secret);
+}
+
 // --- تابع کمکی ادغام سبد خرید ---
 async function mergeGuestCartWithUserCart(
   userId: string,
@@ -50,20 +69,17 @@ async function mergeGuestCartWithUserCart(
 ) {
   if (!guestSessionId) return;
 
-  // 1. پیدا کردن/ساخت سبد کاربر
   let userCart = await prisma.cart.findUnique({ where: { userId } });
   if (!userCart) {
     userCart = await prisma.cart.create({ data: { userId } });
   }
 
-  // 2. پیدا کردن سبد مهمان (با sessionId)
   const guestCart = await prisma.cart.findUnique({
     where: { sessionId: guestSessionId },
     include: { items: true },
   });
 
   if (!guestCart || guestCart.items.length === 0) {
-    // اگر سبد مهمان خالی بود یا وجود نداشت، فقط اگر وجود داشت پاکش کن تا تمیز شود
     if (guestCart) {
       try {
         await prisma.cart.delete({ where: { id: guestCart.id } });
@@ -72,10 +88,6 @@ async function mergeGuestCartWithUserCart(
     return;
   }
 
-  console.log(
-    `🔄 Merging Guest Cart (Session: ${guestSessionId}) to User Cart (User: ${userId})`
-  );
-
   await prisma.$transaction(async (tx) => {
     for (const guestItem of guestCart.items) {
       const userItem = await tx.cartItem.findFirst({
@@ -83,15 +95,12 @@ async function mergeGuestCartWithUserCart(
       });
 
       if (userItem) {
-        // A. آیتم تکراری: تعداد را اضافه کن
         await tx.cartItem.update({
           where: { id: userItem.id },
           data: { quantity: { increment: guestItem.quantity } },
         });
-        // آیتم مهمان را پاک کن
         await tx.cartItem.delete({ where: { id: guestItem.id } });
       } else {
-        // B. آیتم جدید: مالکیت را به سبد کاربر منتقل کن
         await tx.cartItem.update({
           where: { id: guestItem.id },
           data: { cartId: userCart!.id },
@@ -99,18 +108,14 @@ async function mergeGuestCartWithUserCart(
       }
     }
 
-    // 3. حذف کامل سبد مهمان
     await tx.cart.delete({ where: { id: guestCart.id } });
 
-    // 4. پاکسازی sessionId از سبد کاربر (چون دیگر مهمان نیست)
     if (userCart!.sessionId) {
       await tx.cart.update({
         where: { id: userCart!.id },
         data: { sessionId: null },
       });
     }
-
-    console.log("✅ Guest cart merged and deleted.");
   });
 }
 
@@ -185,7 +190,6 @@ export const loginWithOtpController = async (
       isNewUser = true;
     }
 
-    // انجام عملیات ادغام سبد خرید
     if (sessionId) {
       await mergeGuestCartWithUserCart(user.id, sessionId);
     }
@@ -237,7 +241,6 @@ export const loginWithPasswordController = async (
       return;
     }
 
-    // انجام عملیات ادغام سبد خرید
     if (sessionId) {
       await mergeGuestCartWithUserCart(user.id, sessionId);
     }
@@ -280,13 +283,13 @@ export const logoutController = async (
         data: { revoked: true },
       });
     }
-    // نکته مهم: کوکی sessionId را پاک نمی‌کنیم تا کاربر بتواند به عنوان مهمان ادامه دهد
     res.json({ success: true, message: "Logged out" });
   } catch (error) {
     res.status(500).json({ success: false, message: "Logout failed" });
   }
 };
 
+// --- !!! بخش اصلاح شده و حیاتی !!! ---
 export const refreshTokenController = async (
   req: Request,
   res: Response
@@ -298,45 +301,15 @@ export const refreshTokenController = async (
   }
 
   try {
-    // 1. پیدا کردن توکن در دیتابیس
+    // 1. پیدا کردن توکن در دیتابیس (حتی اگر باطل شده باشد)
     const storedToken = await prisma.refreshToken.findUnique({
       where: { token },
-      include: { user: true }, // یوزر را هم بگیرید
+      include: { user: true },
     });
 
-    // 2. بررسی اعتبار توکن (آیا باطل شده یا منقضی شده؟)
-    // نکته امنیتی: اگر توکن باطل شده (Revoked) دوباره استفاده شد، یعنی دزدی توکن رخ داده!
-    // باید تمام توکن‌های کاربر را پاک کنید تا مجبور به لاگین مجدد شود.
-    if (!storedToken || storedToken.revoked) {
-      if (storedToken) {
-        // هشدار امنیتی: تلاش برای استفاده از توکن باطل شده
-        await prisma.refreshToken.deleteMany({
-          where: { userId: storedToken.userId },
-        });
-      }
-      res
-        .status(401)
-        .json({ success: false, message: "Invalid token (Reuse detected)" });
-      return;
-    }
-
-    if (storedToken.expires < new Date()) {
-      // اگر فقط تاریخش گذشته، پاکش کن
-      await prisma.refreshToken.delete({ where: { id: storedToken.id } });
-      res.status(401).json({ success: false, message: "Token expired" });
-      return;
-    }
-
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
-
-    // وریفای کردن امضای JWT
-    try {
-      await jwtVerify(token, secret);
-    } catch (err) {
-      // حتی اگر در دیتابیس باشد اما امضا خراب باشد
-      res
-        .status(401)
-        .json({ success: false, message: "Invalid JWT signature" });
+    // اگر توکن اصلا وجود نداشت
+    if (!storedToken) {
+      res.status(401).json({ success: false, message: "Invalid token" });
       return;
     }
 
@@ -346,7 +319,65 @@ export const refreshTokenController = async (
       return;
     }
 
-    // 3. تولید توکن‌های جدید
+    // 2. مدیریت Race Condition (تداخل درخواست‌ها)
+    if (storedToken.revoked) {
+      // بررسی می‌کنیم آیا یک توکن معتبر (Revoke نشده) در ۳۰ ثانیه اخیر برای این کاربر ساخته شده؟
+      // این یعنی احتمالا درخواست قبلی موفق بوده و این درخواست "تکراری/تاخیری" است.
+      const recentValidToken = await prisma.refreshToken.findFirst({
+        where: {
+          userId: user.id,
+          revoked: false, // توکن معتبر
+          createdAt: {
+            gt: new Date(Date.now() - 30 * 1000), // ساخته شده در ۳۰ ثانیه اخیر
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (recentValidToken) {
+        console.log(
+          "🔄 Race Condition Detected: Returning existing valid token."
+        );
+        // به جای ارور، توکن جدیدی که در درخواست قبلی ساخته شده بود را برمی‌گردانیم
+        const accessToken = await generateAccessTokenOnly(user);
+
+        res.status(200).json({
+          success: true,
+          accessToken,
+          refreshToken: recentValidToken.token,
+        });
+        return;
+      }
+
+      // اگر توکن جدیدی نبود، یعنی دزدی توکن یا استفاده از توکن خیلی قدیمی
+      // تمام توکن‌ها را برای امنیت پاک می‌کنیم
+      await prisma.refreshToken.deleteMany({ where: { userId: user.id } });
+      res
+        .status(401)
+        .json({ success: false, message: "Invalid token (Reuse detected)" });
+      return;
+    }
+
+    // 3. بررسی انقضا
+    if (storedToken.expires < new Date()) {
+      // حذف توکن منقضی
+      await prisma.refreshToken.delete({ where: { id: storedToken.id } });
+      res.status(401).json({ success: false, message: "Token expired" });
+      return;
+    }
+
+    // 4. بررسی امضای JWT (جهت اطمینان)
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET!);
+    try {
+      await jwtVerify(token, secret);
+    } catch (err) {
+      res
+        .status(401)
+        .json({ success: false, message: "Invalid JWT signature" });
+      return;
+    }
+
+    // 5. چرخش توکن (ساخت توکن جدید و باطل کردن قبلی)
     const { accessToken, refreshToken: newRefreshToken } = await generateTokens(
       user.id,
       user.phone!,
@@ -354,14 +385,13 @@ export const refreshTokenController = async (
       !user.password
     );
 
-    // 4. عملیات اتمیک: توکن قبلی را باطل کن و توکن‌های خیلی قدیمی کاربر را پاک کن
+    // این عملیات باید اتمیک باشد تا حد امکان
     await prisma.$transaction([
-      // باطل کردن توکن فعلی (به جای پاک کردن، برای امنیت نگهش می‌داریم تا اگر دوباره استفاده شد بفهمیم دزدی شده)
       prisma.refreshToken.update({
         where: { id: storedToken.id },
         data: { revoked: true },
       }),
-      // پاکسازی توکن‌های باطل شده‌ی قدیمی (مثلا قدیمی‌تر از ۲ روز) برای جلوگیری از پر شدن دیتابیس
+      // پاکسازی دوره‌ای توکن‌های قدیمی (مثلاً قدیمی‌تر از ۲ روز)
       prisma.refreshToken.deleteMany({
         where: {
           userId: user.id,
@@ -376,9 +406,7 @@ export const refreshTokenController = async (
       .json({ success: true, accessToken, refreshToken: newRefreshToken });
   } catch (error) {
     console.error("Refresh Token Error:", error);
-    res
-      .status(401)
-      .json({ success: false, message: "Invalid token processing" });
+    res.status(401).json({ success: false, message: "Invalid token" });
   }
 };
 
@@ -400,7 +428,6 @@ export const setPasswordController = async (
       data: { password: hashed },
     });
 
-    // Optional: Clear sessions/tokens if needed
     await prisma.refreshToken.updateMany({
       where: { userId },
       data: { revoked: true },
@@ -446,7 +473,6 @@ export const resetPasswordController = async (
     const hashed = await bcrypt.hash(password, 10);
     await prisma.user.update({ where: { phone }, data: { password: hashed } });
 
-    // Revoke tokens for security
     const user = await prisma.user.findUnique({ where: { phone } });
     if (user) {
       await prisma.refreshToken.updateMany({
