@@ -7,14 +7,35 @@ import logo from "../../../../public/images/Logo/tiamara-logo.png";
 import { useRouter } from "next/navigation";
 import LoginForm from "@/components/auth/LoginForm";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { useEffect } from "react";
+import { Loader2 } from "lucide-react";
 
 function LoginPage() {
   const router = useRouter();
+  const { status } = useSession();
+
+  // --- منطق جدید: هدایت کاربر لاگین شده به بیرون ---
+  useEffect(() => {
+    if (status === "authenticated") {
+      // اگر کاربر لاگین است، به صفحه اصلی (یا پنل کاربری) برگردد
+      router.replace("/");
+    }
+  }, [status, router]);
 
   const handleLoginSuccess = () => {
     router.push("/");
     router.refresh();
   };
+
+  // --- جلوگیری از نمایش فرم در لحظه لودینگ یا اگر کاربر لاگین است ---
+  if (status === "loading" || status === "authenticated") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#fff6f4]">
+        <Loader2 className="w-10 h-10 animate-spin text-gray-400" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#fff6f4] flex">

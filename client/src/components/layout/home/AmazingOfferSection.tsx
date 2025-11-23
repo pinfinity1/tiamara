@@ -21,7 +21,7 @@ export default async function AmazingOfferSection() {
             src={collection.imageUrl || "/images/abstract-design-1.png"}
             alt={collection.title || "Amazing Offer Background"}
             fill
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
+            className="object-cover transition-transform duration-500"
             sizes="100vw"
           />
           <div className="absolute inset-0 bg-gradient-to-l from-primary/80 via-primary/50 to-transparent" />

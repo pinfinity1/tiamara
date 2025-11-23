@@ -10,13 +10,12 @@ const SessionManager = ({ children }: { children: React.ReactNode }) => {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (
-      session?.error === "RefreshAccessTokenError" &&
-      pathname !== "/auth/login"
-    ) {
-      console.warn("Session expired. Redirecting to login...");
+    if (session?.error === "RefreshAccessTokenError") {
+      console.warn("Session expired. Signing out to Homepage...");
+
+      // ✅ اصلاح مهم: هدایت به صفحه اصلی (/) به جای لاگین
       signOut({
-        callbackUrl: "/auth/login",
+        callbackUrl: "/", // کاربر به صفحه خانه می‌رود و مهمان می‌شود
         redirect: true,
       });
     }

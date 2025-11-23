@@ -2,7 +2,7 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
 }
 
@@ -54,8 +54,7 @@ model Product {
   cartItems          CartItem[]
   orderItems         OrderItem[]
   videoShowcaseItems VideoShowcaseItem[]
-
-  isArchived Boolean @default(false)
+  isArchived         Boolean             @default(false)
 
   @@map("Product")
 }
@@ -150,7 +149,6 @@ model Brand {
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   productCollections ProductCollection[]
-
   isArchived         Boolean             @default(false)
 }
 
@@ -165,7 +163,6 @@ model Category {
   products        Product[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-
   isArchived      Boolean   @default(false)
 }
 
@@ -176,6 +173,12 @@ model FeatureBanner {
   imageUrlMobile String?
   linkUrl        String?
   altText        String?
+  
+  title          String?
+  description    String?
+  buttonText     String?
+  textColor      String?   @default("#000000")
+
   order          Int       @default(0)
   isActive       Boolean   @default(true)
   startDate      DateTime?
@@ -230,60 +233,47 @@ model WishlistItem {
 }
 
 model User {
-  id                 String         @id @default(cuid())
-  name               String?
-  phone              String?        @unique
-  email              String?        @unique
-  emailVerified      DateTime?
-  image              String?
-  password           String?
-  role               Role           @default(USER)
-  sessions           Session[]
-  refreshTokens      RefreshToken[]
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
-  carts              Cart[]
-  addresses          Address[]
-  orders             Order[]
-  stockHistory       StockHistory[]
-  wishlist           Wishlist?
+  id            String         @id @default(cuid())
+  name          String?
+  phone         String?        @unique
+  email         String?        @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          Role           @default(USER)
+  sessions      Session[]
+  refreshTokens RefreshToken[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  carts         Cart[]
+  addresses     Address[]
+  orders        Order[]
+  stockHistory  StockHistory[]
+  wishlist      Wishlist?
 
-  // --- شروع پروفایل پوستی جامع ---
-  
-  // بخش ۱: اطلاعات پایه
-  ageRange           String?        // (مثال: "20-29", "30-39")
-  gender             String?
-  isPregnantOrNursing  Boolean?       // (بسیار مهم برای ایمنی)
-
-  // بخش ۲: ارزیابی پوست
-  skinType           String?        // (نوع پوست بر اساس راهنمایی: چرب، خشک، مختلط، نرمال)
-  skinSensitivity    String?        // (میزان حساسیت: "مقاوم", "کمی حساس", "بسیار حساس")
-  skinConcerns       String[]       @default([]) // (دغدغه اصلی: آکنه، لک، چروک و...)
-  skincareGoals      String[]       @default([]) // (اهداف اصلی: "جوان‌سازی", "آبرسانی" و...)
-  acneType           String?        // (نوع آکنه: "هورمونی", "منافذ بسته", "کل صورت")
-  eyeConcerns        String[]       @default([]) // (دغدغه دور چشم: "تیرگی", "پف", "چروک ریز")
-
-  // بخش ۳: سبک زندگی و محیط
-  sleepHours         String?        // (میزان خواب: "کمتر از ۵", "۵-۷", "۸+")
-  stressLevel        String?        // (میزان استرس: "کم", "متوسط", "زیاد")
-  waterIntake        String?        // (میزان آب: "کم", "متوسط", "زیاد")
-  dietHabits         String[]       @default([]) // (عادات غذایی: "قند زیاد", "لبنیات زیاد", "فست فود")
-  smokingHabit       String?        // (عادت سیگار: "هرگز", "گاهی", "مرتب")
-  environmentType    String?        // (محیط: "شهر بزرگ/آلوده", "حومه/معتدل", "روستایی/پاک")
-  climate            String?        // (آب و هوا: "خشک", "مرطوب", "متغیر")
-
-  // بخش ۴: روتین فعلی و سابقه
-  currentRoutineProducts String[]   @default([]) // (محصولات روتین فعلی: "شوینده", "سرم" و...)
-  activeIngredients    String[]   @default([]) // (مواد موثره فعلی: "رتینول", "ویتامین C", "AHA/BHA")
-  medications          String?        // (داروهای خاص مصرفی - متن باز)
-  knownAllergies       String[]   @default([]) // (حساسیت‌های شناخته شده: "عطر", "الکل")
-
-  // بخش ۵: ترجیحات
-  routineComplexity    String?        // (پیچیدگی روتین: "ساده (۱-۳ محصول)", "پیشرفته (+۵ محصول)")
-  texturePreferences String[]       @default([]) // (بافت مورد علاقه: "ژل", "کرم", "روغن")
-  productPreferences String[]       @default([]) // (ترجیحات ارزشی: "وگان", "ارگانیک", "بدون عطر")
-  
-  // --- پایان پروفایل پوستی ---
+  ageRange               String?
+  gender                 String?
+  isPregnantOrNursing    Boolean?
+  skinType               String?
+  skinSensitivity        String?
+  skinConcerns           String[] @default([])
+  skincareGoals          String[] @default([])
+  acneType               String?
+  eyeConcerns            String[] @default([])
+  sleepHours             String?
+  stressLevel            String?
+  waterIntake            String?
+  dietHabits             String[] @default([])
+  smokingHabit           String?
+  environmentType        String?
+  climate                String?
+  currentRoutineProducts String[] @default([])
+  activeIngredients      String[] @default([])
+  medications            String?
+  knownAllergies         String[] @default([])
+  routineComplexity      String?
+  texturePreferences     String[] @default([])
+  productPreferences     String[] @default([])
 }
 
 model Session {
@@ -317,9 +307,9 @@ model VerificationToken {
 
 model Cart {
   id        String     @id @default(cuid())
-  userId    String?    @unique 
+  userId    String?    @unique
   user      User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sessionId  String?    @unique
+  sessionId String?    @unique
   items     CartItem[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
@@ -338,14 +328,13 @@ model CartItem {
   @@unique([cartId, productId])
 }
 
-
 model Coupon {
   id            String   @id @default(cuid())
   code          String   @unique
-  discountType  String   
+  discountType  String
   discountValue Float
-  expireDate    DateTime 
-  isActive      Boolean  @default(true) 
+  expireDate    DateTime
+  isActive      Boolean  @default(true)
   usageLimit    Int
   usageCount    Int      @default(0)
   createdAt     DateTime @default(now())
@@ -357,20 +346,20 @@ model Address {
   id            String   @id @default(cuid())
   userId        String
   user          User     @relation(fields: [userId], references: [id])
-  recipientName String   
+  recipientName String
   phone         String
-  province      String   
+  province      String
   city          String
-  fullAddress   String   
+  fullAddress   String
   postalCode    String
 
-  isDeleted     Boolean  @default(false)
+  isDeleted Boolean @default(false)
 
-  isDefault     Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  Order         Order[]
+  Order Order[]
 
   @@index([userId])
 }
@@ -381,35 +370,34 @@ model OrderCounter {
 }
 
 model Order {
-  id            String        @id @default(cuid())
-  orderNumber   Int           @unique
-  userId        String
-  user          User          @relation(fields: [userId], references: [id])
-  addressId     String
-  address       Address       @relation(fields: [addressId], references: [id])
-  items         OrderItem[]
-  couponId      String?
-  coupon        Coupon?       @relation(fields: [couponId], references: [id])
-  total         Float
-  status        OrderStatus   @default(PENDING)
+  id          String @id @default(cuid())
+  orderNumber Int    @unique
+  userId      String
+  user        User   @relation(fields: [userId], references: [id])
+  addressId   String
+  address     Address @relation(fields: [addressId], references: [id])
+  items       OrderItem[]
+  couponId    String?
+  coupon      Coupon? @relation(fields: [couponId], references: [id])
+  total       Float
+  status      OrderStatus @default(PENDING)
 
-  shippingMethodCode String?      
-  shippingCost       Float          @default(0)
+  shippingMethodCode String?
+  shippingCost       Float           @default(0)
   shippingMethod     ShippingMethod? @relation(fields: [shippingMethodCode], references: [code])
 
-  paymentMethod PaymentMethod
-  paymentStatus PaymentStatus @default(PENDING)
-  paymentAuthority String?      
-  paymentRefId     String?  
+  paymentMethod    PaymentMethod
+  paymentStatus    PaymentStatus @default(PENDING)
+  paymentAuthority String?
+  paymentRefId     String?
 
-
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([addressId])
   @@index([couponId])
-  @@index([shippingMethodCode]) 
+  @@index([shippingMethodCode])
 }
 
 model OrderItem {

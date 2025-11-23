@@ -75,7 +75,17 @@ export const BaseCarousel: React.FC<BaseCarouselProps> = ({
         </div>
 
         {showDots && slideCount > 1 && (
-          <div className="embla__dots absolute left-1/2 -translate-x-1/2 bottom-2 w-fit bg-black/15 backdrop-blur-xl px-2 py-1 rounded-full">
+          <div
+            className="embla__dots absolute w-fit z-30 px-2 py-1 rounded-full transition-all duration-300
+            /* --- استایل شیشه‌ای (Glassmorphism) --- */
+            bg-black/15 backdrop-blur-xl border border-white/10 shadow-sm
+
+            /* --- تنظیمات موبایل (گوشه پایین راست) --- */
+            bottom-3 right-4 translate-x-0
+
+            /* --- تنظیمات دسکتاپ (برگشت به وسط) --- */
+            md:left-1/2 md:right-auto md:-translate-x-1/2 md:bottom-6"
+          >
             {Array.from({ length: slideCount }).map((_, index) => (
               <button
                 key={index}

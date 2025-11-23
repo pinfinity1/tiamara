@@ -17,6 +17,8 @@ export const STATIC_PAGES = [
   { label: "همه محصولات", value: "/products" },
   { label: "درباره ما", value: "/about-us" },
   { label: "تماس با ما", value: "/contact-us" },
+  { label: "قوانین و مقررات", value: "/terms" },
+  { label: "حریم خصوصی", value: "/privacy" },
 ];
 
 /**

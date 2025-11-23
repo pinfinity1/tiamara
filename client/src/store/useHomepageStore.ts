@@ -25,6 +25,14 @@ export interface FeatureBanner {
   imageUrlMobile?: string | null;
   linkUrl?: string | null;
   altText?: string | null;
+
+  // --- فیلدهای جدید اضافه شده ---
+  title?: string | null;
+  description?: string | null;
+  buttonText?: string | null;
+  textColor?: string | null;
+  // ----------------------------
+
   order: number;
   isActive: boolean;
   startDate?: string | null;
@@ -105,7 +113,9 @@ export const useHomepageStore = create<HomepageState>((set, get) => ({
   addBanner: async (data) => {
     set({ isLoading: true });
     try {
-      await axiosAuth.post("/homepage/banners/add", data);
+      await axiosAuth.post("/homepage/banners/add", data, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       toast({ title: "بنر(ها) با موفقیت اضافه شدند." });
       await get().fetchBanners();
       return true;
@@ -121,7 +131,9 @@ export const useHomepageStore = create<HomepageState>((set, get) => ({
   updateBanner: async (id, data) => {
     set({ isLoading: true });
     try {
-      await axiosAuth.put(`/homepage/banners/update/${id}`, data);
+      await axiosAuth.put(`/homepage/banners/update/${id}`, data, {
+        headers: { "Content-Type": undefined },
+      });
       toast({ title: "بنر با موفقیت ویرایش شد." });
       await get().fetchBanners();
       return true;
@@ -304,7 +316,7 @@ export const useHomepageStore = create<HomepageState>((set, get) => ({
   fetchVideoShowcaseItems: async () => {
     try {
       set({ isLoading: true });
-      const { data } = await axiosAuth.get("/homepage/showcase"); // ** اصلاح شد
+      const { data } = await axiosAuth.get("/homepage/showcase");
       if (data.success) {
         set({ videoShowcaseItems: data.items });
       }
@@ -312,7 +324,7 @@ export const useHomepageStore = create<HomepageState>((set, get) => ({
       toast({
         title: "خطا در دریافت لیست آیتم‌های نمایشی",
         variant: "destructive",
-      }); // ** اصلاح شد
+      });
     } finally {
       set({ isLoading: false });
     }
@@ -357,7 +369,7 @@ export const useHomepageStore = create<HomepageState>((set, get) => ({
         }));
       }
     } catch (error) {
-      toast({ title: "خطا در حذف آیتم", variant: "destructive" }); // ** اصلاح شد
+      toast({ title: "خطا در حذف آیتم", variant: "destructive" });
     } finally {
       set({ isLoading: false });
     }

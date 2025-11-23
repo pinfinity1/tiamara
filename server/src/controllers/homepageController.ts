@@ -57,7 +57,6 @@ export const fetchBannersForClient = async (
       return;
     }
 
-    const now = new Date();
     const banners = await prisma.featureBanner.findMany({
       where: {
         group: group as string,
@@ -101,15 +100,17 @@ export const addFeatureBanner = async (
     const files = req.files as Express.Multer.File[];
     const parsedBannersData = JSON.parse(bannersData);
 
+    // اعتبار سنجی: تعداد فایل‌ها باید دقیقاً ۲ برابر تعداد بنرها باشد (دسکتاپ + موبایل)
     if (
       !group ||
       !files ||
       files.length === 0 ||
-      files.length !== parsedBannersData.length
+      files.length !== parsedBannersData.length * 2
     ) {
-      res
-        .status(400)
-        .json({ success: false, message: "Invalid data provided." });
+      res.status(400).json({
+        success: false,
+        message: "تعداد فایل‌های ارسالی با تعداد بنرها همخوانی ندارد.",
+      });
       return;
     }
 
@@ -120,7 +121,7 @@ export const addFeatureBanner = async (
 
     let currentOrder = lastBannerInGroup ? lastBannerInGroup.order : 0;
 
-    // Step 1: Handle all file uploads first
+    // آپلود فایل‌ها در Cloudinary
     const uploadResults = await Promise.all(
       files.map((file) =>
         cloudinary.uploader.upload(file.path, {
@@ -129,28 +130,36 @@ export const addFeatureBanner = async (
       )
     );
 
-    // Step 2: Clean up local files
+    // پاکسازی فایل‌های موقت
     files.forEach((file) => fs.unlinkSync(file.path));
 
-    // Step 3: Prepare Prisma operations without awaiting them
-    const bannerCreateOperations = uploadResults.map((result, index) => {
-      const metadata = parsedBannersData[index];
-      currentOrder++;
+    // ساختن بنرها در دیتابیس
+    const bannerCreateOperations = parsedBannersData.map(
+      (metadata: any, index: number) => {
+        currentOrder++;
 
-      return prisma.featureBanner.create({
-        data: {
-          group,
-          imageUrl: result.secure_url,
-          imageUrlMobile: result.secure_url, // Or handle separate mobile uploads if needed
-          linkUrl: metadata.linkUrl,
-          altText: metadata.altText,
-          isActive: metadata.isActive,
-          order: currentOrder,
-        },
-      });
-    });
+        // فایل‌ها به ترتیب جفتی ارسال شده‌اند: (دسکتاپ ۱, موبایل ۱, دسکتاپ ۲, موبایل ۲, ...)
+        const desktopImage = uploadResults[index * 2];
+        const mobileImage = uploadResults[index * 2 + 1];
 
-    // Step 4: Execute all Prisma operations in a single transaction
+        return prisma.featureBanner.create({
+          data: {
+            group,
+            imageUrl: desktopImage.secure_url,
+            imageUrlMobile: mobileImage.secure_url,
+            linkUrl: metadata.linkUrl,
+            altText: metadata.altText,
+            title: metadata.title || null,
+            description: metadata.description || null,
+            buttonText: metadata.buttonText || null,
+            textColor: metadata.textColor || "#000000",
+            isActive: metadata.isActive,
+            order: currentOrder,
+          },
+        });
+      }
+    );
+
     await prisma.$transaction(bannerCreateOperations);
 
     res
@@ -158,7 +167,6 @@ export const addFeatureBanner = async (
       .json({ success: true, message: "Banners added successfully." });
   } catch (e) {
     console.error("Error adding feature banners:", e);
-    // Ensure cleanup happens on error too
     if (req.files) {
       const files = req.files as Express.Multer.File[];
       files.forEach((file) => {
@@ -184,6 +192,10 @@ export const updateFeatureBanner = async (
     const {
       linkUrl,
       altText,
+      title,
+      description,
+      buttonText,
+      textColor,
       isActive,
       group,
       startDate,
@@ -220,6 +232,10 @@ export const updateFeatureBanner = async (
       data: {
         linkUrl,
         altText,
+        title,
+        description,
+        buttonText,
+        textColor,
         isActive: isActive === "true",
         group,
         startDate: startDate ? new Date(startDate) : null,
@@ -380,7 +396,7 @@ export const getProductCollections = async (
 ): Promise<void> => {
   try {
     const { location } = req.query;
-    const whereClause = location ? { location: location as string } : {}; // Fetch all if no location specified
+    const whereClause = location ? { location: location as string } : {};
 
     const collections: ProductCollectionWithRelations[] =
       await prisma.productCollection.findMany({
@@ -400,12 +416,13 @@ export const getProductCollections = async (
 
     const [discountedProducts, bestSellingProducts] = await Promise.all([
       prisma.product.findMany({
-        where: { discount_price: { not: null } },
+        where: { discount_price: { not: null }, isArchived: false },
         orderBy: { createdAt: "desc" },
         take: 10,
         include: { images: { take: 1 }, brand: true, category: true },
       }),
       prisma.product.findMany({
+        where: { isArchived: false },
         orderBy: { soldCount: "desc" },
         take: 10,
         include: { images: { take: 1 }, brand: true, category: true },
@@ -417,7 +434,7 @@ export const getProductCollections = async (
       .map((s) => s.brandId!);
 
     const brandProducts = await prisma.product.findMany({
-      where: { brandId: { in: brandCollectionIds } },
+      where: { brandId: { in: brandCollectionIds }, isArchived: false },
       orderBy: { createdAt: "desc" },
       include: { images: { take: 1 }, brand: true, category: true },
     });
@@ -490,11 +507,9 @@ export const fetchCollectionByType = async (
       return;
     }
 
-    // --- ۲. اصلاح بخش 'if/else' ---
-    // (مقایسه با Enum به جای رشته)
     if (collection.type === SectionType.DISCOUNTED) {
       const discountedProducts = await prisma.product.findMany({
-        where: { discount_price: { not: null } },
+        where: { discount_price: { not: null }, isArchived: false },
         orderBy: { createdAt: "desc" },
         take: 10,
         include: { images: { take: 1 }, brand: true, category: true },
@@ -505,6 +520,7 @@ export const fetchCollectionByType = async (
       });
     } else if (collection.type === SectionType.BEST_SELLING) {
       const bestSellingProducts = await prisma.product.findMany({
+        where: { isArchived: false },
         orderBy: { soldCount: "desc" },
         take: 10,
         include: { images: { take: 1 }, brand: true, category: true },
@@ -514,9 +530,8 @@ export const fetchCollectionByType = async (
         collection: { ...collection, products: bestSellingProducts },
       });
     } else if (collection.type === SectionType.BRAND && collection.brandId) {
-      // (این مورد هم باید Enum باشد، اگر 'BRAND' در Enum شما وجود دارد)
       const brandProducts = await prisma.product.findMany({
-        where: { brandId: collection.brandId },
+        where: { brandId: collection.brandId, isArchived: false },
         orderBy: { createdAt: "desc" },
         take: 10,
         include: { images: { take: 1 }, brand: true, category: true },
@@ -526,7 +541,6 @@ export const fetchCollectionByType = async (
         collection: { ...collection, products: brandProducts },
       });
     } else {
-      // برای حالت "MANUAL" یا هر حالت دیگری
       res.status(200).json({ success: true, collection: collection });
     }
   } catch (error) {
@@ -562,7 +576,7 @@ export const createProductCollection = async (
         folder: "tiamara-collections",
       });
       imageUrl = result.secure_url;
-      fs.unlinkSync(file.path); // Clean up temp file
+      fs.unlinkSync(file.path);
     }
 
     const collection = await prisma.productCollection.create({
@@ -607,7 +621,6 @@ export const updateProductCollection = async (
     });
 
     if (file) {
-      // Delete old image from Cloudinary if it exists
       if (existingCollection?.imageUrl) {
         const publicId = `tiamara-collections/${
           existingCollection.imageUrl.split("/").pop()?.split(".")[0]
@@ -618,7 +631,6 @@ export const updateProductCollection = async (
           console.log("Old image not found on Cloudinary, proceeding...");
         }
       }
-      // Upload new image
       const result = await cloudinary.uploader.upload(file.path, {
         folder: "tiamara-collections",
       });
@@ -687,7 +699,7 @@ export const reorderProductCollections = async (
     const updatePromises = collectionIds.map((id, index) =>
       prisma.productCollection.update({
         where: { id },
-        data: { order: index }, // Start order from 0
+        data: { order: index },
       })
     );
 
@@ -729,9 +741,7 @@ export const addVideoShowcaseItem = async (
     });
 
     if (existingItem) {
-      // If an item already exists, return an error
       res.status(409).json({
-        // 409 Conflict is a suitable status code
         success: false,
         message:
           "ویدیو برای این محصول از قبل وجود دارد و امکان افزودن مجدد نیست.",
