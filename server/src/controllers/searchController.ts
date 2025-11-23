@@ -27,9 +27,27 @@ export const searchProducts = async (
             { skin_type: { has: query.toLowerCase() } },
             { concern: { has: query.toLowerCase() } },
             { product_form: { contains: query, mode: "insensitive" } },
-            { brand: { name: { contains: query, mode: "insensitive" } } },
-            { category: { name: { contains: query, mode: "insensitive" } } },
+            // جستجو در نام فارسی و انگلیسی برندِ محصول
+            {
+              brand: {
+                OR: [
+                  { name: { contains: query, mode: "insensitive" } },
+                  { englishName: { contains: query, mode: "insensitive" } },
+                ],
+              },
+            },
+            // جستجو در نام فارسی و انگلیسی دسته‌بندیِ محصول
+            {
+              category: {
+                OR: [
+                  { name: { contains: query, mode: "insensitive" } },
+                  { englishName: { contains: query, mode: "insensitive" } },
+                ],
+              },
+            },
           ],
+          // اضافه کردن شرط عدم نمایش محصولات آرشیو شده (اختیاری ولی توصیه می‌شود)
+          isArchived: false,
         },
         include: {
           brand: true,
@@ -38,23 +56,25 @@ export const searchProducts = async (
         },
         take: 10,
       }),
-      // 2. Search for brands
+      // 2. Search for brands (Persian & English)
       prisma.brand.findMany({
         where: {
-          name: {
-            contains: query,
-            mode: "insensitive",
-          },
+          OR: [
+            { name: { contains: query, mode: "insensitive" } },
+            { englishName: { contains: query, mode: "insensitive" } },
+          ],
+          isArchived: false,
         },
         take: 5,
       }),
-      // 3. Search for categories
+      // 3. Search for categories (Persian & English)
       prisma.category.findMany({
         where: {
-          name: {
-            contains: query,
-            mode: "insensitive",
-          },
+          OR: [
+            { name: { contains: query, mode: "insensitive" } },
+            { englishName: { contains: query, mode: "insensitive" } },
+          ],
+          isArchived: false,
         },
         take: 5,
       }),
