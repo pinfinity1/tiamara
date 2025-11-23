@@ -38,6 +38,7 @@ declare module "next-auth/jwt" {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -106,59 +107,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             "An unexpected error occurred.";
           throw new Error(errorMessage);
         }
-        // try {
-        //   const headers: HeadersInit = {
-        //     "Content-Type": "application/json",
-        //   };
-        //   if (cartId) {
-        //     headers["Cookie"] = `cartId=${cartId}`;
-        //   }
-
-        //   let body;
-        //   let url;
-
-        //   if (loginType === "password") {
-        //     if (!password) throw new Error("Password is required.");
-        //     url = `${process.env.API_BASE_URL}/auth/login-password`;
-        //     body = JSON.stringify({ phone, password });
-        //   } else if (loginType === "otp") {
-        //     if (!otp) throw new Error("OTP is required.");
-        //     url = `${process.env.API_BASE_URL}/auth/login-otp`;
-        //     body = JSON.stringify({ phone, otp });
-        //   } else {
-        //     return null;
-        //   }
-
-        //   const res = await fetch(url, {
-        //     method: "POST",
-        //     headers,
-        //     body,
-        //   });
-
-        //   const data = await res.json();
-
-        //   if (res.ok && data.success) {
-        //     const user = data.user;
-        //     return {
-        //       id: user.id,
-        //       name: user.name,
-        //       email: user.email,
-        //       role: user.role,
-        //       phone: user.phone,
-        //       requiresPasswordSetup: user.requiresPasswordSetup,
-        //       accessToken: data.accessToken,
-        //       refreshToken: data.refreshToken,
-        //     } as User;
-        //   } else {
-        //     throw new Error(data.error || "Authentication failed.");
-        //   }
-        // } catch (error: any) {
-        //   const errorMessage =
-        //     error.response?.data?.error ||
-        //     error.message ||
-        //     "An unexpected error occurred.";
-        //   throw new Error(errorMessage);
-        // }
       },
     }),
   ],
@@ -180,7 +128,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         };
       }
 
-      if (Date.now() < (token.expiresAt as number) - 60000) {
+      if (Date.now() < (token.expiresAt as number) - 30000) {
         return token;
       }
 
