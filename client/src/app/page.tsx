@@ -32,7 +32,7 @@ export default async function HomePage() {
   return (
     <div className="min-h-screen bg-white">
       <HomeBannerCarousel banners={homepageBanners} />
-      {/* <AmazingOfferSection /> */}
+      <AmazingOfferSection />
       {/* <BestSellingProductSection /> */}
       {/* <BrandsProductSection collectionType="BRAND" /> */}
       {/* <BrandsProductSection collectionType="BRAND_SPOTLIGHT_2" /> */}
