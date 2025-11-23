@@ -63,13 +63,14 @@ export const createBrand = async (
   }
 };
 
-// Get all Brands
+// Get all Brands (Filter out archived ones)
 export const getAllBrands = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
     const brands = await prisma.brand.findMany({
+      where: { isArchived: false }, // ✅ فقط برندهای فعال
       orderBy: { name: "asc" },
     });
     res.status(200).json({ success: true, brands });
@@ -92,7 +93,8 @@ export const getBrandBySlug = async (
       where: { slug },
     });
 
-    if (!brand) {
+    if (!brand || brand.isArchived) {
+      // اگر آرشیو شده بود هم نشون نده
       res.status(404).json({ success: false, message: "Brand not found" });
       return;
     }
@@ -143,7 +145,7 @@ export const updateBrand = async (
       data: {
         name,
         englishName,
-        slug: generateSlug(englishName), // Slug is now generated from englishName
+        slug: generateSlug(englishName),
         logoUrl: newLogoUrl,
         metaTitle,
         metaDescription,
@@ -159,19 +161,22 @@ export const updateBrand = async (
   }
 };
 
-// Delete a Brand
+// Delete (Archive) a Brand
 export const deleteBrand = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    await prisma.brand.delete({
+    // ✅ به جای حذف فیزیکی، آرشیو می‌کنیم
+    await prisma.brand.update({
       where: { id },
+      data: { isArchived: true },
     });
+
     res
       .status(200)
-      .json({ success: true, message: "Brand deleted successfully." });
+      .json({ success: true, message: "Brand archived successfully." });
   } catch (error) {
     console.error("Error deleting brand:", error);
     res
@@ -198,7 +203,12 @@ export const bulkCreateBrandsFromExcel = async (
     const sheet = workbook.Sheets[sheetName];
     const brandsData: any[] = xlsx.utils.sheet_to_json(sheet);
 
-    const report = { createdCount: 0, failedCount: 0, errors: [] as any[] };
+    const report = {
+      createdCount: 0,
+      updatedCount: 0,
+      failedCount: 0,
+      errors: [] as any[],
+    };
 
     for (const row of brandsData) {
       try {
@@ -208,21 +218,40 @@ export const bulkCreateBrandsFromExcel = async (
           );
         }
 
+        const generatedSlug = generateSlug(row.englishName);
+
+        // بررسی وجود برند (حتی اگر آرشیو شده باشد)
         const existingBrand = await prisma.brand.findFirst({
           where: {
-            OR: [{ name: row.name }, { englishName: row.englishName }],
+            OR: [
+              { name: row.name },
+              { englishName: row.englishName },
+              { slug: generatedSlug },
+            ],
           },
         });
 
-        if (!existingBrand) {
+        const brandData = {
+          name: row.name,
+          englishName: row.englishName,
+          slug: generatedSlug,
+          metaTitle: row.metaTitle || row.name,
+          metaDescription: row.metaDescription || null,
+          // ✅ نکته کلیدی: بازگرداندن برندهای حذف شده به حالت فعال
+          isArchived: false,
+        };
+
+        if (existingBrand) {
+          // اگر برند بود (حتی آرشیو)، آپدیت و فعالش کن
+          await prisma.brand.update({
+            where: { id: existingBrand.id },
+            data: brandData,
+          });
+          report.updatedCount++;
+        } else {
+          // اگر نبود، بساز
           await prisma.brand.create({
-            data: {
-              name: row.name,
-              englishName: row.englishName,
-              slug: generateSlug(row.englishName),
-              metaTitle: row.metaTitle || row.name,
-              metaDescription: row.metaDescription || null,
-            },
+            data: brandData,
           });
           report.createdCount++;
         }

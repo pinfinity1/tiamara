@@ -47,7 +47,7 @@ export const createCategory = async (
       data: {
         name,
         englishName,
-        slug: generateSlug(englishName), // Slug from englishName
+        slug: generateSlug(englishName),
         imageUrl,
         metaTitle,
         metaDescription,
@@ -63,13 +63,14 @@ export const createCategory = async (
   }
 };
 
-// Get all Categories
+// Get all Categories (Filter out archived)
 export const getAllCategories = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
     const categories = await prisma.category.findMany({
+      where: { isArchived: false }, // ✅ فقط دسته‌های فعال
       orderBy: { name: "asc" },
     });
     res.status(200).json({ success: true, categories });
@@ -119,7 +120,7 @@ export const updateCategory = async (
       data: {
         name,
         englishName,
-        slug: generateSlug(englishName), // Slug from englishName
+        slug: generateSlug(englishName),
         imageUrl: newImageUrl,
         metaTitle,
         metaDescription,
@@ -134,17 +135,22 @@ export const updateCategory = async (
   }
 };
 
-// Delete a Category
+// Delete (Archive) a Category
 export const deleteCategory = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    await prisma.category.delete({ where: { id } });
+    // ✅ به جای حذف فیزیکی، آرشیو می‌کنیم
+    await prisma.category.update({
+      where: { id },
+      data: { isArchived: true },
+    });
+
     res
       .status(200)
-      .json({ success: true, message: "Category deleted successfully." });
+      .json({ success: true, message: "Category archived successfully." });
   } catch (error) {
     res
       .status(500)
@@ -163,7 +169,8 @@ export const getCategoryBySlug = async (
       where: { slug },
     });
 
-    if (!category) {
+    if (!category || category.isArchived) {
+      // اگر آرشیو شده بود
       res.status(404).json({ success: false, message: "Category not found" });
       return;
     }
@@ -195,7 +202,12 @@ export const bulkCreateCategoriesFromExcel = async (
     const sheet = workbook.Sheets[sheetName];
     const categoriesData: any[] = xlsx.utils.sheet_to_json(sheet);
 
-    const report = { createdCount: 0, failedCount: 0, errors: [] as any[] };
+    const report = {
+      createdCount: 0,
+      updatedCount: 0,
+      failedCount: 0,
+      errors: [] as any[],
+    };
 
     for (const row of categoriesData) {
       try {
@@ -203,21 +215,40 @@ export const bulkCreateCategoriesFromExcel = async (
           throw new Error("Both 'name' and 'englishName' are required.");
         }
 
+        const generatedSlug = generateSlug(row.englishName);
+
+        // بررسی وجود دسته‌بندی (حتی اگر آرشیو شده باشد)
         const existingCategory = await prisma.category.findFirst({
           where: {
-            OR: [{ name: row.name }, { englishName: row.englishName }],
+            OR: [
+              { name: row.name },
+              { englishName: row.englishName },
+              { slug: generatedSlug },
+            ],
           },
         });
 
-        if (!existingCategory) {
+        const categoryData = {
+          name: row.name,
+          englishName: row.englishName,
+          slug: generatedSlug,
+          metaTitle: row.metaTitle || row.name,
+          metaDescription: row.metaDescription || null,
+          // ✅ نکته کلیدی: این خط اضافه شد تا دسته‌بندی‌های حذف شده برگردند
+          isArchived: false,
+        };
+
+        if (existingCategory) {
+          // آپدیت و فعال‌سازی مجدد
+          await prisma.category.update({
+            where: { id: existingCategory.id },
+            data: categoryData,
+          });
+          report.updatedCount++;
+        } else {
+          // ساخت جدید
           await prisma.category.create({
-            data: {
-              name: row.name,
-              englishName: row.englishName,
-              slug: generateSlug(row.englishName),
-              metaTitle: row.metaTitle || row.name,
-              metaDescription: row.metaDescription || null,
-            },
+            data: categoryData,
           });
           report.createdCount++;
         }
@@ -226,13 +257,11 @@ export const bulkCreateCategoriesFromExcel = async (
         report.errors.push({ name: row.name, error: e.message });
       }
     }
-    res
-      .status(201)
-      .json({
-        success: true,
-        message: "Category import finished.",
-        data: report,
-      });
+    res.status(201).json({
+      success: true,
+      message: "Category import finished.",
+      data: report,
+    });
   } catch (e) {
     res
       .status(500)

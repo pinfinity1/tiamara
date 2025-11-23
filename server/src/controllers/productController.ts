@@ -1,3 +1,5 @@
+// server/src/controllers/productController.ts
+
 import { Response, Request } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import cloudinary from "../config/cloudinary";
@@ -51,17 +53,27 @@ export const getProductFilters = async (
       concernsRaw,
       productFormsRaw,
     ] = await prisma.$transaction([
-      prisma.brand.findMany({ orderBy: { name: "asc" } }),
-      prisma.category.findMany({ orderBy: { name: "asc" } }),
+      prisma.brand.findMany({
+        where: { isArchived: false },
+        orderBy: { name: "asc" },
+      }),
+      prisma.category.findMany({
+        where: { isArchived: false },
+        orderBy: { name: "asc" },
+      }),
       prisma.product.aggregate({
         _max: { price: true },
         _min: { price: true },
+        where: { isArchived: false },
       }),
       prisma.$queryRaw`SELECT DISTINCT unnest(skin_type) as value FROM "Product" WHERE cardinality(skin_type) > 0`,
       prisma.$queryRaw`SELECT DISTINCT unnest(concern) as value FROM "Product" WHERE cardinality(concern) > 0`,
       prisma.product.findMany({
         select: { product_form: true },
-        where: { product_form: { not: null } },
+        where: {
+          product_form: { not: null },
+          isArchived: false,
+        },
         distinct: ["product_form"],
       }),
     ]);
@@ -135,16 +147,14 @@ export const createProduct = async (
 
     const files = req.files as Express.Multer.File[];
 
-    // Upload all images to cloudinary
     const uploadPromises = files.map((file) =>
       cloudinary.uploader.upload(file.path, {
-        folder: "tiamara", // Your Cloudinary folder
+        folder: "tiamara",
       })
     );
 
     const uploadResults = await Promise.all(uploadPromises);
 
-    // Prepare image data for Prisma, including altText derived from product name
     const imageCreateData = uploadResults.map((result, index) => ({
       url: result.secure_url,
       altText: `${name} image ${index + 1}`,
@@ -181,6 +191,7 @@ export const createProduct = async (
         review_count: 0,
         metaTitle: metaTitle || name,
         metaDescription: metaDescription,
+        isArchived: false,
 
         images: {
           create: imageCreateData,
@@ -188,7 +199,6 @@ export const createProduct = async (
       },
     });
 
-    // Log the initial stock
     if (stockAmount > 0) {
       await logStockChange(
         newlyCreatedProduct.id,
@@ -200,7 +210,6 @@ export const createProduct = async (
       );
     }
 
-    // Clean up uploaded files from the server's temporary storage
     files.forEach((file) => fs.unlinkSync(file.path));
     res.status(201).json(newlyCreatedProduct);
   } catch (e) {
@@ -246,7 +255,7 @@ export const getProductBySlug = async (
       },
     });
 
-    if (!product) {
+    if (!product || product.isArchived) {
       res.status(404).json({
         success: false,
         message: "Product not found",
@@ -261,7 +270,6 @@ export const getProductBySlug = async (
   }
 };
 
-// ... (تابع getProductByID بدون تغییر) ...
 export const getProductByID = async (
   req: AuthenticatedRequest,
   res: Response
@@ -292,7 +300,6 @@ export const getProductByID = async (
   }
 };
 
-// ... (تابع getProductsByIds بدون تغییر) ...
 export const getProductsByIds = async (
   req: Request,
   res: Response
@@ -308,6 +315,7 @@ export const getProductsByIds = async (
     const products = await prisma.product.findMany({
       where: {
         id: { in: ids },
+        isArchived: false,
       },
       include: {
         images: { take: 1 },
@@ -325,7 +333,6 @@ export const getProductsByIds = async (
   }
 };
 
-// ... (تابع updateProduct بدون تغییر) ...
 export const updateProduct = async (
   req: AuthenticatedRequest,
   res: Response
@@ -359,6 +366,7 @@ export const updateProduct = async (
       metaTitle,
       metaDescription,
       imagesToDelete,
+      isArchived,
     } = req.body;
 
     const existingProduct = await prisma.product.findUnique({
@@ -371,10 +379,8 @@ export const updateProduct = async (
       return;
     }
 
-    // A container for all image update operations (delete, create)
     const imageUpdateOperations: any = {};
 
-    // Handle image deletion
     if (imagesToDelete) {
       const idsToDelete = (imagesToDelete as string).split(",").filter(Boolean);
       if (idsToDelete.length > 0) {
@@ -382,7 +388,6 @@ export const updateProduct = async (
           id: { in: idsToDelete },
         };
 
-        // Optionally, delete from Cloudinary as well
         const imagesToDeleteFromCloud = existingProduct.images.filter(
           (img: any) => idsToDelete.includes(img.id)
         );
@@ -395,7 +400,6 @@ export const updateProduct = async (
       }
     }
 
-    // Handle new image uploads
     const files = req.files as Express.Multer.File[];
     if (files && files.length > 0) {
       const uploadPromises = files.map((file) =>
@@ -441,11 +445,16 @@ export const updateProduct = async (
         tags: typeof tags === "string" ? tags.split(",") : [],
         metaTitle: metaTitle || name,
         metaDescription,
-        images: imageUpdateOperations, // Apply all create/delete operations
+        images: imageUpdateOperations,
+        isArchived:
+          isArchived === "false"
+            ? false
+            : isArchived === "true"
+            ? true
+            : existingProduct.isArchived,
       },
     });
 
-    // Log stock adjustment if stock was changed
     const stockChange = newStockAmount - existingProduct.stock;
     if (stockChange !== 0) {
       await logStockChange(
@@ -465,7 +474,6 @@ export const updateProduct = async (
   }
 };
 
-// ... (تابع deleteProduct بدون تغییر) ...
 export const deleteProduct = async (
   req: AuthenticatedRequest,
   res: Response
@@ -473,26 +481,28 @@ export const deleteProduct = async (
   try {
     const { id } = req.params;
 
-    // First, delete related images from the Image table to maintain data integrity
-    await prisma.image.deleteMany({ where: { productId: id } });
+    const product = await prisma.product.update({
+      where: { id },
+      data: {
+        isArchived: true,
+        stock: 0,
+      },
+    });
 
-    // Then, delete the product itself
-    await prisma.product.delete({ where: { id } });
+    await prisma.cartItem.deleteMany({ where: { productId: id } });
+    await prisma.wishlistItem.deleteMany({ where: { productId: id } });
 
     res
       .status(200)
-      .json({ success: true, message: "Product deleted successfully" });
+      .json({ success: true, message: "Product archived successfully" });
   } catch (e) {
-    console.error("Error deleting product:", e);
+    console.error("Error archiving product:", e);
     res.status(500).json({ success: false, message: "Some error occurred!" });
   }
 };
 
-// --- ▼▼▼ شروع تغییرات در getProductsForClient ▼▼▼ ---
-
-// Fetch products with filters (for client side)
 export const getProductsForClient = async (
-  req: Request, // <-- ۱. نوع req را به AuthenticatedRequest تغییر دهید
+  req: Request,
   res: Response
 ): Promise<void> => {
   try {
@@ -520,16 +530,15 @@ export const getProductsForClient = async (
       parseFloat(req.query.maxPrice as string) || Number.MAX_SAFE_INTEGER;
     const sortBy = (req.query.sortBy as string) || "createdAt";
     const sortOrder = (req.query.sortOrder as "asc" | "desc") || "desc";
-
-    // --- ۲. فیلتر هوشمند را از query بخوانید ---
     const { profileBasedFilter } = req.query;
 
     const skip = (page - 1) * limit;
 
-    const where: Prisma.ProductWhereInput = {}; // <-- ۳. 'where' را به یک آبجکت خالی تغییر دهید
-    const whereAndClauses: Prisma.ProductWhereInput[] = []; // (از این برای فیلترهای عادی استفاده می‌کنیم)
+    const where: Prisma.ProductWhereInput = {
+      isArchived: false,
+    };
+    const whereAndClauses: Prisma.ProductWhereInput[] = [];
 
-    // --- ۴. منطق اصلی فیلتر هوشمند ---
     const user = (req as AuthenticatedRequest).user;
     let isSmartFilterActive = false;
 
@@ -543,7 +552,6 @@ export const getProductsForClient = async (
         },
       });
 
-      // فیلتر هوشمند فقط زمانی فعال می‌شود که کاربر واقعاً پروفایل داشته باشد
       if (userProfile && userProfile.skinType) {
         isSmartFilterActive = true;
 
@@ -563,9 +571,7 @@ export const getProductsForClient = async (
         }
       }
     }
-    // --- پایان منطق فیلتر هوشمند ---
 
-    // --- ۵. فیلترهای عادی را *فقط* اگر فیلتر هوشمند خاموش است اعمال کنید ---
     if (!isSmartFilterActive) {
       if (categories.length > 0) {
         whereAndClauses.push({
@@ -618,18 +624,14 @@ export const getProductsForClient = async (
       }
     }
 
-    // --- ۶. فیلتر قیمت و AND را به 'where' اصلی اضافه کنید ---
     whereAndClauses.push({
       price: { gte: minPrice, lte: maxPrice },
     });
 
-    // (اگر فیلتر هوشمند روشن باشد، 'AND' فقط شامل فیلتر قیمت است)
-    // (اگر خاموش باشد، 'AND' شامل همه فیلترهای عادی + قیمت است)
     if (whereAndClauses.length > 0) {
       where.AND = whereAndClauses;
     }
 
-    // (بقیه تابع شما: $transaction, findMany و ...)
     const [products, total] = await Promise.all([
       prisma.product.findMany({
         where,
@@ -661,9 +663,8 @@ export const getProductsForClient = async (
     res.status(500).json({ success: false, message: "Some error occurred!" });
   }
 };
-// --- ▲▲▲ پایان تغییرات در getProductsForClient ▲▲▲ ---
 
-// ... (تابع bulkCreateProductsFromExcel بدون تغییر) ...
+// Bulk Create Products from Excel (Corrected to include all fields)
 export const bulkCreateProductsFromExcel = async (
   req: AuthenticatedRequest,
   res: Response
@@ -697,7 +698,18 @@ export const bulkCreateProductsFromExcel = async (
           stock,
           brandName,
           categoryName,
+          // فیلدهای جدید اضافه شده
           description,
+          how_to_use,
+          caution,
+          ingredients,
+          discount_price,
+          volume,
+          unit,
+          country_of_origin,
+          product_form,
+          metaTitle,
+          metaDescription,
         } = row;
 
         if (
@@ -713,32 +725,57 @@ export const bulkCreateProductsFromExcel = async (
           );
         }
 
-        // Find Brand ID by its Persian name
-        const brand = await prisma.brand.findUnique({
-          where: { name: brandName },
+        const brand = await prisma.brand.findFirst({
+          where: {
+            OR: [{ name: brandName }, { englishName: brandName }],
+          },
         });
         if (!brand) {
           throw new Error(`Brand '${brandName}' not found.`);
         }
 
-        // Find Category ID by its Persian name
-        const category = await prisma.category.findUnique({
-          where: { name: categoryName },
+        const category = await prisma.category.findFirst({
+          where: {
+            OR: [{ name: categoryName }, { englishName: categoryName }],
+          },
         });
         if (!category) {
           throw new Error(`Category '${categoryName}' not found.`);
+        }
+
+        // تبدیل رشته ترکیبات به آرایه
+        let ingredientsArray: string[] = [];
+        if (typeof ingredients === "string") {
+          ingredientsArray = ingredients
+            .split(/,|،/)
+            .map((s: string) => s.trim())
+            .filter(Boolean);
         }
 
         const productData = {
           name,
           slug:
             name.toLowerCase().replace(/\s+/g, "-") + "-" + sku.toLowerCase(),
+
+          // مپ کردن فیلدهای توضیحات و جزئیات
           description: description || null,
+          how_to_use: how_to_use || null,
+          caution: caution || null,
+          ingredients: ingredientsArray, // ذخیره به عنوان آرایه
+
           price: parseFloat(price),
           stock: parseInt(stock, 10),
           sku,
           brandId: brand.id,
           categoryId: category.id,
+          discount_price: discount_price ? parseFloat(discount_price) : null,
+          volume: volume ? parseFloat(volume) : null,
+          unit: unit || null,
+          country_of_origin: country_of_origin || null,
+          product_form: product_form || null,
+          metaTitle: metaTitle || name,
+          metaDescription: metaDescription || null,
+          isArchived: false, // بازگرداندن محصول اگر قبلاً حذف شده بود
         };
 
         const existingProduct = await prisma.product.findUnique({

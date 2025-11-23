@@ -5,50 +5,59 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  Minus,
-  Plus,
-  ShoppingCart,
-  CheckCircle,
+  CheckCircle2,
   ShieldCheck,
   Package,
   Globe,
   FlaskConical,
-  Trash2,
+  AlertTriangle,
+  Info,
+  Sparkles,
+  Truck,
+  RefreshCcw,
 } from "lucide-react";
-import { useShallow } from "zustand/react/shallow";
 
+// Stores
 import { Product } from "@/store/useProductStore";
-import { useCartStore } from "@/store/useCartStore";
-import { Button } from "@/components/ui/button";
+import { useUserStore } from "@/store/useUserStore";
+
+// Components
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import WishlistButton from "@/components/common/buttons/WishlistButton";
 import ProductCard from "@/components/products/ProductCard";
 import ShareButton from "@/components/common/buttons/ShareButton";
 import ImagePlaceholder from "@/components/common/ImagePlaceholder";
+import AddToCartButton from "@/components/common/buttons/AddToCartButton";
 import Script from "next/script";
+import { cn } from "@/lib/utils";
 
-const FeatureDisplay = ({
+// --- کامپوننت نمایش ویژگی‌های کلیدی ---
+const FeatureItem = ({
   icon: Icon,
   label,
   value,
 }: {
   icon: React.ElementType;
   label: string;
-  value?: string | null | string[];
+  value?: string | null | number;
 }) => {
-  if (!value || (Array.isArray(value) && value.length === 0)) return null;
-  const displayValue = Array.isArray(value) ? value.join("، ") : value;
+  if (!value) return null;
   return (
-    <div className="flex items-center text-sm text-gray-600">
-      <Icon className="h-5 w-5 ml-2 text-gray-400 flex-shrink-0" />
-      <span className="font-semibold">{label}:</span>
-      <span className="mr-2">{displayValue}</span>
+    <div className="flex flex-col items-center justify-center p-3 bg-gray-50 rounded-xl text-center space-y-2 hover:bg-gray-100 transition-colors">
+      <div className="p-2 bg-white rounded-full shadow-sm">
+        <Icon className="h-5 w-5 text-gray-600" />
+      </div>
+      <span className="text-xs text-gray-500">{label}</span>
+      <span className="text-sm font-semibold text-gray-800 line-clamp-1">
+        {value}
+      </span>
     </div>
   );
 };
 
+// --- کامپوننت اسکیما برای سئو ---
 function JsonLd({ product }: { product: Product }) {
   const productSchema = {
     "@context": "https://schema.org/",
@@ -63,20 +72,14 @@ function JsonLd({ product }: { product: Product }) {
     },
     offers: {
       "@type": "Offer",
-      url: `http://localhost:3000/products/${product.slug}`, // آدرس کامل محصول
-      priceCurrency: "IRR", // واحد پول ریال ایران
-      price: product.discount_price || product.price,
+      url: `https://www.tiamara.ir/products/${product.slug}`,
+      priceCurrency: "IRR",
+      price: (product.discount_price || product.price) * 10,
       availability:
         product.stock > 0
           ? "https://schema.org/InStock"
           : "https://schema.org/OutOfStock",
     },
-    // اگر سیستم امتیازدهی دارید، این بخش را اضافه کنید
-    // aggregateRating: {
-    //   '@type': 'AggregateRating',
-    //   ratingValue: product.average_rating,
-    //   reviewCount: product.review_count,
-    // },
   };
 
   return (
@@ -88,7 +91,8 @@ function JsonLd({ product }: { product: Product }) {
   );
 }
 
-export default function ProductDetailsClient({
+// --- کامپوننت اصلی ---
+export default function ProductDetails({
   product,
   relatedProducts,
 }: {
@@ -100,56 +104,7 @@ export default function ProductDetailsClient({
   }
 
   const [selectedImage, setSelectedImage] = useState(0);
-  const { toast } = useToast();
-
-  const { items, addToCart, updateCartItemQuantity, removeFromCart } =
-    useCartStore(
-      useShallow((state) => ({
-        items: state.items,
-        addToCart: state.addToCart,
-        updateCartItemQuantity: state.updateCartItemQuantity,
-        removeFromCart: state.removeFromCart,
-      }))
-    );
-
-  const itemInCart = items.find((item) => item.productId === product.id);
-  const quantityInCart = itemInCart?.quantity || 0;
-
-  const handleAddToCart = () => {
-    addToCart({
-      productId: product.id,
-      name: product.name,
-      slug: product.slug,
-      price: product.discount_price || product.price,
-      image: product.images[0]?.url || "/images/placeholder.png",
-      quantity: 1,
-      stock: product.stock,
-    });
-    toast({
-      title: "محصول به سبد خرید اضافه شد",
-      description: `"${product.name}"`,
-    });
-  };
-
-  const handleIncrement = () => {
-    if (itemInCart) {
-      updateCartItemQuantity(itemInCart.id, itemInCart.quantity + 1);
-    }
-  };
-
-  const handleDecrement = () => {
-    if (itemInCart) {
-      if (itemInCart.quantity > 1) {
-        updateCartItemQuantity(itemInCart.id, itemInCart.quantity - 1);
-      } else {
-        removeFromCart(itemInCart.id);
-        toast({
-          title: "محصول از سبد خرید حذف شد",
-          variant: "destructive",
-        });
-      }
-    }
-  };
+  const { userProfile } = useUserStore();
 
   const hasDiscount =
     product.discount_price && product.discount_price < product.price;
@@ -159,229 +114,469 @@ export default function ProductDetailsClient({
       )
     : 0;
 
+  // --- منطق تطبیق هوشمند پوست ---
+  let skinMatchStatus: "match" | "warning" | "neutral" | "unknown" = "unknown";
+  let skinMatchMessage = "";
+
+  if (userProfile?.skinType) {
+    if (
+      product.skin_type &&
+      product.skin_type.length > 0 &&
+      userProfile.skinType
+    ) {
+      const isCompatible = product.skin_type.some((t) =>
+        t.includes(userProfile.skinType!)
+      );
+
+      if (isCompatible) {
+        skinMatchStatus = "match";
+        skinMatchMessage = `عالی! این محصول مناسب پوست ${userProfile.skinType} شماست.`;
+      } else {
+        skinMatchStatus = "warning";
+        skinMatchMessage = `توجه: این محصول برای پوست‌های ${product.skin_type.join(
+          "، "
+        )} طراحی شده، اما پوست شما ${userProfile.skinType} است.`;
+      }
+    } else {
+      skinMatchStatus = "neutral";
+    }
+  } else {
+    skinMatchStatus = "unknown";
+  }
+
   return (
     <>
       <JsonLd product={product} />
-      <div className="min-h-screen bg-white">
-        <div className="container mx-auto px-4 py-8 md:py-12">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16">
-            <div>
-              <div className="aspect-square relative bg-gray-100 rounded-lg overflow-hidden mb-4 border">
-                {product.images && product.images.length > 0 ? (
-                  <Image
-                    src={product.images[selectedImage]?.url}
-                    alt={product.name}
-                    fill
-                    sizes="(max-width: 768px) 100vw, 50vw"
-                    className="w-full h-full object-cover transition-transform duration-300 ease-in-out hover:scale-105"
-                    priority
-                  />
-                ) : (
-                  <ImagePlaceholder />
-                )}
-                {hasDiscount && (
-                  <Badge
-                    variant="destructive"
-                    className="absolute top-3 left-3 text-base"
-                  >
-                    {discountPercentage.toLocaleString("fa-IR")}%
-                  </Badge>
-                )}
-              </div>
-              <div className="flex gap-2 justify-center">
-                {product.images.map((image, index) => (
-                  <button
-                    key={image.id}
-                    onClick={() => setSelectedImage(index)}
-                    className={`w-20 h-20 md:w-24 md:h-24 rounded-md border-2 overflow-hidden relative transition-all duration-200 ${
-                      selectedImage === index
-                        ? "border-primary shadow-md"
-                        : "border-gray-200 hover:border-primary/50"
-                    }`}
-                  >
+
+      <div className="min-h-screen bg-white pb-24 lg:pb-12">
+        <div className="container mx-auto px-4 py-8">
+          {/* Breadcrumb */}
+          <div
+            className="text-sm text-gray-500 mb-6 flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-2"
+            dir="rtl"
+          >
+            <Link href="/" className="hover:text-primary">
+              خانه
+            </Link>
+            <span>/</span>
+            <Link href="/products" className="hover:text-primary">
+              محصولات
+            </Link>
+            <span>/</span>
+            {product.category && (
+              <>
+                <Link
+                  href={`/categories/${product.category.slug}`}
+                  className="hover:text-primary"
+                >
+                  {product.category.name}
+                </Link>
+                <span>/</span>
+              </>
+            )}
+            <span className="text-gray-900 font-medium">{product.name}</span>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
+            {/* --- ستون راست: گالری تصاویر --- */}
+            <div className="lg:col-span-5">
+              <div className="sticky top-4 space-y-4">
+                <div className="aspect-square relative bg-gray-50 rounded-2xl overflow-hidden border border-gray-100 group">
+                  {product.images && product.images.length > 0 ? (
                     <Image
-                      src={image.url}
-                      alt={`${product.name} - thumbnail ${index + 1}`}
+                      src={product.images[selectedImage]?.url}
+                      alt={product.name}
                       fill
-                      sizes="100px"
-                      className="w-full h-full object-cover"
+                      sizes="(max-width: 768px) 100vw, 50vw"
+                      className="object-cover transition-transform duration-500 group-hover:scale-[102%]"
+                      priority
                     />
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Product Info */}
-            <div className="space-y-6">
-              <div>
-                {product.brand?.slug ? (
-                  <Link
-                    href={`/brands/${product.brand.slug}`}
-                    className="text-base text-gray-500 hover:text-primary transition-colors mb-1 inline-block"
-                  >
-                    {product.brand.name}
-                  </Link>
-                ) : (
-                  <p className="text-base text-gray-500 mb-1">
-                    {product.brand?.name}
-                  </p>
-                )}
-                <h1 className="text-3xl lg:text-4xl font-bold mb-3">
-                  {product.name}
-                </h1>
-                <div className="flex items-center gap-4">
-                  {hasDiscount ? (
-                    <>
-                      <span className="text-3xl font-bold text-red-600">
-                        {product.discount_price?.toLocaleString("fa-IR")}
-                        <span className="text-lg mr-1">تومان</span>
-                      </span>
-                      <span className="text-lg text-gray-400 line-through">
-                        {product.price.toLocaleString("fa-IR")}
-                        <span className="text-sm mr-1">تومان</span>
-                      </span>
-                    </>
                   ) : (
-                    <span className="text-3xl font-bold">
-                      {product.price.toLocaleString("fa-IR")}
-                      <span className="text-lg mr-1">تومان</span>
-                    </span>
+                    <ImagePlaceholder />
                   )}
-                  {product.stock > 0 ? (
-                    <Badge
-                      variant="secondary"
-                      className="bg-green-100 text-green-800"
-                    >
-                      <CheckCircle className="h-4 w-4 ml-1" />
-                      موجود در انبار
-                    </Badge>
-                  ) : (
-                    <Badge variant="destructive">ناموجود</Badge>
-                  )}
-                </div>
-              </div>
-
-              <div className="w-full flex items-center justify-between gap-2 pt-2">
-                <div className="flex items-center border rounded-lg p-0.5">
-                  <WishlistButton
-                    productId={product.id}
-                    productName={product.name}
-                  />
-                  <ShareButton
-                    productName={product.name}
-                    productSlug={product.slug}
-                  />
-                </div>
-                {quantityInCart === 0 ? (
-                  <Button
-                    className="w-fit h-12 text-base"
-                    onClick={handleAddToCart}
-                    disabled={product.stock === 0}
-                  >
-                    <ShoppingCart className="h-5 w-5 ml-2" />
-                    افزودن به سبد خرید
-                  </Button>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm">تعداد در سبد:</p>
-                    <div className="flex items-center border rounded-lg">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-12 w-12"
-                        onClick={handleDecrement}
+                  <div className="absolute top-3 left-3 flex flex-col gap-2">
+                    {hasDiscount && (
+                      <Badge
+                        variant="destructive"
+                        className="text-sm px-3 py-1 shadow-sm"
                       >
-                        {quantityInCart > 1 ? (
-                          <Minus className="h-5 w-5" />
-                        ) : (
-                          <Trash2 className="h-5 w-5 text-red-500" />
+                        {discountPercentage.toLocaleString("fa-IR")}%
+                      </Badge>
+                    )}
+                    {product.stock <= 5 && product.stock > 0 && (
+                      <Badge
+                        variant="outline"
+                        className="bg-white/90 text-amber-600 border-amber-200 shadow-sm"
+                      >
+                        فقط {product.stock} عدد مانده
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="absolute top-3 right-3 flex flex-col gap-2 lg:hidden">
+                    <WishlistButton
+                      productId={product.id}
+                      productName={product.name}
+                    />
+                    <ShareButton
+                      productName={product.name}
+                      productSlug={product.slug}
+                    />
+                  </div>
+                </div>
+
+                {product.images.length > 1 && (
+                  <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide justify-center lg:justify-start">
+                    {product.images.map((image, index) => (
+                      <button
+                        key={image.id}
+                        onClick={() => setSelectedImage(index)}
+                        className={cn(
+                          "relative w-20 h-20 rounded-lg overflow-hidden border-2 transition-all duration-200 flex-shrink-0",
+                          selectedImage === index
+                            ? "border-primary ring-2 ring-primary/20"
+                            : "border-transparent hover:border-gray-300"
                         )}
-                      </Button>
-                      <span className="w-16 text-center text-lg font-bold">
-                        {quantityInCart.toLocaleString("fa-IR")}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-12 w-12"
-                        onClick={handleIncrement}
-                        disabled={quantityInCart >= product.stock}
                       >
-                        <Plus className="h-5 w-5" />
-                      </Button>
-                    </div>
+                        <Image
+                          src={image.url}
+                          alt={`Thumbnail ${index + 1}`}
+                          fill
+                          className="object-cover"
+                        />
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
+            </div>
 
-              <div className="space-y-3 pt-4 border-t">
-                <FeatureDisplay
-                  icon={ShieldCheck}
-                  label="مناسب پوست"
-                  value={product.skin_type}
-                />
-                <FeatureDisplay
-                  icon={CheckCircle}
-                  label="موثر برای"
-                  value={product.concern}
-                />
-                <FeatureDisplay
-                  icon={Package}
-                  label="حجم/وزن"
-                  value={
-                    product.volume
-                      ? `${product.volume.toLocaleString("fa-IR")} ${
-                          product.unit
-                        }`
-                      : null
-                  }
-                />
-                <FeatureDisplay
+            {/* --- ستون چپ: اطلاعات محصول --- */}
+            <div className="lg:col-span-7 space-y-8">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  {product.brand && (
+                    <Link
+                      href={`/brands/${product.brand.slug}`}
+                      className="text-primary font-semibold hover:underline text-sm bg-primary/5 px-3 py-1 rounded-full"
+                    >
+                      {product.brand.name}
+                    </Link>
+                  )}
+
+                  <div className="hidden lg:flex items-center gap-1">
+                    <WishlistButton
+                      productId={product.id}
+                      productName={product.name}
+                    />
+                    <ShareButton
+                      productName={product.name}
+                      productSlug={product.slug}
+                    />
+                  </div>
+                </div>
+
+                <h1 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight text-right">
+                  {product.name}
+                </h1>
+
+                <div className="flex flex-wrap gap-2 justify-end">
+                  {product.skin_type?.map((type) => (
+                    <Badge
+                      key={type}
+                      variant="secondary"
+                      className="text-xs font-normal"
+                    >
+                      پوست {type}
+                    </Badge>
+                  ))}
+                  {product.concern?.map((c) => (
+                    <Badge
+                      key={c}
+                      variant="outline"
+                      className="text-xs font-normal border-gray-300 text-gray-600"
+                    >
+                      {c}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              {/* --- باکس هوشمند تطبیق پوست --- */}
+              {skinMatchStatus !== "unknown" && (
+                <div
+                  className={cn(
+                    "rounded-xl p-4 border flex items-start gap-3 animate-in fade-in slide-in-from-bottom-2",
+                    skinMatchStatus === "match"
+                      ? "bg-green-50 border-green-200"
+                      : skinMatchStatus === "warning"
+                      ? "bg-amber-50 border-amber-200"
+                      : "bg-gray-50 border-gray-200"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "p-2 rounded-full shrink-0",
+                      skinMatchStatus === "match"
+                        ? "bg-green-100 text-green-600"
+                        : skinMatchStatus === "warning"
+                        ? "bg-amber-100 text-amber-600"
+                        : "bg-gray-200 text-gray-500"
+                    )}
+                  >
+                    {skinMatchStatus === "match" ? (
+                      <Sparkles className="w-5 h-5" />
+                    ) : skinMatchStatus === "warning" ? (
+                      <AlertTriangle className="w-5 h-5" />
+                    ) : (
+                      <Info className="w-5 h-5" />
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <h4
+                      className={cn(
+                        "font-bold text-sm mb-1",
+                        skinMatchStatus === "match"
+                          ? "text-green-800"
+                          : skinMatchStatus === "warning"
+                          ? "text-amber-800"
+                          : "text-gray-700"
+                      )}
+                    >
+                      آنالیز هوشمند پوست شما
+                    </h4>
+                    <p className="text-xs md:text-sm text-gray-600 leading-relaxed">
+                      {skinMatchMessage ||
+                        "برای مشاهده تطابق، لطفا اطلاعات پروفایل پوستی خود را تکمیل کنید."}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <Separator />
+
+              {/* --- کانتینر قیمت و خدمات (دسکتاپ) --- */}
+              <div className="hidden lg:flex flex-row items-stretch gap-4 w-full">
+                {/* 1. باکس قیمت و دکمه خرید */}
+                <div className="flex-1 flex flex-col gap-5 bg-white p-5 rounded-xl border border-gray-200 shadow-sm max-w-[24rem]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500 font-medium text-sm">
+                      قیمت مصرف کننده:
+                    </span>
+                    <div className="text-left">
+                      {hasDiscount ? (
+                        <div className="flex flex-col items-end">
+                          <span className="text-gray-400 line-through text-xs">
+                            {product.price.toLocaleString("fa-IR")}
+                          </span>
+                          <div className="flex items-center gap-2 text-red-600">
+                            <span className="text-2xl font-bold">
+                              {product.discount_price?.toLocaleString("fa-IR")}
+                            </span>
+                            <span className="text-sm font-medium">تومان</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-gray-900">
+                          <span className="text-2xl font-bold">
+                            {product.price.toLocaleString("fa-IR")}
+                          </span>
+                          <span className="text-sm font-medium">تومان</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* استفاده از کامپوننت جدید */}
+                  <div className="mt-auto">
+                    <AddToCartButton product={product} size="lg" />
+                  </div>
+
+                  <div className="flex items-center justify-center gap-2 text-xs text-gray-500 bg-gray-50 p-2 rounded-md border border-dashed border-gray-200">
+                    <ShieldCheck className="w-4 h-4 text-green-600" />
+                    <span>تضمین اصالت و سلامت فیزیکی کالا</span>
+                  </div>
+                </div>
+
+                {/* 2. باکس خدمات */}
+                <div className="flex-1 bg-gray-50 rounded-xl border border-gray-100 p-5 flex flex-col justify-center gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-white p-2 rounded-full shadow-sm text-primary">
+                      <Truck className="w-5 h-5" />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-gray-800">
+                        ارسال سریع
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        تحویل در کوتاه‌ترین زمان ممکن
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="bg-white p-2 rounded-full shadow-sm text-primary">
+                      <RefreshCcw className="w-5 h-5" />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-gray-800">
+                        ۷ روز ضمانت بازگشت
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        در صورت عدم رضایت یا خرابی
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="bg-white p-2 rounded-full shadow-sm text-primary">
+                      <Info className="w-5 h-5" />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-gray-800">
+                        مشاوره تخصصی رایگان
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        پاسخگویی به تمام سوالات شما
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ویژگی‌های کلیدی (Grid) */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <FeatureItem
                   icon={Globe}
                   label="کشور سازنده"
                   value={product.country_of_origin}
                 />
-                <FeatureDisplay
+                <FeatureItem
+                  icon={Package}
+                  label="حجم / وزن"
+                  value={
+                    product.volume ? `${product.volume} ${product.unit}` : null
+                  }
+                />
+                <FeatureItem
                   icon={FlaskConical}
                   label="شکل محصول"
                   value={product.product_form}
                 />
+                <FeatureItem
+                  icon={CheckCircle2}
+                  label="مناسب برای"
+                  value={product.skin_type?.[0] || "انواع پوست"}
+                />
               </div>
 
-              <div className="pt-2">
-                <Tabs defaultValue="description">
-                  <TabsList className="w-full grid grid-cols-2 md:grid-cols-4">
-                    <TabsTrigger value="description">توضیحات</TabsTrigger>
-                    <TabsTrigger value="how_to_use">نحوه استفاده</TabsTrigger>
-                    <TabsTrigger value="ingredients">ترکیبات</TabsTrigger>
-                    <TabsTrigger value="caution">هشدارها</TabsTrigger>
-                  </TabsList>
-                  <TabsContent
-                    value="description"
-                    className="pt-4 text-base text-gray-700 leading-relaxed prose max-w-none rtl"
-                  >
-                    {product.description ||
-                      "توضیحاتی برای این محصول ثبت نشده است."}
-                  </TabsContent>
-                  <TabsContent
-                    value="how_to_use"
-                    className="pt-4 text-base text-gray-700 leading-relaxed"
-                  >
-                    {product.how_to_use || "نحوه استفاده مشخص نشده است."}
-                  </TabsContent>
-                  <TabsContent
-                    value="ingredients"
-                    className="pt-4 text-base text-gray-700"
-                  >
-                    {product.ingredients?.join("، ") ||
-                      "ترکیبات مشخص نشده است."}
-                  </TabsContent>
-                  <TabsContent
-                    value="caution"
-                    className="pt-4 text-base text-gray-700"
-                  >
-                    {product.caution || "هشداری ثبت نشده است."}
-                  </TabsContent>
+              {/* تب‌های توضیحات بهبود یافته */}
+              <div className="mt-16">
+                <Tabs defaultValue="description" className="w-full" dir="rtl">
+                  {/* --- اصلاح ۱: استایل جدید برای لیست تب‌ها --- */}
+                  <div className="border-b border-gray-200 mb-8">
+                    <TabsList className="w-full flex justify-start bg-transparent p-0 gap-8 overflow-x-auto scrollbar-hide h-auto rounded-none">
+                      <TabsTrigger
+                        value="description"
+                        className="relative pb-4 text-base font-medium text-gray-500 transition-colors hover:text-primary 
+                        data-[state=active]:text-primary data-[state=active]:font-bold data-[state=active]:shadow-none bg-transparent
+                        after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[3px] after:bg-primary after:scale-x-0 after:transition-transform after:duration-300 
+                        data-[state=active]:after:scale-x-100 rounded-none"
+                      >
+                        توضیحات کامل
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="ingredients"
+                        className="relative pb-4 text-base font-medium text-gray-500 transition-colors hover:text-primary 
+                        data-[state=active]:text-primary data-[state=active]:font-bold data-[state=active]:shadow-none bg-transparent
+                        after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[3px] after:bg-primary after:scale-x-0 after:transition-transform after:duration-300 
+                        data-[state=active]:after:scale-x-100 rounded-none"
+                      >
+                        ترکیبات
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="how_to_use"
+                        className="relative pb-4 text-base font-medium text-gray-500 transition-colors hover:text-primary 
+                        data-[state=active]:text-primary data-[state=active]:font-bold data-[state=active]:shadow-none bg-transparent
+                        after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[3px] after:bg-primary after:scale-x-0 after:transition-transform after:duration-300 
+                        data-[state=active]:after:scale-x-100 rounded-none"
+                      >
+                        نحوه استفاده
+                      </TabsTrigger>
+                    </TabsList>
+                  </div>
+
+                  {/* --- اصلاح ۲: اضافه کردن min-h-[400px] برای جلوگیری از پرش صفحه --- */}
+                  <div className="min-h-[400px]">
+                    <TabsContent
+                      value="description"
+                      className="text-gray-700 leading-8 text-justify prose max-w-none animate-in fade-in slide-in-from-bottom-4 duration-500"
+                    >
+                      <p>{product.description || "توضیحاتی ثبت نشده است."}</p>
+                    </TabsContent>
+
+                    <TabsContent
+                      value="ingredients"
+                      className="animate-in fade-in slide-in-from-bottom-4 duration-500"
+                    >
+                      {product.ingredients && product.ingredients.length > 0 ? (
+                        <div className="bg-gray-50/50 rounded-2xl p-6 border border-gray-100">
+                          <h4 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <FlaskConical className="w-5 h-5 text-primary" />
+                            مواد تشکیل دهنده:
+                          </h4>
+                          <div className="flex flex-wrap gap-3">
+                            {product.ingredients.map((ing, idx) => (
+                              <span
+                                key={idx}
+                                className="px-3 py-1.5 bg-white text-gray-700 rounded-lg text-sm border border-gray-200 shadow-sm"
+                              >
+                                {ing}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-gray-500">
+                          اطلاعات ترکیبات ثبت نشده است.
+                        </p>
+                      )}
+                    </TabsContent>
+
+                    <TabsContent
+                      value="how_to_use"
+                      className="animate-in fade-in slide-in-from-bottom-4 duration-500"
+                    >
+                      <div className="flex flex-col gap-4">
+                        <div className="bg-blue-50/30 p-6 rounded-2xl border border-blue-100">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Sparkles className="w-5 h-5 text-blue-600" />
+                            <h4 className="font-bold text-gray-900">
+                              راهنمای مصرف:
+                            </h4>
+                          </div>
+                          <p className="text-gray-700 leading-loose">
+                            {product.how_to_use ||
+                              "دستور مصرف خاصی ثبت نشده است."}
+                          </p>
+                        </div>
+
+                        {product.caution && (
+                          <div className="bg-amber-50/30 p-6 rounded-2xl border border-amber-100">
+                            <div className="flex items-center gap-2 mb-3">
+                              <AlertTriangle className="w-5 h-5 text-amber-600" />
+                              <h4 className="font-bold text-gray-900">
+                                هشدارها:
+                              </h4>
+                            </div>
+                            <p className="text-gray-700 leading-loose">
+                              {product.caution}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </TabsContent>
+                  </div>
                 </Tabs>
               </div>
             </div>
@@ -389,19 +584,52 @@ export default function ProductDetailsClient({
         </div>
       </div>
 
-      {/* Related Products Section */}
+      {/* --- Sticky Bottom Bar برای موبایل --- */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-3 px-4 lg:hidden z-40 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] pb-safe safe-area-bottom">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col">
+            {hasDiscount ? (
+              <>
+                <span className="text-xs text-gray-400 line-through text-right">
+                  {product.price.toLocaleString("fa-IR")}
+                </span>
+                <div className="flex items-center gap-1 text-red-600">
+                  <span className="font-bold text-lg">
+                    {product.discount_price?.toLocaleString("fa-IR")}
+                  </span>
+                  <span className="text-xs">تومان</span>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center gap-1 text-gray-900">
+                <span className="font-bold text-lg">
+                  {product.price.toLocaleString("fa-IR")}
+                </span>
+                <span className="text-xs">تومان</span>
+              </div>
+            )}
+          </div>
+
+          {/* استفاده از کامپوننت جدید برای موبایل */}
+          <div className="flex-1 max-w-[180px]">
+            <AddToCartButton product={product} />
+          </div>
+        </div>
+      </div>
+
+      {/* محصولات مرتبط */}
       {relatedProducts.length > 0 && (
-        <div className="bg-gray-50/70 py-12 lg:py-16">
-          <section className="container mx-auto px-4">
-            <h2 className="text-center text-2xl lg:text-3xl font-bold mb-8 text-gray-900">
-              محصولات مرتبط
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8">
-              {relatedProducts.map((related) => (
-                <ProductCard key={related.id} product={related} />
+        <div className="bg-gray-50 py-12 border-t">
+          <div className="container mx-auto px-4">
+            <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-8 text-center">
+              محصولات مشابه
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {relatedProducts.map((p) => (
+                <ProductCard key={p.id} product={p} />
               ))}
             </div>
-          </section>
+          </div>
         </div>
       )}
     </>
