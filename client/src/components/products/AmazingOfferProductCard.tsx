@@ -24,7 +24,7 @@ function AmazingOfferProductCard({ product }: { product: Product }) {
     <Link
       href={`/products/${product.slug}`}
       // تغییر پس‌زمینه به سفید یکدست و بهبود سایه
-      className="group flex flex-col h-full overflow-hidden rounded-lg border bg-white shadow-sm hover:shadow-lg transition-shadow duration-300"
+      className="flex flex-col h-full overflow-hidden rounded-lg border bg-white shadow-sm hover:shadow-lg transition-shadow duration-300"
       prefetch={false}
       target="_blank"
     >
@@ -35,7 +35,7 @@ function AmazingOfferProductCard({ product }: { product: Product }) {
             alt={product.name}
             fill
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105"
+            className="object-cover w-full h-full transition-transform duration-300 hover:scale-101"
           />
         ) : (
           <ImagePlaceholder />

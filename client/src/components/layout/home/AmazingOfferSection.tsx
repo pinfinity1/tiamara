@@ -14,7 +14,7 @@ export default async function AmazingOfferSection() {
 
   return (
     <section className="container mx-auto px-4 my-12">
-      <div className="relative rounded-lg overflow-hidden w-full group">
+      <div className="relative rounded-lg overflow-hidden w-full">
         {/* Background Image & Overlay */}
         <div className="absolute inset-0 z-0">
           <Image
