@@ -31,10 +31,10 @@ export default auth((req) => {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
-  if (isAuthRoute && isLoggedIn) {
-    const url = userRole === "SUPER_ADMIN" ? "/super-admin" : "/";
-    return NextResponse.redirect(new URL(url, req.url));
-  }
+  // if (isAuthRoute && isLoggedIn) {
+  //   const url = userRole === "SUPER_ADMIN" ? "/super-admin" : "/";
+  //   return NextResponse.redirect(new URL(url, req.url));
+  // }
 
   if (isAdminRoute && userRole !== "SUPER_ADMIN") {
     return NextResponse.redirect(new URL("/", req.url));
