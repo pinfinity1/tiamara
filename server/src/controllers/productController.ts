@@ -1,5 +1,3 @@
-// server/src/controllers/productController.ts
-
 import { Response, Request } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import cloudinary from "../config/cloudinary";
@@ -35,9 +33,11 @@ const generateSlug = (name: string) => {
     .toString()
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, "-")
-    .replace(/[^\w\-]+/g, "")
-    .replace(/\-\-+/g, "-");
+    .replace(/\s+/g, "-") // فاصله‌ها را با خط تیره جایگزین کن
+    .replace(/[^\w\u0600-\u06FF\-]+/g, "") // فقط حروف انگلیسی، اعداد، حروف فارسی و خط تیره را نگه دار
+    .replace(/\-\-+/g, "-") // خط تیره‌های تکراری را حذف کن
+    .replace(/^-+/, "") // خط تیره اول را حذف کن
+    .replace(/-+$/, ""); // خط تیره آخر را حذف کن
 };
 
 export const getProductFilters = async (
@@ -121,6 +121,7 @@ export const createProduct = async (
     const userId = req.user?.userId;
     const {
       name,
+      englishName,
       brandId,
       categoryId,
       description,
@@ -160,11 +161,25 @@ export const createProduct = async (
       altText: `${name} image ${index + 1}`,
     }));
 
+    // ✅ تغییر استراتژی اسلاگ: اولویت با نام انگلیسی است
+    // این برای سئو (URLهای تمیز) بسیار بهتر است
+    let slugBase = englishName || name;
+    let generatedSlug = generateSlug(slugBase);
+
+    // بررسی تکراری بودن اسلاگ و اضافه کردن عدد تصادفی در صورت تکرار (برای اطمینان)
+    const existingSlug = await prisma.product.findUnique({
+      where: { slug: generatedSlug },
+    });
+    if (existingSlug) {
+      generatedSlug = `${generatedSlug}-${Math.floor(Math.random() * 1000)}`;
+    }
+
     const stockAmount = parseInt(stock);
     const newlyCreatedProduct = await prisma.product.create({
       data: {
         name,
-        slug: generateSlug(name),
+        englishName, // ✅ ذخیره نام انگلیسی
+        slug: generatedSlug,
         brandId,
         categoryId,
         description,
@@ -237,6 +252,79 @@ export const fetchAllProductsForAdmin = async (
   } catch (e) {
     console.error("Error fetching admin products:", e);
     res.status(500).json({ success: false, message: "Some error occurred!" });
+  }
+};
+
+export const getAdminProductsPaginated = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const search = req.query.search as string;
+    const brandId = req.query.brandId as string;
+    const categoryId = req.query.categoryId as string;
+    const sort = (req.query.sort as string) || "createdAt";
+    const order = (req.query.order as "asc" | "desc") || "desc";
+    const stockStatus = req.query.stockStatus as string; // 'low', 'out', 'in'
+
+    const where: Prisma.ProductWhereInput = {
+      isArchived: false, // فعلاً فقط فعال‌ها، مگر اینکه فیلتر آرشیو اضافه کنیم
+    };
+
+    // 1. جستجو
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { englishName: { contains: search, mode: "insensitive" } },
+        { sku: { contains: search, mode: "insensitive" } },
+        { barcode: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    // 2. فیلترها
+    if (brandId && brandId !== "all") where.brandId = brandId;
+    if (categoryId && categoryId !== "all") where.categoryId = categoryId;
+
+    // 3. فیلتر موجودی
+    if (stockStatus) {
+      if (stockStatus === "out") {
+        where.stock = 0;
+      } else if (stockStatus === "low") {
+        where.stock = { gt: 0, lte: 10 }; // مثلا زیر ۱۰ تا کم محسوب میشه
+      } else if (stockStatus === "in") {
+        where.stock = { gt: 10 };
+      }
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [products, total] = await prisma.$transaction([
+      prisma.product.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { [sort]: order },
+        include: {
+          images: { take: 1 },
+          brand: true,
+          category: true,
+        },
+      }),
+      prisma.product.count({ where }),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      products,
+      total,
+      totalPages: Math.ceil(total / limit),
+      currentPage: page,
+    });
+  } catch (e) {
+    console.error("Error fetching admin products:", e);
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -342,6 +430,7 @@ export const updateProduct = async (
     const { id } = req.params;
     const {
       name,
+      englishName, // ✅
       slug,
       brandId,
       categoryId,
@@ -416,12 +505,28 @@ export const updateProduct = async (
       files.forEach((file) => fs.unlinkSync(file.path));
     }
 
+    // ✅ بازسازی اسلاگ اگر نام انگلیسی یا فارسی تغییر کرده باشد و اسلاگ دستی وارد نشده باشد
+    let finalSlug = slug;
+    if (!finalSlug || finalSlug === existingProduct.slug) {
+      // اگر اسلاگ جدیدی از فرانت نیامده بود، چک میکنیم آیا نیاز به تغییر هست؟
+      // (برای سادگی فعلا فرض میکنیم اگر نام انگلیسی اضافه شد، اسلاگ آپدیت شود بهتر است)
+      if (englishName && englishName !== existingProduct.englishName) {
+        finalSlug = generateSlug(englishName);
+      } else if (
+        !existingProduct.englishName &&
+        name !== existingProduct.name
+      ) {
+        finalSlug = generateSlug(name);
+      }
+    }
+
     const newStockAmount = parseInt(stock);
     const product = await prisma.product.update({
       where: { id },
       data: {
         name,
-        slug: slug || generateSlug(name),
+        englishName, // ✅ آپدیت نام انگلیسی
+        slug: finalSlug || generateSlug(englishName || name),
         brandId,
         categoryId,
         description,
@@ -664,7 +769,7 @@ export const getProductsForClient = async (
   }
 };
 
-// Bulk Create Products from Excel (Corrected to include all fields)
+// Bulk Create Products from Excel (Updated to include englishName)
 export const bulkCreateProductsFromExcel = async (
   req: AuthenticatedRequest,
   res: Response
@@ -693,12 +798,13 @@ export const bulkCreateProductsFromExcel = async (
       try {
         const {
           name,
+          englishName, // ✅
           sku,
           price,
           stock,
           brandName,
           categoryName,
-          // فیلدهای جدید اضافه شده
+          // ...
           description,
           how_to_use,
           caution,
@@ -754,14 +860,16 @@ export const bulkCreateProductsFromExcel = async (
 
         const productData = {
           name,
+          englishName, // ✅
           slug:
-            name.toLowerCase().replace(/\s+/g, "-") + "-" + sku.toLowerCase(),
+            (englishName || name).toLowerCase().replace(/\s+/g, "-") +
+            "-" +
+            sku.toLowerCase(), // ✅
 
-          // مپ کردن فیلدهای توضیحات و جزئیات
           description: description || null,
           how_to_use: how_to_use || null,
           caution: caution || null,
-          ingredients: ingredientsArray, // ذخیره به عنوان آرایه
+          ingredients: ingredientsArray,
 
           price: parseFloat(price),
           stock: parseInt(stock, 10),
@@ -775,7 +883,7 @@ export const bulkCreateProductsFromExcel = async (
           product_form: product_form || null,
           metaTitle: metaTitle || name,
           metaDescription: metaDescription || null,
-          isArchived: false, // بازگرداندن محصول اگر قبلاً حذف شده بود
+          isArchived: false,
         };
 
         const existingProduct = await prisma.product.findUnique({

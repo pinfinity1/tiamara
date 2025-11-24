@@ -63,6 +63,7 @@ function JsonLd({ product }: { product: Product }) {
     "@context": "https://schema.org/",
     "@type": "Product",
     name: product.name,
+    alternateName: product.englishName, // ✅ افزودن نام انگلیسی به اسکیما
     image: product.images.map((img) => img.url),
     description: product.metaDescription || product.description,
     sku: product.sku,
@@ -127,7 +128,6 @@ export default function ProductDetails({
       const isCompatible = product.skin_type.some((t) =>
         t.includes(userProfile.skinType!)
       );
-
       if (isCompatible) {
         skinMatchStatus = "match";
         skinMatchMessage = `عالی! این محصول مناسب پوست ${userProfile.skinType} شماست.`;
@@ -258,9 +258,18 @@ export default function ProductDetails({
                   {product.brand && (
                     <Link
                       href={`/brands/${product.brand.slug}`}
-                      className="text-primary font-semibold hover:underline text-sm bg-primary/5 px-3 py-1 rounded-full"
+                      className="text-primary font-semibold hover:underline text-sm bg-primary/5 px-3 py-1 rounded-full flex items-center gap-1"
                     >
-                      {product.brand.name}
+                      <span>{product.brand.name}</span>
+
+                      {product.brand.englishName && (
+                        <>
+                          <span className="text-gray-300">|</span>
+                          <span className="font-sans text-xs font-medium pt-0.5">
+                            {product.brand.englishName}
+                          </span>
+                        </>
+                      )}
                     </Link>
                   )}
 
@@ -276,9 +285,17 @@ export default function ProductDetails({
                   </div>
                 </div>
 
-                <h1 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight text-right">
-                  {product.name}
-                </h1>
+                <div className="text-right space-y-2">
+                  <h1 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight">
+                    {product.name}
+                  </h1>
+                  {/* ✅ نمایش نام انگلیسی محصول */}
+                  {product.englishName && (
+                    <h2 className="text-xl md:text-2xl text-gray-500 font-medium dir-ltr font-sans">
+                      {product.englishName}
+                    </h2>
+                  )}
+                </div>
 
                 <div className="flex flex-wrap gap-2 justify-end">
                   {product.skin_type?.map((type) => (

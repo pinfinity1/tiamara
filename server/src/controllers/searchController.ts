@@ -17,17 +17,17 @@ export const searchProducts = async (
     }
 
     const [products, brands, categories] = await prisma.$transaction([
-      // 1. Search for products
       prisma.product.findMany({
         where: {
           OR: [
             { name: { contains: query, mode: "insensitive" } },
+            { englishName: { contains: query, mode: "insensitive" } },
             { description: { contains: query, mode: "insensitive" } },
             { tags: { has: query.toLowerCase() } },
             { skin_type: { has: query.toLowerCase() } },
             { concern: { has: query.toLowerCase() } },
             { product_form: { contains: query, mode: "insensitive" } },
-            // جستجو در نام فارسی و انگلیسی برندِ محصول
+
             {
               brand: {
                 OR: [
@@ -36,7 +36,6 @@ export const searchProducts = async (
                 ],
               },
             },
-            // جستجو در نام فارسی و انگلیسی دسته‌بندیِ محصول
             {
               category: {
                 OR: [
@@ -46,7 +45,6 @@ export const searchProducts = async (
               },
             },
           ],
-          // اضافه کردن شرط عدم نمایش محصولات آرشیو شده (اختیاری ولی توصیه می‌شود)
           isArchived: false,
         },
         include: {
@@ -56,7 +54,7 @@ export const searchProducts = async (
         },
         take: 10,
       }),
-      // 2. Search for brands (Persian & English)
+
       prisma.brand.findMany({
         where: {
           OR: [
@@ -67,7 +65,7 @@ export const searchProducts = async (
         },
         take: 5,
       }),
-      // 3. Search for categories (Persian & English)
+
       prisma.category.findMany({
         where: {
           OR: [

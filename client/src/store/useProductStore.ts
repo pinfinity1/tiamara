@@ -12,6 +12,7 @@ interface Image {
 interface Brand {
   id: string;
   name: string;
+  englishName?: string | null;
   slug: string;
 }
 
@@ -25,6 +26,7 @@ interface Category {
 export interface Product {
   id: string;
   name: string;
+  englishName?: string | null; // ✅ اضافه شد
   slug: string;
   description?: string | null;
   how_to_use?: string | null;
@@ -57,6 +59,7 @@ export interface Product {
   category?: Category | null;
   createdAt: string;
   updatedAt: string;
+  isArchived: boolean;
 }
 
 interface ProductState {
@@ -66,6 +69,10 @@ interface ProductState {
   currentPage: number;
   totalPages: number;
   totalProducts: number;
+  adminProducts: Product[];
+  adminTotalPages: number;
+  adminTotalProducts: number;
+  isAdminLoading: boolean;
   fetchAllProductsForAdmin: () => Promise<void>;
   createProduct: (productData: FormData) => Promise<Product | null>;
   updateProduct: (id: string, productData: FormData) => Promise<Product | null>;
@@ -89,6 +96,16 @@ interface ProductState {
   uploadProductsFromExcel: (
     file: File
   ) => Promise<{ success: boolean; data?: any; error?: string }>;
+  fetchAdminProducts: (params: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    brandId?: string;
+    categoryId?: string;
+    sort?: string;
+    order?: "asc" | "desc";
+    stockStatus?: string;
+  }) => Promise<void>;
 }
 
 export const useProductStore = create<ProductState>((set, get) => ({
@@ -98,6 +115,10 @@ export const useProductStore = create<ProductState>((set, get) => ({
   currentPage: 1,
   totalPages: 1,
   totalProducts: 0,
+  adminProducts: [],
+  adminTotalPages: 1,
+  adminTotalProducts: 0,
+  isAdminLoading: false,
   fetchAllProductsForAdmin: async () => {
     set({ isLoading: true, error: null });
     try {
@@ -105,6 +126,20 @@ export const useProductStore = create<ProductState>((set, get) => ({
       set({ products: response.data, isLoading: false });
     } catch (e) {
       set({ error: "Failed to fetch product", isLoading: false });
+    }
+  },
+  fetchAdminProducts: async (params) => {
+    set({ isAdminLoading: true });
+    try {
+      const response = await axiosAuth.get(`/products/admin/list`, { params });
+      set({
+        adminProducts: response.data.products,
+        adminTotalPages: response.data.totalPages,
+        adminTotalProducts: response.data.total,
+        isAdminLoading: false,
+      });
+    } catch (e) {
+      set({ error: "Failed to fetch admin products", isAdminLoading: false });
     }
   },
   createProduct: async (productData: FormData) => {

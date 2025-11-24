@@ -16,6 +16,7 @@ import {
   bulkCreateProductsFromExcel,
   getProductBySlug,
   getProductFilters,
+  getAdminProductsPaginated,
 } from "../controllers/productController";
 
 const router = expess.Router();
@@ -41,6 +42,13 @@ router.get(
   authenticateUser,
   authorizeAdmin,
   fetchAllProductsForAdmin
+);
+
+router.get(
+  "/admin/list", // آدرس جدید
+  authenticateUser,
+  authorizeAdmin,
+  getAdminProductsPaginated
 );
 
 router.put(

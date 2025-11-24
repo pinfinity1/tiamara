@@ -9,6 +9,7 @@ function JsonLd({ product }: { product: Product }) {
     "@context": "https://schema.org/",
     "@type": "Product",
     name: product.name,
+    alternateName: product.englishName, // ✅ نام انگلیسی اضافه شد
     image: product.images.map((img) => img.url),
     description: product.metaDescription || product.description,
     sku: product.sku,
@@ -105,11 +106,16 @@ export async function generateMetadata({
     };
   }
 
+  // ✅ تولید عنوان صفحه به صورت ترکیبی
+  const pageTitle = product.englishName
+    ? `${product.name} | ${product.englishName}`
+    : product.name;
+
   return {
-    title: product.metaTitle || product.name || undefined,
+    title: product.metaTitle || pageTitle,
     description: product.metaDescription || product.description || undefined,
     openGraph: {
-      title: product.metaTitle || product.name || undefined,
+      title: product.metaTitle || pageTitle,
       description: product.metaDescription || product.description || undefined,
       images: [
         {
