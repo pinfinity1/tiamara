@@ -13,7 +13,8 @@ const ItemsCarousel: React.FC<PropType> = ({ children }) => {
   const [emblaRef, emblaApi] = useEmblaCarousel({
     direction: "rtl",
     loop: false,
-    align: "start",
+    align: "center",
+    containScroll: "trimSnaps",
   });
 
   const [canScrollPrev, setCanScrollPrev] = useState(false);
@@ -40,15 +41,15 @@ const ItemsCarousel: React.FC<PropType> = ({ children }) => {
   }, [emblaApi, onSelect]);
 
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full group/carousel">
       <div className="overflow-hidden h-full" ref={emblaRef}>
-        <div className="flex h-full md:-mr-2">
+        <div className="flex h-full md:-mr-2 touch-pan-y">
           {React.Children.map(children, (child, index) => (
             <div
-              // ✅ تغییر کلیدی: اضافه کردن کلاس شرطی به اولین اسلاید
-              className={`embla__slide p-1 h-full flex-shrink-0 w-[256px] ${
-                index === 0 ? "first-slide-conditional" : ""
-              }`}
+              className={`embla__slide 
+              h-full flex-shrink-0 
+              w-[75%] sm:w-[240px] md:w-[256px] 
+              pl-2 ${index === 0 ? "first-slide-conditional" : ""}`}
             >
               {child}
             </div>
@@ -56,23 +57,26 @@ const ItemsCarousel: React.FC<PropType> = ({ children }) => {
         </div>
       </div>
 
+      {/* دکمه راست (قبلی) */}
       <Button
         variant="secondary"
         size="icon"
-        className="absolute top-1/2 -translate-y-1/2 -right-2 rounded-full shadow-gray-400 z-10 transition-opacity duration-300 disabled:opacity-0"
+        className="hidden md:flex absolute top-1/2 -translate-y-1/2 right-1 rounded-full shadow-md bg-white/90 hover:bg-white z-30 transition-opacity duration-300 disabled:opacity-0"
         onClick={scrollPrev}
         disabled={!canScrollPrev}
       >
-        <ChevronRight className="h-5 w-5" />
+        <ChevronRight className="h-5 w-5 text-gray-700" />
       </Button>
+
+      {/* دکمه چپ (بعدی) */}
       <Button
         variant="secondary"
         size="icon"
-        className="absolute top-1/2 -translate-y-1/2 -left-2 rounded-full shadow-gray-400 z-10 transition-opacity duration-300 disabled:opacity-0"
+        className="hidden md:flex absolute top-1/2 -translate-y-1/2 left-1 rounded-full shadow-md bg-white/90 hover:bg-white z-30 transition-opacity duration-300  disabled:opacity-0"
         onClick={scrollNext}
-        disabled={!canScrollNext}
+        disabled={!canScrollNext} // اگر اسکرول به چپ ممکن نباشد، غیرفعال می‌شود
       >
-        <ChevronLeft className="h-5 w-5" />
+        <ChevronLeft className="h-5 w-5 text-gray-700" />
       </Button>
     </div>
   );

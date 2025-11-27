@@ -10,7 +10,7 @@ import { useProductStore } from "@/store/useProductStore";
 import { useBrandStore } from "@/store/useBrandStore";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PlusCircle, Edit, Trash2, GripVertical } from "lucide-react";
+import { PlusCircle, Edit, Trash2, GripVertical, Clock } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -70,6 +70,9 @@ const SortableCollectionItem = ({
     useSortable({ id: collection.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
 
+  // بررسی وجود تاریخ انقضا (با کست کردن به any چون تایپ هنوز آپدیت نشده)
+  const hasTimer = (collection as any).expiresAt;
+
   return (
     <div
       ref={setNodeRef}
@@ -81,8 +84,16 @@ const SortableCollectionItem = ({
           <GripVertical className="h-5 w-5 text-muted-foreground" />
         </button>
         <div>
-          <p className="font-semibold">{collection.title}</p>
-          <p className="text-sm text-gray-500">{collection.type}</p>
+          <p className="font-semibold flex items-center gap-2">
+            {collection.title}
+            {hasTimer && (
+              <span className="text-[10px] bg-red-50 text-red-600 px-2 py-0.5 rounded-full flex items-center gap-1 border border-red-100">
+                <Clock className="w-3 h-3" />
+                تایمر فعال
+              </span>
+            )}
+          </p>
+          <p className="text-sm text-gray-500 mt-1">{collection.type}</p>
         </div>
       </div>
       <div className="flex items-center gap-2">
@@ -131,6 +142,8 @@ function CollectionManager() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCollection, setEditingCollection] =
     useState<ProductCollection | null>(null);
+
+  // استیت فرم شامل فیلد جدید expiresAt
   const [formData, setFormData] = useState({
     title: "",
     type: SectionType.MANUAL,
@@ -139,6 +152,7 @@ function CollectionManager() {
     location: "homepage",
     image: null as File | null,
     existingImageUrl: null as string | null,
+    expiresAt: "", // ✅ فیلد جدید
   });
   const [preview, setPreview] = useState<string | null>(null);
 
@@ -160,6 +174,7 @@ function CollectionManager() {
       location: "homepage",
       image: null,
       existingImageUrl: null,
+      expiresAt: "", // ✅ ریست
     });
     setPreview(null);
     setIsDialogOpen(true);
@@ -167,6 +182,13 @@ function CollectionManager() {
 
   const handleEdit = (collection: ProductCollection) => {
     setEditingCollection(collection);
+
+    // تبدیل تاریخ دریافتی به فرمت قابل قبول برای input type="datetime-local"
+    // فرمت: YYYY-MM-DDTHH:mm
+    const expiryDate = (collection as any).expiresAt
+      ? new Date((collection as any).expiresAt).toISOString().slice(0, 16)
+      : "";
+
     setFormData({
       title: collection.title,
       type: collection.type,
@@ -175,6 +197,7 @@ function CollectionManager() {
       location: collection.location || "homepage",
       image: null,
       existingImageUrl: collection.imageUrl || null,
+      expiresAt: expiryDate, // ✅ مقداردهی
     });
     setPreview(collection.imageUrl || null);
     setIsDialogOpen(true);
@@ -205,6 +228,11 @@ function CollectionManager() {
     }
     if (formData.existingImageUrl) {
       data.append("existingImageUrl", formData.existingImageUrl);
+    }
+
+    // ✅ ارسال تاریخ انقضا به سرور
+    if (formData.expiresAt) {
+      data.append("expiresAt", formData.expiresAt);
     }
 
     if (editingCollection) {
@@ -287,6 +315,7 @@ function CollectionManager() {
                     type: value,
                     productIds: [],
                     brandId: null,
+                    // اگر نوع عوض شد و دیگر تخفیف‌دار نبود، شاید بخواهید تاریخ را پاک کنید (اختیاری)
                   })
                 }
               >
@@ -309,6 +338,33 @@ function CollectionManager() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* ✅ بخش انتخاب تاریخ انقضا (فقط برای تخفیف‌دارها نمایش داده می‌شود) */}
+            {formData.type === SectionType.DISCOUNTED && (
+              <div className="bg-orange-50 p-4 rounded-lg border border-orange-200 space-y-2">
+                <Label
+                  htmlFor="expiresAt"
+                  className="text-orange-900 font-semibold flex items-center gap-2"
+                >
+                  <Clock className="w-4 h-4" />
+                  تاریخ و ساعت پایان پیشنهاد
+                </Label>
+                <Input
+                  id="expiresAt"
+                  type="datetime-local"
+                  value={formData.expiresAt}
+                  onChange={(e) =>
+                    setFormData({ ...formData, expiresAt: e.target.value })
+                  }
+                  className="bg-white border-orange-200 focus-visible:ring-orange-500"
+                />
+                <p className="text-xs text-orange-700 leading-relaxed">
+                  تایمر معکوس در صفحه اصلی بر اساس این تاریخ تنظیم می‌شود. اگر
+                  خالی باشد، تایمر تا پایان امروز را نشان می‌دهد.
+                </p>
+              </div>
+            )}
+
             {formData.type === SectionType.BRAND && (
               <div>
                 <Label>برند</Label>

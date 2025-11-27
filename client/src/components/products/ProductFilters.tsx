@@ -1,30 +1,27 @@
 "use client";
 
-import { Button } from "../ui/button";
-import { Checkbox } from "../ui/checkbox";
-import { Label } from "../ui/label";
-import { Input } from "../ui/input";
-import { Slider } from "@/components/ui/slider";
-import { useState, useMemo, useEffect } from "react";
-import { FilterData } from "@/store/useFilterStore"; //
+import { useState, useEffect, useMemo } from "react";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@/components/ui/accordion";
-import { useDebounce } from "@/hooks/use-debounce"; //
-
-// --- ۱. Import های جدید مورد نیاز ---
+} from "../ui/accordion";
+import { Checkbox } from "../ui/checkbox";
+import { Label } from "../ui/label";
+import { Slider } from "../ui/slider";
+import { Button } from "../ui/button";
+import { FilterData } from "@/store/useFilterStore";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { useSession } from "next-auth/react";
-import { useUserStore } from "@/store/useUserStore"; //
-import { useSkinProfileModalStore } from "@/store/useSkinProfileModalStore"; //
-import { cn } from "@/lib/utils"; //
-import { Skeleton } from "@/components/ui/skeleton"; // <-- برای لودینگ
+import { useUserStore } from "@/store/useUserStore";
+import { useSkinProfileModalStore } from "@/store/useSkinProfileModalStore";
+import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "../ui/input";
+import { useDebounce } from "@/hooks/use-debounce";
 
-// --- ۲. profileBasedFilter به FilterState اضافه شد ---
 export interface FilterState {
   categories: string[];
   brands: string[];
@@ -32,13 +29,14 @@ export interface FilterState {
   concerns: string[];
   minPrice: number;
   maxPrice: number;
-  profileBasedFilter: boolean; // <-- اضافه شد
+  profileBasedFilter: boolean;
+  hasDiscount?: boolean;
 }
 
 interface ProductFiltersProps {
   filters: FilterData;
   initialState: FilterState;
-  onFilterChange: (newState: FilterState) => void;
+  onFilterChange: (state: FilterState) => void;
   onClear: () => void;
   activeCategoryName?: string;
   isModalView?: boolean;
@@ -52,199 +50,201 @@ export default function ProductFilters({
   activeCategoryName,
   isModalView = false,
 }: ProductFiltersProps) {
+  // --- جستجوی داخلی ---
   const [brandSearch, setBrandSearch] = useState("");
   const [categorySearch, setCategorySearch] = useState("");
+
+  // --- استیت داخلی فیلترها ---
+  const [state, setState] = useState<FilterState>(initialState);
+
+  // --- مدیریت قیمت با Debounce ---
   const [priceRange, setPriceRange] = useState<[number, number]>([
     initialState.minPrice,
     initialState.maxPrice,
   ]);
   const debouncedPriceRange = useDebounce(priceRange, 500);
 
-  // --- ۳. Import کردن هوک‌ها با state لودینگ ---
+  // --- هوک‌های کاربر و پروفایل ---
   const { data: session, status: sessionStatus } = useSession();
-  const { userProfile, isLoading: isProfileStoreLoading } = useUserStore(); // <-- isLoading را می‌گیریم
+  const { userProfile } = useUserStore();
   const { onOpen: openSkinProfileModal } = useSkinProfileModalStore();
 
   const isLoggedIn = sessionStatus === "authenticated";
-
-  // --- ۴. این منطق جدید و صحیح برای حل مشکل رفرش است ---
   const isSessionLoading = sessionStatus === "loading";
-  // ما در حال "بررسی پروفایل" هستیم اگر:
-  // ۱. سشن در حال لود شدن است
-  // ۲. یا، سشن لاگین شده، اما ما هنوز آبجکت userProfile را از استور نگرفته‌ایم (چون GlobalProfileLoader در حال فچ کردن آن است)
   const isProfileCheckLoading =
     isSessionLoading || (isLoggedIn && !userProfile);
-
-  // پروفایل کامل است اگر:
-  // آبجکت userProfile وجود داشته باشد AND فیلد skinType داخل آن باشد
   const isProfileComplete = !!userProfile?.skinType;
-  // --- پایان منطق جدید ---
 
+  // ۱. سینک کردن استیت داخلی با ورودی والد
   useEffect(() => {
-    if (!isModalView) {
-      onFilterChange({
-        ...initialState,
+    setState(initialState);
+    setPriceRange([initialState.minPrice, initialState.maxPrice]);
+  }, [initialState]);
+
+  // ۲. اعمال تغییرات قیمت
+  useEffect(() => {
+    if (
+      !isModalView &&
+      (debouncedPriceRange[0] !== state.minPrice ||
+        debouncedPriceRange[1] !== state.maxPrice)
+    ) {
+      const newState = {
+        ...state,
         minPrice: debouncedPriceRange[0],
         maxPrice: debouncedPriceRange[1],
-      });
-    } else {
-      onFilterChange({
-        ...initialState,
-        minPrice: priceRange[0],
-        maxPrice: priceRange[1],
-      });
+      };
+      setState(newState);
+      onFilterChange(newState);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedPriceRange, isModalView]);
+  }, [debouncedPriceRange]);
 
-  useEffect(() => {
-    setPriceRange([initialState.minPrice, initialState.maxPrice]);
-  }, [initialState.minPrice, initialState.maxPrice]);
-
-  const handleCheckedChange = (
-    key: keyof FilterState,
+  // ✅ اصلاح تابع: اضافه کردن آرگومان سوم (checked)
+  const handleCheckboxChange = (
+    section: keyof Omit<
+      FilterState,
+      "minPrice" | "maxPrice" | "profileBasedFilter" | "hasDiscount"
+    >,
     value: string,
-    checked: boolean
+    checked: boolean // <-- این آرگومان اضافه شد
   ) => {
-    const currentValues = initialState[key] as string[];
+    const currentValues = (state[section] as string[]) || [];
+
+    // اگر تیک خورده بود اضافه کن، اگر برداشته شد حذف کن
     const newValues = checked
       ? [...currentValues, value]
       : currentValues.filter((item) => item !== value);
-    onFilterChange({ ...initialState, [key]: newValues });
+
+    const newState = { ...state, [section]: newValues };
+    setState(newState);
+    if (!isModalView) {
+      onFilterChange(newState);
+    }
   };
 
-  const handleClear = () => {
-    onClear();
+  const handlePriceChange = (value: number[]) => {
+    setPriceRange([value[0], value[1]]);
   };
 
   const handleProfileFilterToggle = (checked: boolean) => {
     if (!isLoggedIn) return;
 
     if (isProfileComplete) {
-      onFilterChange({ ...initialState, profileBasedFilter: checked });
+      const newState = { ...state, profileBasedFilter: checked };
+      setState(newState);
+      if (!isModalView) onFilterChange(newState);
     } else {
       openSkinProfileModal();
-      onFilterChange({ ...initialState, profileBasedFilter: false });
+      const newState = { ...state, profileBasedFilter: false };
+      setState(newState);
+      if (!isModalView) onFilterChange(newState);
     }
+  };
+
+  const handleDiscountFilterToggle = (checked: boolean) => {
+    const newState = { ...state, hasDiscount: checked };
+    setState(newState);
+    if (!isModalView) onFilterChange(newState);
   };
 
   const filteredBrands = useMemo(
     () =>
-      filters.brands.filter((brand) =>
+      filters?.brands?.filter((brand) =>
         brand.name.toLowerCase().includes(brandSearch.toLowerCase())
-      ),
-    [filters.brands, brandSearch]
+      ) || [],
+    [filters?.brands, brandSearch]
   );
 
   const filteredCategories = useMemo(
     () =>
-      filters.categories.filter((category) =>
+      filters?.categories?.filter((category) =>
         category.name.toLowerCase().includes(categorySearch.toLowerCase())
-      ),
-    [filters.categories, categorySearch]
+      ) || [],
+    [filters?.categories, categorySearch]
   );
 
-  // --- ۵. کامپوننت JSX فیلتر هوشمند ---
-  const renderSmartFilter = () => {
-    // اگر در حال چک کردن پروفایل هستیم، اسکلتون نشان بده (حل مشکل رفرش)
-    if (isProfileCheckLoading) {
-      return (
-        <>
-          <div className="space-y-4 pt-2">
-            <div className="flex items-center justify-between rounded-lg border p-4">
-              <div className="flex flex-col space-y-2">
-                <Skeleton className="h-5 w-24" />
-                <Skeleton className="h-4 w-40" />
-              </div>
-              <Skeleton className="h-6 w-11 rounded-full" />
-            </div>
-          </div>
-          <Separator />
-        </>
-      );
-    }
-
-    // اگر کاربر لاگین نکرده، اصلاً این بخش را نشان نده
-    if (!isLoggedIn) {
-      return null;
-    }
-
-    // اگر لاگین کرده و چک کردن تمام شده، سوییچ واقعی را نشان بده
-    return (
-      <>
-        <div className="space-y-4 pt-2">
-          <div
-            className={cn(
-              "flex items-center justify-between rounded-lg border p-4",
-              !isProfileComplete && "cursor-pointer hover:bg-muted/50"
-            )}
-            onClick={() => !isProfileComplete && openSkinProfileModal()}
-          >
-            <Label
-              htmlFor="profile-filter"
-              className={cn(
-                "flex flex-col space-y-1",
-                !isProfileComplete && "cursor-pointer"
-              )}
-            >
-              <span className="font-semibold">فیلتر هوشمند</span>
-              <span className="text-xs text-muted-foreground">
-                {isProfileComplete
-                  ? "فقط محصولات سازگار با پروفایل من"
-                  : "برای فعالسازی، پروفایلت را کامل کن"}
-              </span>
-            </Label>
-            <Switch
-              id="profile-filter"
-              checked={initialState.profileBasedFilter}
-              onCheckedChange={handleProfileFilterToggle}
-              disabled={!isProfileComplete}
-              dir="ltr"
-            />
-          </div>
-        </div>
-        <Separator />
-      </>
-    );
-  };
+  if (!filters) return <div>در حال بارگذاری فیلترها...</div>;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {!isModalView && (
-        <div className="flex justify-between items-center">
-          <h3 className="font-semibold">فیلترها</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold">فیلترها</h3>
           <Button
             variant="link"
-            className="p-0 h-auto text-xs"
-            onClick={handleClear}
+            className="p-0 h-auto text-xs text-red-500 hover:text-red-600 hover:no-underline"
+            onClick={onClear}
           >
-            حذف همه فیلترها
+            پاک کردن همه
           </Button>
         </div>
       )}
 
-      {/* --- ۶. رندر کردن فیلتر هوشمند --- */}
-      {/* فقط در دسکتاپ نمایش داده شود */}
-      {!isModalView && renderSmartFilter()}
+      {isProfileCheckLoading ? (
+        <div className="space-y-2 border p-4 rounded-xl">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-8 w-full" />
+        </div>
+      ) : (
+        isLoggedIn && (
+          <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+            <div className="flex items-center justify-between mb-1">
+              <Label
+                htmlFor="smart-filter"
+                className="font-semibold text-blue-900 cursor-pointer"
+              >
+                فیلتر هوشمند پوستی
+              </Label>
+              <Switch
+                id="smart-filter"
+                checked={state.profileBasedFilter || false}
+                onCheckedChange={handleProfileFilterToggle}
+              />
+            </div>
+            <p className="text-xs text-blue-600/80 leading-relaxed">
+              {isProfileComplete
+                ? "نمایش محصولات سازگار با پروفایل شما"
+                : "برای فعال‌سازی، پروفایل خود را تکمیل کنید"}
+            </p>
+          </div>
+        )
+      )}
 
-      <Accordion type="multiple" defaultValue={["price"]}>
-        {/* Price Range */}
+      <div className="flex items-center justify-between py-2 border-b">
+        <Label
+          htmlFor="has-discount"
+          className="text-sm font-medium cursor-pointer"
+        >
+          فقط کالاهای تخفیف‌دار
+        </Label>
+        <Switch
+          id="has-discount"
+          checked={state.hasDiscount || false}
+          onCheckedChange={handleDiscountFilterToggle}
+          dir="ltr"
+        />
+      </div>
+
+      <Accordion
+        type="multiple"
+        defaultValue={["price", "categories", "brands"]}
+        className="w-full"
+      >
+        {/* 1. Price Range */}
         <AccordionItem value="price">
-          {/* ... (بقیه فیلترها بدون تغییر) ... */}
           <AccordionTrigger>محدوده قیمت</AccordionTrigger>
           <AccordionContent>
-            <div className="px-1 pt-2">
+            <div className="px-1 pt-6 pb-2">
               <Slider
-                dir="rtl"
+                dir="ltr"
                 min={filters.priceRange.min}
                 max={filters.priceRange.max}
+                step={50000}
                 value={priceRange}
-                onValueChange={(value) =>
-                  setPriceRange(value as [number, number])
-                }
-                step={10000}
+                onValueChange={handlePriceChange}
+                className="mb-4"
               />
-              <div className="flex justify-between mt-3 text-xs text-gray-600">
+              <div className="flex justify-between items-center text-xs font-medium text-gray-600">
                 <span>{priceRange[0].toLocaleString("fa-IR")} تومان</span>
                 <span>{priceRange[1].toLocaleString("fa-IR")} تومان</span>
               </div>
@@ -252,68 +252,77 @@ export default function ProductFilters({
           </AccordionContent>
         </AccordionItem>
 
-        {/* Categories */}
-        {!activeCategoryName && filters.categories.length > 0 && (
-          <AccordionItem value="categories">
-            <AccordionTrigger>دسته‌بندی‌ها</AccordionTrigger>
-            <AccordionContent>
-              <Input
-                placeholder="جستجوی دسته‌بندی..."
-                className="mb-2"
-                value={categorySearch}
-                onChange={(e) => setCategorySearch(e.target.value)}
-              />
-              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                {filteredCategories.map((category) => (
-                  <div key={category.id} className="flex items-center">
-                    <Checkbox
-                      checked={initialState.categories.includes(category.name)}
-                      onCheckedChange={(checked) =>
-                        handleCheckedChange(
-                          "categories",
-                          category.name,
-                          !!checked
-                        )
-                      }
-                      id={`filter-cat-${category.slug}`}
-                    />
-                    <Label
-                      htmlFor={`filter-cat-${category.slug}`}
-                      className="mr-2 text-sm cursor-pointer"
+        {/* 2. Categories */}
+        {!activeCategoryName &&
+          filters.categories &&
+          filters.categories.length > 0 && (
+            <AccordionItem value="categories">
+              <AccordionTrigger>دسته‌بندی‌ها</AccordionTrigger>
+              <AccordionContent>
+                <Input
+                  placeholder="جستجو..."
+                  className="mb-2 h-8 text-xs"
+                  value={categorySearch}
+                  onChange={(e) => setCategorySearch(e.target.value)}
+                />
+                <div className="space-y-2 max-h-48 overflow-y-auto pl-1 custom-scrollbar">
+                  {filteredCategories.map((category) => (
+                    <div
+                      key={category.id}
+                      className="flex items-center space-x-2 space-x-reverse"
                     >
-                      {category.name}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        )}
+                      <Checkbox
+                        id={`cat-${category.id}`}
+                        checked={state.categories?.includes(category.name)}
+                        // ✅ حالا ۳ آرگومان پاس می‌دهیم و ارور رفع می‌شود
+                        onCheckedChange={(checked) =>
+                          handleCheckboxChange(
+                            "categories",
+                            category.name,
+                            !!checked
+                          )
+                        }
+                      />
+                      <Label
+                        htmlFor={`cat-${category.id}`}
+                        className="text-sm font-normal cursor-pointer flex-1 mr-2"
+                      >
+                        {category.name}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          )}
 
-        {/* Brands */}
-        {filters.brands.length > 0 && (
+        {/* 3. Brands */}
+        {filters.brands && filters.brands.length > 0 && (
           <AccordionItem value="brands">
-            <AccordionTrigger>برندها</AccordionTrigger>
+            <AccordionTrigger>برند</AccordionTrigger>
             <AccordionContent>
               <Input
-                placeholder="جستجوی برند..."
-                className="mb-2"
+                placeholder="جستجو..."
+                className="mb-2 h-8 text-xs"
                 value={brandSearch}
                 onChange={(e) => setBrandSearch(e.target.value)}
               />
-              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-48 overflow-y-auto pl-1 custom-scrollbar">
                 {filteredBrands.map((brand) => (
-                  <div key={brand.id} className="flex items-center">
+                  <div
+                    key={brand.id}
+                    className="flex items-center space-x-2 space-x-reverse"
+                  >
                     <Checkbox
-                      checked={initialState.brands.includes(brand.name)}
+                      id={`brand-${brand.id}`}
+                      checked={state.brands?.includes(brand.name)}
                       onCheckedChange={(checked) =>
-                        handleCheckedChange("brands", brand.name, !!checked)
+                        handleCheckboxChange("brands", brand.name, !!checked)
                       }
-                      id={`filter-brand-${brand.slug}`}
                     />
                     <Label
-                      htmlFor={`filter-brand-${brand.slug}`}
-                      className="mr-2 text-sm cursor-pointer"
+                      htmlFor={`brand-${brand.id}`}
+                      className="text-sm font-normal cursor-pointer flex-1 mr-2"
                     >
                       {brand.name}
                     </Label>
@@ -324,24 +333,27 @@ export default function ProductFilters({
           </AccordionItem>
         )}
 
-        {/* Skin Types */}
-        {filters.skinTypes.length > 0 && (
+        {/* 4. Skin Types */}
+        {filters.skinTypes && filters.skinTypes.length > 0 && (
           <AccordionItem value="skinTypes">
             <AccordionTrigger>نوع پوست</AccordionTrigger>
             <AccordionContent>
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-48 overflow-y-auto pl-1">
                 {filters.skinTypes.map((type) => (
-                  <div key={type} className="flex items-center">
+                  <div
+                    key={type}
+                    className="flex items-center space-x-2 space-x-reverse"
+                  >
                     <Checkbox
-                      checked={initialState.skin_types.includes(type)}
+                      id={`skin-${type}`}
+                      checked={state.skin_types?.includes(type)}
                       onCheckedChange={(checked) =>
-                        handleCheckedChange("skin_types", type, !!checked)
+                        handleCheckboxChange("skin_types", type, !!checked)
                       }
-                      id={`filter-skin-${type}`}
                     />
                     <Label
-                      htmlFor={`filter-skin-${type}`}
-                      className="mr-2 text-sm cursor-pointer"
+                      htmlFor={`skin-${type}`}
+                      className="text-sm font-normal cursor-pointer flex-1 mr-2"
                     >
                       {type}
                     </Label>
@@ -352,24 +364,27 @@ export default function ProductFilters({
           </AccordionItem>
         )}
 
-        {/* Concerns */}
-        {filters.concerns.length > 0 && (
+        {/* 5. Concerns */}
+        {filters.concerns && filters.concerns.length > 0 && (
           <AccordionItem value="concerns">
-            <AccordionTrigger>نگرانی پوستی</AccordionTrigger>
+            <AccordionTrigger>دغدغه پوستی</AccordionTrigger>
             <AccordionContent>
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-48 overflow-y-auto pl-1">
                 {filters.concerns.map((concern) => (
-                  <div key={concern} className="flex items-center">
+                  <div
+                    key={concern}
+                    className="flex items-center space-x-2 space-x-reverse"
+                  >
                     <Checkbox
-                      checked={initialState.concerns.includes(concern)}
+                      id={`concern-${concern}`}
+                      checked={state.concerns?.includes(concern)}
                       onCheckedChange={(checked) =>
-                        handleCheckedChange("concerns", concern, !!checked)
+                        handleCheckboxChange("concerns", concern, !!checked)
                       }
-                      id={`filter-concern-${concern}`}
                     />
                     <Label
-                      htmlFor={`filter-concern-${concern}`}
-                      className="mr-2 text-sm cursor-pointer"
+                      htmlFor={`concern-${concern}`}
+                      className="text-sm font-normal cursor-pointer flex-1 mr-2"
                     >
                       {concern}
                     </Label>

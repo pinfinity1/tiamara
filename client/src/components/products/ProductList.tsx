@@ -11,10 +11,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import { Product, useProductStore } from "../../store/useProductStore"; //
-import { FilterData } from "@/store/useFilterStore"; //
+import { Product, useProductStore } from "../../store/useProductStore";
+import { FilterData } from "@/store/useFilterStore";
 import ProductCard from "./ProductCard";
-import ProductFilters, { FilterState } from "./ProductFilters"; // <-- FilterState حالا شامل profileBasedFilter است
+import ProductFilters, { FilterState } from "./ProductFilters";
 import { SlidersHorizontal } from "lucide-react";
 import {
   Dialog,
@@ -65,7 +65,6 @@ export default function ProductList({
       ? roundPrice(filters.priceRange.max, "up")
       : 1000000;
 
-    // --- ۱. profileBasedFilter از URL خوانده می‌شود ---
     return {
       categories: getArrayFromParams("categories"),
       brands: getArrayFromParams("brands"),
@@ -73,7 +72,9 @@ export default function ProductList({
       concerns: getArrayFromParams("concerns"),
       minPrice: Number(searchParams.get("minPrice")) || minPriceDefault,
       maxPrice: Number(searchParams.get("maxPrice")) || maxPriceDefault,
-      profileBasedFilter: searchParams.get("profileBasedFilter") === "true", // <-- اضافه شد
+      profileBasedFilter: searchParams.get("profileBasedFilter") === "true",
+      // ✅ دریافت مقدار hasDiscount از URL
+      hasDiscount: searchParams.get("hasDiscount") === "true",
     };
   }, [searchParams, filters]);
 
@@ -147,13 +148,18 @@ export default function ProductList({
       params.delete("maxPrice");
     }
 
-    // --- ۲. profileBasedFilter به URL اضافه می‌شود ---
     if (currentState.profileBasedFilter) {
       params.set("profileBasedFilter", "true");
     } else {
       params.delete("profileBasedFilter");
     }
-    // --- پایان بخش جدید ---
+
+    // ✅ مدیریت پارامتر hasDiscount در URL
+    if (currentState.hasDiscount) {
+      params.set("hasDiscount", "true");
+    } else {
+      params.delete("hasDiscount");
+    }
 
     if (page) {
       params.set("page", String(page));
@@ -164,7 +170,8 @@ export default function ProductList({
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
-  // --- ۳. (حل مشکل ۱) handleClearFilters دیگر فیلتر پروفایل را ریست نمی‌کند ---
+  // ✅ هنگام پاک کردن فیلترها، hasDiscount را نگه می‌داریم (مانند profileBasedFilter)
+  // تا کاربر از کانتکست "تخفیف‌دارها" خارج نشود مگر اینکه صفحه را عوض کند
   const handleClearFilters = () => {
     if (!filters) return;
     const clearedState: FilterState = {
@@ -174,8 +181,8 @@ export default function ProductList({
       concerns: [],
       minPrice: roundPrice(filters.priceRange.min, "down"),
       maxPrice: roundPrice(filters.priceRange.max, "up"),
-      // profileBasedFilter حفظ می‌شود!
-      profileBasedFilter: filterState.profileBasedFilter, // <-- این خط مهم است
+      profileBasedFilter: filterState.profileBasedFilter,
+      hasDiscount: filterState.hasDiscount, // حفظ مقدار فعلی
     };
     setFilterState(clearedState);
     updateUrl(clearedState);
@@ -191,10 +198,8 @@ export default function ProductList({
     setIsMobileFilterOpen(false);
   };
 
-  // --- ۴. (حل مشکل ۱) پاک کردن در موبایل هم نباید فیلتر پروفایل را ریست کند ---
   const handleMobileClearFilters = () => {
     if (!filters) return;
-    // state محلی را ریست می‌کنیم، اما فیلتر پروفایل را نگه می‌داریم
     setFilterState((prevState) => ({
       categories: [],
       brands: [],
@@ -202,16 +207,15 @@ export default function ProductList({
       concerns: [],
       minPrice: roundPrice(filters.priceRange.min, "down"),
       maxPrice: roundPrice(filters.priceRange.max, "up"),
-      profileBasedFilter: prevState.profileBasedFilter, // <-- حفظ حالت قبلی
+      profileBasedFilter: prevState.profileBasedFilter,
+      hasDiscount: prevState.hasDiscount, // حفظ مقدار فعلی
     }));
-    // (توجه: updateUrl اینجا صدا زده نمی‌شود، چون در موبایل فقط دکمه "اعمال" URL را آپدیت می‌کند)
   };
 
   const handlePageChange = (page: number) => {
     updateUrl(filterState, page);
   };
 
-  // ... (بقیه کد: handleSortChange, currentPage, currentSort, و JSX ...)
   const handleSortChange = (value: string) => {
     if (loadingTimer.current) {
       clearTimeout(loadingTimer.current);
@@ -236,7 +240,6 @@ export default function ProductList({
   return (
     <div className="min-h-screen bg-white">
       <div className="container mx-auto px-4 py-8">
-        {/* ... (بخش هدر کامپوننت بدون تغییر) ... */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-3">
             {!hideFilters && (
@@ -261,18 +264,6 @@ export default function ProductList({
                 <DialogHeader>
                   <DialogTitle>فیلترها</DialogTitle>
                 </DialogHeader>
-                <div className="flex-1 overflow-y-auto -mx-6 px-6">
-                  {filters && (
-                    <ProductFilters
-                      isModalView={true}
-                      filters={filters}
-                      initialState={filterState}
-                      onFilterChange={setFilterState} // <-- state محلی را آپدیت می‌کند
-                      onClear={handleMobileClearFilters} // <-- از تابع اصلاح شده استفاده می‌کند
-                      activeCategoryName={activeCategoryName}
-                    />
-                  )}
-                </div>
                 <DialogFooter className="pt-4 border-t">
                   <Button variant="outline" onClick={handleMobileClearFilters}>
                     حذف فیلترها
@@ -302,9 +293,9 @@ export default function ProductList({
               {filters && (
                 <ProductFilters
                   filters={filters}
-                  initialState={filterState} // <-- state اصلی را پاس می‌دهد
-                  onFilterChange={handleDesktopFilterChange} // <-- state اصلی را آپدیت و URL را عوض می‌کند
-                  onClear={handleClearFilters} // <-- از تابع اصلاح شده استفاده می‌کند
+                  initialState={filterState}
+                  onFilterChange={handleDesktopFilterChange}
+                  onClear={handleClearFilters}
                   activeCategoryName={activeCategoryName}
                 />
               )}

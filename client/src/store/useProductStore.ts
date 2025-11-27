@@ -26,7 +26,7 @@ interface Category {
 export interface Product {
   id: string;
   name: string;
-  englishName?: string | null; // ✅ اضافه شد
+  englishName?: string | null;
   slug: string;
   description?: string | null;
   how_to_use?: string | null;
@@ -90,6 +90,7 @@ interface ProductState {
     sortBy?: string;
     sortOrder?: "asc" | "desc";
     profileBasedFilter?: boolean;
+    hasDiscount?: boolean; // ✅ موجود است
   }) => Promise<void>;
   setCurrentPage: (page: number) => void;
   fetchProductsByIds: (ids: string[]) => Promise<Product[] | null>;
@@ -216,6 +217,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
       return null;
     }
   },
+
   fetchProductsForClient: async (params) => {
     set({ isLoading: true, error: null });
     try {
@@ -225,6 +227,9 @@ export const useProductStore = create<ProductState>((set, get) => ({
         brands: params.brands?.join(","),
         skin_types: params.skin_types?.join(","),
         concerns: params.concerns?.join(","),
+
+        // ✅ اضافه کردن منطق تبدیل boolean به string برای API
+        hasDiscount: params.hasDiscount ? "true" : undefined,
       };
 
       const response = await axiosPublic.get(
@@ -245,6 +250,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
       set({ error: "Failed to fetch products", isLoading: false });
     }
   },
+
   fetchProductsByIds: async (ids) => {
     set({ isLoading: true, error: null });
     try {

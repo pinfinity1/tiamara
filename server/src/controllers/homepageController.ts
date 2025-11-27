@@ -566,7 +566,7 @@ export const createProductCollection = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { title, type, productIds, brandId, location } = req.body;
+    const { title, type, productIds, brandId, location, expiresAt } = req.body;
     const collectionType = type as SectionType;
     const file = req.file;
     let imageUrl: string | undefined = undefined;
@@ -586,6 +586,7 @@ export const createProductCollection = async (
         location: location || "homepage",
         brandId: type === "BRAND" ? brandId : null,
         imageUrl,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
         products:
           type === "MANUAL" && productIds
             ? {
@@ -611,8 +612,15 @@ export const updateProductCollection = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { title, type, productIds, brandId, location, existingImageUrl } =
-      req.body;
+    const {
+      title,
+      type,
+      productIds,
+      brandId,
+      location,
+      existingImageUrl,
+      expiresAt,
+    } = req.body;
     const file = req.file;
     let imageUrl: string | undefined = existingImageUrl;
 
@@ -646,6 +654,7 @@ export const updateProductCollection = async (
         location: location || "homepage",
         imageUrl,
         brandId: type === "BRAND" ? brandId : null,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
         products:
           type === "MANUAL"
             ? { set: (productIds as string[]).map((id: string) => ({ id })) }

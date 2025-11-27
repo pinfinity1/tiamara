@@ -635,13 +635,21 @@ export const getProductsForClient = async (
       parseFloat(req.query.maxPrice as string) || Number.MAX_SAFE_INTEGER;
     const sortBy = (req.query.sortBy as string) || "createdAt";
     const sortOrder = (req.query.sortOrder as "asc" | "desc") || "desc";
-    const { profileBasedFilter } = req.query;
+
+    // ✅ دریافت پارامتر hasDiscount
+    const { profileBasedFilter, hasDiscount } = req.query;
 
     const skip = (page - 1) * limit;
 
     const where: Prisma.ProductWhereInput = {
       isArchived: false,
     };
+
+    // ✅ اعمال فیلتر تخفیف‌دارها
+    if (hasDiscount === "true") {
+      where.discount_price = { not: null };
+    }
+
     const whereAndClauses: Prisma.ProductWhereInput[] = [];
 
     const user = (req as AuthenticatedRequest).user;
