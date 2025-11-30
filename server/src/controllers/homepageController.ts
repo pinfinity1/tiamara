@@ -501,9 +501,8 @@ export const fetchCollectionByType = async (
     });
 
     if (!collection) {
-      res
-        .status(404)
-        .json({ success: false, message: "Collection not found." });
+      // به جای خطا، موفقیت برمی‌گردانیم اما با دیتای null
+      res.status(200).json({ success: true, collection: null });
       return;
     }
 

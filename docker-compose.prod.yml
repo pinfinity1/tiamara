@@ -1,60 +1,35 @@
-# /docker-compose.prod.yml
+version: "3.8"
 
 services:
   postgres:
     image: postgres:13
     restart: always
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+    env_file: .env
     volumes:
       - postgres-data:/var/lib/postgresql/data
-    # پورت دیتابیس به بیرون باز نیست (امنیت)
 
   server:
-    # image: ghcr.io/YOUR_GITHUB_USERNAME/tiamara-server:latest
-    build:
-      context: ./server
-      dockerfile: Dockerfile
-    image: tiamara-server-prod
+    # استفاده از ایمیج آماده GHCR
+    image: ghcr.io/pinfinity1/tiamara-server:latest
     restart: always
     ports:
-      - "5001:3001" # Nginx به این پورت وصل می‌شود
-    command: sh -c "npx prisma migrate deploy && node dist/prisma/seed.js && npm start"
-
-    # !! --- بخش اصلاح شده --- !!
-    # 1. به فایل .env ریشه اشاره کنید تا *همه* متغیرها خوانده شوند
-    env_file:
-      - ./.env
-    # 2. فقط متغیرهایی که نیاز به بازنویسی دارند را اینجا بیاورید
-    environment:
-      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
-      NODE_ENV: production
-    # !! --- پایان اصلاح --- !!
-
+      - "3001:3001"
+    env_file: .env
     depends_on:
       - postgres
+    # دستور شروع: مایگریشن + سید + اجرا
+    command: sh -c "npx prisma migrate deploy && node dist/prisma/seed.js && npm start"
 
   client:
-    # image: ghcr.io/YOUR_GITHUB_USERNAME/tiamara-client:latest
-    build:
-      context: ./client
-      dockerfile: Dockerfile
-      args:
-        - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
-    image: tiamara-client-prod
+    # استفاده از ایمیج آماده GHCR
+    image: ghcr.io/pinfinity1/tiamara-client:latest
     restart: always
     ports:
-      - "3000:3000" # Nginx به این پورت وصل می‌شود
-
-    # !! --- بخش اصلاح شده --- !!
-    # 1. اینجا هم به فایل .env ریشه اشاره کنید
-    env_file:
-      - ./.env
-    # 2. (متغیرهای بخش environment قبلی حذف شدند چون همگی در .env هستند)
-    # !! --- پایان اصلاح --- !!
-
+      - "3000:3000"
+    env_file: .env
+    # !!! حیاتی: جلوگیری از تداخل پورت با سرور !!!
+    environment:
+      - PORT=3000
     depends_on:
       - server
 

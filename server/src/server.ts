@@ -24,12 +24,12 @@ import dashboardRoutes from "./routes/dashboardRoutes";
 import shippingRoutes from "./routes/shippingRoutes";
 import newsletterRoutes from "./routes/newsletterRoutes";
 
-const clientURL = process.env.CLIENT_URL || "http://localhost:3000";
-
-//load all your enviroment variables
 dotenv.config();
+
 const app = express();
-const PORT = process.env.PORT || 3001;
+
+const PORT = process.env.PORT || 5001;
+const clientURL = process.env.CLIENT_URL || "http://localhost:3000";
 
 const corsOptions = {
   origin: clientURL,
