@@ -1,38 +1,68 @@
-name: Deploy to Production
+name: Production Build & Deploy
 
 on:
     push:
-        branches:
-            - main
+        branches: ["main"]
+
+env:
+    REGISTRY: ghcr.io
+    IMAGE_OWNER: pinfinity1 # نام کاربری شما (با حروف کوچک)
 
 jobs:
-    deploy:
+    # 🏗️ جاب ۱: ساخت ایمیج‌ها (این بخش جدید است!)
+    build-and-push:
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: write
 
         steps:
-            - name: Deploy to Server
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Log in to Container registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ${{ env.REGISTRY }}
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            # بیلد و ارسال سرور
+            - name: Build and push Server
+              uses: docker/build-push-action@v5
+              with:
+                  context: ./server
+                  file: ./server/Dockerfile
+                  push: true
+                  tags: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/tiamara-server:latest
+
+            # بیلد و ارسال کلاینت
+            - name: Build and push Client
+              uses: docker/build-push-action@v5
+              with:
+                  context: ./client
+                  file: ./client/Dockerfile
+                  push: true
+                  tags: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/tiamara-client:latest
+                  build-args: |
+                      NEXT_PUBLIC_API_BASE_URL=https://api.tiamara.ir
+
+    # 🚀 جاب ۲: فقط دستور آپدیت می‌دهد (این بخش قبلاً بود ولی تغییر کرده)
+    deploy:
+        needs: build-and-push # منتظر می‌ماند تا بیلد تمام شود
+        runs-on: ubuntu-latest
+        steps:
+            - name: Deploy to VPS
               uses: appleboy/ssh-action@master
               with:
                   host: ${{ secrets.SERVER_HOST }}
                   username: ${{ secrets.SERVER_USER }}
                   password: ${{ secrets.SERVER_PASS }}
                   script: |
-                      # 1. به پوشه پروژه بروید
-                      cd /var/www/tiamara
-
-                      # 2. آخرین تغییرات را از گیت بگیرید
+                      cd /var/www/tiamara || exit
                       git pull origin main
-
-                      # 3. ایمیج‌ها را دوباره (بدون کش) بیلد کنید
-                      docker-compose -f docker-compose.prod.yml build --no-cache
-
-                      # --- این خط جدید و حیاتی است ---
-                      # 4. کانتینرهای قدیمی را کامل حذف کن تا باگ ContainerConfig رخ ندهد
-                      docker-compose -f docker-compose.prod.yml down
-                      # --- پایان خط جدید ---
-
-                      # 5. کانتینرها را با ایمیج‌های جدید (از نو) اجرا کن
+                      echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u ${{ env.IMAGE_OWNER }} --password-stdin
+                      # اینجا فقط pull می‌کنیم، دیگر build نمی‌کنیم!
+                      docker-compose -f docker-compose.prod.yml pull
                       docker-compose -f docker-compose.prod.yml up -d
-
-                      # 6. پاکسازی ایمیج‌های قدیمی
-                      docker system prune -f
+                      docker image prune -f
