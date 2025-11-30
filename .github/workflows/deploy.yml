@@ -45,7 +45,7 @@ jobs:
                   push: true
                   tags: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/tiamara-client:latest
                   build-args: |
-                      NEXT_PUBLIC_API_BASE_URL=https://api.tiamara.ir
+                      NEXT_PUBLIC_API_BASE_URL=https://api.tiamara.ir/api
 
     # 🚀 جاب ۲: فقط دستور آپدیت می‌دهد (این بخش قبلاً بود ولی تغییر کرده)
     deploy:
