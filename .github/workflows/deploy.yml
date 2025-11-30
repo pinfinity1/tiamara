@@ -64,5 +64,6 @@ jobs:
                       echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u ${{ env.IMAGE_OWNER }} --password-stdin
                       # اینجا فقط pull می‌کنیم، دیگر build نمی‌کنیم!
                       docker-compose -f docker-compose.prod.yml pull
+                      docker-compose -f docker-compose.prod.yml down
                       docker-compose -f docker-compose.prod.yml up -d
                       docker image prune -f
