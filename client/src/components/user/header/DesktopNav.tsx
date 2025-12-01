@@ -69,6 +69,8 @@ const DesktopNav = ({ isVisible, brands, categories }: DesktopNavProps) => {
                     src="/images/brand-banner.webp"
                     alt="Brands"
                     fill
+                    priority
+                    sizes="(max-width: 768px) 100vw, 33vw"
                     className="object-cover pointer-events-none"
                   />
                   <div className="absolute inset-0 bg-black/15 backdrop-blur-[2px] rounded-md flex items-center justify-center w-full h-full">
@@ -104,6 +106,8 @@ const DesktopNav = ({ isVisible, brands, categories }: DesktopNavProps) => {
                     src="/images/category-banner.webp"
                     alt="Categories"
                     fill
+                    priority
+                    sizes="(max-width: 768px) 100vw, 33vw"
                     className="object-cover pointer-events-none"
                   />
                   <div className="absolute inset-0 bg-black/15 backdrop-blur-[2px] rounded-md flex items-center justify-center w-full h-full">
