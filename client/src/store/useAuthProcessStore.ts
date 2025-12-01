@@ -113,17 +113,20 @@ export const useAuthProcessStore = create<AuthState>((set, get) => ({
       });
       set({ isLoading: false });
     } else if (result?.ok) {
-      // بعد از ورود موفق، سشن را بررسی می‌کنیم
+      toast({ title: "خوش آمدید!" });
+
+      // دریافت سشن جدید برای بررسی وضعیت کاربر
       const session = await getSession();
+
+      // ✅ لاجیک جدید: اگر کاربر نیاز به تعیین رمز دارد، در همین فرم بماند
       // @ts-ignore
       if (session?.user?.requiresPasswordSetup) {
-        // اگر نیاز به تنظیم رمز بود، به مرحله مربوطه می‌رویم
         set({ step: "force-password-setup", isLoading: false });
+        // مودال بسته نمی‌شود، فقط مرحله عوض می‌شود
       } else {
-        // در غیر این صورت، ورود کامل انجام می‌شود
-        toast({ title: "خوش آمدید!" });
+        // اگر کاربر قدیمی است و رمز دارد، کار تمام است
         await useCartStore.getState().fetchCart();
-        onSuccess();
+        onSuccess(); // فرم بسته می‌شود یا ریدارکت می‌شود
         set({ isLoading: false });
       }
     }

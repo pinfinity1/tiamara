@@ -1,65 +1,73 @@
-"use client";
-
-import Image from "next/image";
-import banner from "../../../../public/images/login-banner.webp";
-import logo from "../../../../public/images/Logo/tiamara-logo.png";
-
-import { useRouter } from "next/navigation";
 import LoginForm from "@/components/auth/LoginForm";
+import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
-import { useEffect } from "react";
-import { Loader2 } from "lucide-react";
+import Image from "next/image";
+import { ArrowRight } from "lucide-react";
 
-function LoginPage() {
-  const router = useRouter();
-  const { status } = useSession();
-
-  // --- منطق جدید: هدایت کاربر لاگین شده به بیرون ---
-  useEffect(() => {
-    if (status === "authenticated") {
-      // اگر کاربر لاگین است، به صفحه اصلی (یا پنل کاربری) برگردد
-      router.replace("/");
-    }
-  }, [status, router]);
-
-  const handleLoginSuccess = () => {
-    router.push("/");
-    router.refresh();
-  };
-
-  // --- جلوگیری از نمایش فرم در لحظه لودینگ یا اگر کاربر لاگین است ---
-  if (status === "loading" || status === "authenticated") {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#fff6f4]">
-        <Loader2 className="w-10 h-10 animate-spin text-gray-400" />
-      </div>
-    );
-  }
-
+export default function LoginPage() {
   return (
-    <div className="min-h-screen bg-[#fff6f4] flex">
-      <div className="hidden lg:block w-1/2 bg-[#ffede1] relative overflow-hidden">
-        <Image
-          src={banner}
-          alt="Register"
-          fill
-          className="object-cover object-center"
-          priority
-        />
+    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#f8f9fa] relative overflow-hidden">
+      {/* المان‌های تزیینی پس‌زمینه (محو و رنگی) */}
+      <div className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] rounded-full bg-rose-500/5 blur-[100px] pointer-events-none opacity-50" />
+      <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] rounded-full bg-blue-500/5 blur-[100px] pointer-events-none opacity-50" />
+
+      {/* دکمه بازگشت به خانه (بالا سمت چپ) */}
+      <div className="absolute top-6 left-6 md:top-10 md:left-10 z-20">
+        <Button
+          asChild
+          variant="ghost"
+          className="gap-2 text-gray-500 hover:text-gray-900 transition-colors"
+        >
+          <Link href="/">
+            <ArrowRight className="w-4 h-4 rotate-180" />
+            بازگشت به فروشگاه
+          </Link>
+        </Button>
       </div>
-      <div className="w-full lg:w-1/2 flex flex-col p-4 sm:p-8 lg:p-16 justify-center">
-        <div className="max-w-md w-full mx-auto p-6 sm:p-8 lg:p-12 bg-white shadow-lg rounded-2xl">
-          <div className="flex justify-center mb-6">
-            <Link href="/">
-              <Image src={logo} width={120} height={70} alt="Logo" />
-            </Link>
-          </div>
-          <LoginForm onSuccess={handleLoginSuccess} />
+
+      {/* کانتینر اصلی محتوا */}
+      <div className="w-full max-w-[420px] px-4 relative z-10 animate-in fade-in zoom-in-95 duration-500">
+        {/* لوگو و هدر */}
+        <div className="flex flex-col items-center text-center mb-8">
+          <Link
+            href="/"
+            className="relative w-[140px] h-[60px] mb-4 hover:opacity-90 transition-opacity"
+          >
+            <Image
+              src="/images/Logo/tiamara-logo.png" // استفاده از لوگوی اصلی
+              alt="تیامارا"
+              fill
+              className="object-contain"
+              priority
+            />
+          </Link>
+          <h1 className="text-xl font-bold text-gray-800 tracking-tight">
+            خوش آمدید
+          </h1>
+          <p className="text-gray-500 text-sm mt-2">
+            برای ادامه لطفا وارد حساب کاربری خود شوید
+          </p>
+        </div>
+
+        {/* کارت فرم (شیشه‌ای و تمیز) */}
+        <div className="bg-white/80 backdrop-blur-xl border border-white/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-3xl p-6 sm:p-8">
+          <LoginForm />
+        </div>
+
+        {/* فوتر */}
+        <div className="mt-8 text-center space-y-2">
+          <p className="text-xs text-gray-400">
+            ورود شما به معنای پذیرش{" "}
+            <Link
+              href="/terms"
+              className="underline hover:text-gray-600 decoration-gray-300"
+            >
+              قوانین و مقررات
+            </Link>{" "}
+            تیامارا است.
+          </p>
         </div>
       </div>
     </div>
   );
 }
-
-export default LoginPage;

@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { useAuthModalStore } from "@/store/useAuthModalStore";
 import Image from "next/image";
-import logo from "../../../public/images/Logo/tiamara-logo.png";
+import logo from "../../../public/images/Logo/tiamara-logo.png"; // اطمینان از مسیر لوگو
 import LoginForm from "./LoginForm";
 import { useAuthProcessStore } from "@/store/useAuthProcessStore";
 import { useToast } from "@/hooks/use-toast";
@@ -21,14 +21,6 @@ export default function AuthModal() {
 
   const handleOpenChange = (open: boolean) => {
     if (!open) {
-      if (step === "force-password-setup") {
-        toast({
-          title: "لطفا ابتدا رمز عبور خود را تنظیم کنید.",
-          variant: "destructive",
-        });
-        return;
-      }
-
       setStep("phone");
       onClose();
     }
@@ -41,26 +33,23 @@ export default function AuthModal() {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent
-        className="p-8 max-w-sm w-full rounded-lg"
-        onInteractOutside={(e) => {
-          if (step === "force-password-setup") {
-            e.preventDefault();
-          }
-        }}
-      >
+      <DialogContent className="p-0 max-w-[420px] w-full rounded-3xl overflow-hidden gap-0 border-none bg-white">
         <DialogHeader className="sr-only">
           <DialogTitle>ورود یا ثبت‌نام</DialogTitle>
-          <DialogDescription>
-            برای دسترسی به این بخش، لطفاً وارد حساب کاربری خود شوید یا یک حساب
-            جدید بسازید.
-          </DialogDescription>
+          <DialogDescription>لطفا وارد حساب کاربری خود شوید.</DialogDescription>
         </DialogHeader>
 
-        <div className="flex justify-center mb-6">
-          <Image src={logo} width={120} height={70} alt="Logo" />
+        {/* هدر رنگی ملایم در بالای مودال */}
+        <div className="bg-gradient-to-b from-primary/5 to-transparent pt-8 pb-4 flex justify-center">
+          <div className="relative w-[120px] h-[50px]">
+            <Image src={logo} alt="تیامارا" fill className="object-contain" />
+          </div>
         </div>
-        <LoginForm onSuccess={handleSuccess} />
+
+        {/* بدنه فرم با پدینگ مناسب */}
+        <div className="px-8 pb-8 pt-2">
+          <LoginForm onSuccess={handleSuccess} />
+        </div>
       </DialogContent>
     </Dialog>
   );

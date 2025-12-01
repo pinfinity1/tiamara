@@ -5,6 +5,9 @@ import { NextResponse } from "next/server";
 const protectedRoutes = ["/account"];
 const superAdminRoutes = ["/super-admin"];
 
+// مسیرهای مربوط به احراز هویت (که کاربر لاگین شده نباید ببیند)
+const authRoutes = ["/auth/login"];
+
 // مسیر چت (اختیاری)
 const chatRoutes = ["/chat"];
 
@@ -18,36 +21,34 @@ export default auth((req) => {
 
   const isChatFeatureEnabled = process.env.NEXT_PUBLIC_CHAT_ENABLED === "true";
 
-  // ۱. حفاظت از مسیر چت (بر اساس تنظیمات محیطی)
+  // ۱. اگر کاربر لاگین است و می‌خواهد به صفحه لاگین برود، به خانه برگردد
+  if (isLoggedIn && authRoutes.some((route) => pathname.startsWith(route))) {
+    return NextResponse.redirect(new URL("/", req.url));
+  }
+
+  // ۲. حفاظت از مسیر چت
   const isChatRoute = chatRoutes.some((route) => pathname.startsWith(route));
   if (isChatRoute && !isChatFeatureEnabled) {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
-  // ۲. حفاظت از مسیرهای سوپر ادمین
-  // اگر کسی بخواهد برود /super-admin و ادمین نباشد، پرت می‌شود بیرون
+  // ۳. حفاظت از مسیرهای سوپر ادمین
   const isAdminRoute = superAdminRoutes.some((route) =>
     pathname.startsWith(route)
   );
   if (isAdminRoute) {
     if (!isLoggedIn || userRole !== "SUPER_ADMIN") {
-      // اگر لاگین نیست یا ادمین نیست، برود به لاگین
-      // (یا می‌توانید به صفحه اصلی بفرستید: new URL("/", req.url))
       return NextResponse.redirect(new URL("/auth/login", req.url));
     }
   }
 
-  // ۳. حفاظت از حساب کاربری (/account)
+  // ۴. حفاظت از حساب کاربری
   const isProtectedRoute = protectedRoutes.some((route) =>
     pathname.startsWith(route)
   );
   if (isProtectedRoute && !isLoggedIn) {
     return NextResponse.redirect(new URL("/auth/login", req.url));
   }
-
-  // *** تغییر مهم: حذف محدودیت صفحه لاگین ***
-  // قبلاً اینجا کدی بود که می‌گفت "اگر لاگین هستی، حق نداری صفحه لاگین را ببینی".
-  // آن کد حذف شد تا اگر مشکلی پیش آمد، کاربر در لوپ گیر نکند و بتواند آزادانه رفتار کند.
 
   return NextResponse.next();
 });

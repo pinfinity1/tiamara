@@ -52,33 +52,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const sessionId = (await cookies()).get("sessionId")?.value;
         const { phone, password, otp, loginType } = credentials;
 
-        if (!phone) {
-          throw new Error("Phone number is required.");
-        }
+        if (!phone) throw new Error("Phone number is required.");
 
         try {
           let response;
           const cookieHeader = sessionId
             ? { Cookie: `sessionId=${sessionId}` }
             : {};
+
           if (loginType === "password") {
             if (!password) throw new Error("Password is required.");
             response = await axiosPublic.post(
               `/auth/login-password`,
-              {
-                phone,
-                password,
-              },
+              { phone, password },
               { headers: cookieHeader }
             );
           } else if (loginType === "otp") {
             if (!otp) throw new Error("OTP is required.");
             response = await axiosPublic.post(
               `/auth/login-otp`,
-              {
-                phone,
-                otp,
-              },
+              { phone, otp },
               { headers: cookieHeader }
             );
           } else {
@@ -110,11 +103,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
-  session: {
-    strategy: "jwt",
-  },
+  session: { strategy: "jwt" },
   callbacks: {
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, trigger, session }) {
+      // ۱. لاگین اولیه
       if (account && user) {
         return {
           ...token,
@@ -128,18 +120,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         };
       }
 
-      if (Date.now() < (token.expiresAt as number) - 30000) {
-        return token;
+      // ۲. ✅ بخش جدید: آپدیت دستی توکن
+      if (trigger === "update" && session) {
+        return { ...token, ...session };
       }
+
+      // ۳. رفرش توکن
+      if (Date.now() < (token.expiresAt as number) - 30000) return token;
 
       console.log("♻️ Refreshing token...");
       try {
         const response = await axiosPublic.post("/auth/refresh-token", {
           token: token.refreshToken,
         });
-
         const { accessToken, refreshToken: newRefreshToken } = response.data;
-
         return {
           ...token,
           accessToken: accessToken,
@@ -165,8 +159,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session;
     },
   },
-  pages: {
-    signIn: "/auth/login",
-  },
+  pages: { signIn: "/auth/login" },
   secret: process.env.AUTH_SECRET,
 });
