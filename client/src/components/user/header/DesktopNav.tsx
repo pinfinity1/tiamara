@@ -66,7 +66,7 @@ const DesktopNav = ({ isVisible, brands, categories }: DesktopNavProps) => {
                   className="block relative h-full min-h-[192px] w-full bg-gray-100 rounded-md overflow-hidden transition-transform hover:scale-[101%]"
                 >
                   <Image
-                    src="/images/brand-banner.png"
+                    src="/images/brand-banner.webp"
                     alt="Brands"
                     fill
                     className="object-cover pointer-events-none"
@@ -101,7 +101,7 @@ const DesktopNav = ({ isVisible, brands, categories }: DesktopNavProps) => {
                   className="block relative h-full min-h-[192px] w-full bg-gray-100 rounded-md overflow-hidden transition-transform hover:scale-[101%]"
                 >
                   <Image
-                    src="/images/category-banner.png"
+                    src="/images/category-banner.webp"
                     alt="Categories"
                     fill
                     className="object-cover pointer-events-none"

@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     description: "بهترین برندهای آرایشی و بهداشتی را در تیامارا پیدا کنید.",
     images: [
       {
-        url: "/images/brand-banner.png",
+        url: "/images/brand-banner.webp",
         width: 1200,
         height: 630,
         alt: "برندهای تیامارا",

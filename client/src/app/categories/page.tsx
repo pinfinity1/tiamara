@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     description: "هر آنچه برای زیبایی نیاز دارید، در دسته‌بندی‌های متنوع ما.",
     images: [
       {
-        url: "/images/category-banner.png",
+        url: "/images/category-banner.webp",
         width: 1200,
         height: 630,
         alt: "دسته‌بندی‌های تیامارا",
