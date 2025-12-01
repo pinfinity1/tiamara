@@ -5,8 +5,8 @@ import { getFilters } from "@/lib/data/get-filters"; // <--- ایمپورت جد
 import ProductGrid from "@/components/products/ProductGrid";
 import FilterSidebar from "@/components/products/FilterSidebar";
 import SortBar from "@/components/products/SortBar";
-import Pagination from "@/components/common/Pagination";
 import { SearchParams } from "nuqs/server";
+import StorefrontPagination from "@/components/products/StorefrontPagination";
 
 interface PageProps {
   searchParams: Promise<SearchParams>;
@@ -68,7 +68,7 @@ export default async function ProductsPage({ searchParams }: PageProps) {
 
           {/* صفحه‌بندی */}
           <div className="mt-12 flex justify-center border-t pt-6">
-            <Pagination totalPages={metadata.totalPages} />
+            <StorefrontPagination totalPages={metadata.totalPages} />
           </div>
         </main>
       </div>
