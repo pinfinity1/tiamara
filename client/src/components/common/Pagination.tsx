@@ -2,23 +2,33 @@
 
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useQueryState } from "nuqs";
+import { searchParamsParsers } from "@/lib/searchParams";
+import { useTransition } from "react";
 
 interface PaginationProps {
-  currentPage: number;
   totalPages: number;
-  onPageChange: (page: number) => void;
-  siblingCount?: number;
+  // currentPage را از nuqs می‌گیریم، پس نیازی به گرفتن از props نیست (اختیاری)
 }
 
-export default function Pagination({
-  currentPage,
-  totalPages,
-  onPageChange,
-  siblingCount = 1,
-}: PaginationProps) {
+export default function Pagination({ totalPages }: PaginationProps) {
+  // اتصال به پارامتر ?page در URL
+  const [page, setPage] = useQueryState("page", searchParamsParsers.page);
+  const [isLoading, startTransition] = useTransition();
+
+  const currentPage = page || 1;
+
   if (totalPages <= 1) return null;
 
+  const handlePageChange = (newPage: number) => {
+    startTransition(() => {
+      // تغییر مهم: shallow: false باعث می‌شود درخواست به سرور ارسال شود
+      setPage(newPage, { shallow: false, scroll: true });
+    });
+  };
+
   const generatePageNumbers = () => {
+    const siblingCount = 1;
     const totalPageNumbers = siblingCount * 2 + 3;
     const totalBlocks = totalPageNumbers + 2;
 
@@ -33,19 +43,16 @@ export default function Pagination({
       const spillOffset = totalPageNumbers - (pages.length + 1);
 
       switch (true) {
-        // Handle left spill
         case hasLeftSpill && !hasRightSpill: {
           const extraPages = range(startPage - spillOffset, startPage - 1);
           pages = ["...", ...extraPages, ...pages];
           break;
         }
-        // Handle right spill
         case !hasLeftSpill && hasRightSpill: {
           const extraPages = range(endPage + 1, endPage + spillOffset);
           pages = [...pages, ...extraPages, "..."];
           break;
         }
-        // Handle both
         case hasLeftSpill && hasRightSpill:
         default: {
           pages = ["...", ...pages, "..."];
@@ -63,29 +70,30 @@ export default function Pagination({
   };
 
   return (
-    <div className="flex justify-center items-center gap-2 mt-6">
+    <div className="flex justify-center items-center gap-2 mt-10">
       <Button
         variant="outline"
         size="icon"
-        disabled={currentPage === 1}
-        onClick={() => onPageChange(currentPage - 1)}
+        disabled={currentPage === 1 || isLoading}
+        onClick={() => handlePageChange(currentPage - 1)}
       >
         <ChevronRight className="w-4 h-4" />
       </Button>
 
-      {generatePageNumbers().map((page, idx) =>
-        typeof page === "string" ? (
-          <span key={`${page}-${idx}`} className="px-2 text-gray-500">
-            {page}
+      {generatePageNumbers().map((p, idx) =>
+        typeof p === "string" ? (
+          <span key={`${p}-${idx}`} className="px-2 text-gray-500">
+            {p}
           </span>
         ) : (
           <Button
-            key={page}
-            variant={currentPage === page ? "default" : "outline"}
+            key={p}
+            variant={currentPage === p ? "default" : "outline"}
             className="w-10"
-            onClick={() => onPageChange(page)}
+            onClick={() => handlePageChange(p)}
+            disabled={isLoading}
           >
-            {page.toLocaleString("fa-IR")}
+            {p.toLocaleString("fa-IR")}
           </Button>
         )
       )}
@@ -93,8 +101,8 @@ export default function Pagination({
       <Button
         variant="outline"
         size="icon"
-        disabled={currentPage === totalPages}
-        onClick={() => onPageChange(currentPage + 1)}
+        disabled={currentPage === totalPages || isLoading}
+        onClick={() => handlePageChange(currentPage + 1)}
       >
         <ChevronLeft className="w-4 h-4" />
       </Button>

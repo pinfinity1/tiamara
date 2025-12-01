@@ -4,10 +4,7 @@ import { usePathname } from "next/navigation";
 import Header from "../user/header";
 import AuthModal from "../auth/AuthModal";
 import SkinProfileModal from "./SkinProfileModal";
-// 1. ایمپورت dynamic را اضافه کنید
 import dynamic from "next/dynamic";
-// 2. ایمپورت استاتیک ChatWidget را حذف کنید
-// import ChatWidget from "../ai/ChatWidget";
 import { useChatStore } from "@/store/useChatStore";
 import { cn } from "@/lib/utils";
 import Footer from "./Footer";
@@ -15,13 +12,9 @@ import { Session } from "next-auth";
 import { ProductModal } from "./modal/ProductModal";
 import QuickEditSkinProfileModal from "./QuickEditSkinProfileModal";
 import { GlobalProfileLoader } from "./GlobalProfileLoader";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 
-// 3. ChatWidget را به صورت دینامیک و فقط در کلاینت (ssr: false) لود کنید
-// این کار باعث می‌شود کد آن از باندل اولیه جاوا اسکریپت حذف شود
-const ChatWidget = dynamic(
-  () => import("../ai/ChatWidget"),
-  { ssr: false } // بسیار مهم: این کامپوننت هرگز در سرور رندر نمی‌شود
-);
+const ChatWidget = dynamic(() => import("../ai/ChatWidget"), { ssr: false });
 
 const pathsNotToShowHeaders = [
   "/auth",
@@ -61,52 +54,54 @@ function CommonLayout({
   const isHalfMode = viewMode === "half";
 
   return (
-    <div className="h-screen bg-white flex overflow-hidden">
-      <AuthModal />
-      <SkinProfileModal />
-      <QuickEditSkinProfileModal />
-      <GlobalProfileLoader />
-      <ProductModal />
+    // 2. رپ کردن کل ساختار با NuqsAdapter
+    <NuqsAdapter>
+      <div className="h-screen bg-white flex overflow-hidden">
+        <AuthModal />
+        <SkinProfileModal />
+        <QuickEditSkinProfileModal />
+        <GlobalProfileLoader />
+        <ProductModal />
 
-      <div
-        className={cn(
-          "h-full flex flex-col transition-all duration-300 ease-in-out",
-          isHalfMode ? "w-[70%]" : "w-full"
-        )}
-      >
-        {showHeader && <Header session={session} isPaneView={isHalfMode} />}
-        <main
-          id="main-content"
+        <div
           className={cn(
-            "flex-1 overflow-y-auto",
-            !isHalfMode && `pt-[80px] lg:pt-[128px]`,
-            !showHeader && "!pt-0"
+            "h-full flex flex-col transition-all duration-300 ease-in-out",
+            isHalfMode ? "w-[70%]" : "w-full"
           )}
         >
-          {children}
-          {showLayout && <Footer />}
-        </main>
-      </div>
-
-      {/* تمام منطق رندر ChatWidget مثل قبل کار می‌کند */}
-      {showAiFeatures && (
-        <>
-          <div
+          {showHeader && <Header session={session} isPaneView={isHalfMode} />}
+          <main
+            id="main-content"
             className={cn(
-              "h-full flex-shrink-0 bg-white transition-all duration-300 ease-in-out overflow-hidden flex",
-              isHalfMode ? "w-[30%]" : "w-0"
+              "flex-1 overflow-y-auto",
+              !isHalfMode && `pt-[80px] lg:pt-[128px]`,
+              !showHeader && "!pt-0"
             )}
           >
-            <div className="w-1.5 h-full flex-shrink-0 bg-black/20" />
-            <div className="flex-1">
-              <ChatWidget isPaneView={isHalfMode} />
-            </div>
-          </div>
+            {children}
+            {showLayout && <Footer />}
+          </main>
+        </div>
 
-          {!isHalfMode && <ChatWidget />}
-        </>
-      )}
-    </div>
+        {showAiFeatures && (
+          <>
+            <div
+              className={cn(
+                "h-full flex-shrink-0 bg-white transition-all duration-300 ease-in-out overflow-hidden flex",
+                isHalfMode ? "w-[30%]" : "w-0"
+              )}
+            >
+              <div className="w-1.5 h-full flex-shrink-0 bg-black/20" />
+              <div className="flex-1">
+                <ChatWidget isPaneView={isHalfMode} />
+              </div>
+            </div>
+
+            {!isHalfMode && <ChatWidget />}
+          </>
+        )}
+      </div>
+    </NuqsAdapter>
   );
 }
 

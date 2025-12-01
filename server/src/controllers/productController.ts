@@ -606,174 +606,171 @@ export const deleteProduct = async (
   }
 };
 
+const parseQueryParamToArray = (param: any): string[] => {
+  if (!param) return [];
+
+  // اگر خودش آرایه است (مثل ?brands=a&brands=b)
+  if (Array.isArray(param)) {
+    return param.map((item) => String(item).trim()).filter(Boolean);
+  }
+
+  // اگر رشته است (مثل ?brands=a,b)
+  if (typeof param === "string") {
+    return param
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
 export const getProductsForClient = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
     const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
-    const categories = ((req.query.categories as string) || "")
-      .split(",")
-      .filter(Boolean);
-    const brands = ((req.query.brands as string) || "")
-      .split(",")
-      .filter(Boolean);
-    const skin_types = ((req.query.skin_types as string) || "")
-      .split(",")
-      .filter(Boolean);
-    const concerns = ((req.query.concerns as string) || "")
-      .split(",")
-      .filter(Boolean);
-    const product_forms = ((req.query.product_forms as string) || "")
-      .split(",")
-      .filter(Boolean);
-    const tags = ((req.query.tags as string) || "").split(",").filter(Boolean);
+    const limit = parseInt(req.query.limit as string) || 12;
+    const search = req.query.search as string;
+
+    // ✅ استفاده از تابع جدید برای دریافت مطمئن آرایه‌ها
+    const categories = parseQueryParamToArray(req.query.categories);
+    const brands = parseQueryParamToArray(req.query.brands);
+    const skin_types = parseQueryParamToArray(req.query.skin_types);
+    const concerns = parseQueryParamToArray(req.query.concerns);
 
     const minPrice = parseFloat(req.query.minPrice as string) || 0;
     const maxPrice =
       parseFloat(req.query.maxPrice as string) || Number.MAX_SAFE_INTEGER;
+
     const sortBy = (req.query.sortBy as string) || "createdAt";
     const sortOrder = (req.query.sortOrder as "asc" | "desc") || "desc";
-
-    // ✅ دریافت پارامتر hasDiscount
-    const { profileBasedFilter, hasDiscount } = req.query;
+    const hasDiscount = req.query.hasDiscount === "true";
+    const profileBasedFilter = req.query.profileBasedFilter === "true";
 
     const skip = (page - 1) * limit;
 
+    // --- لاگ کردن برای دیباگ (در کنسول سرور نمایش داده می‌شود) ---
+    console.log("--------------- FILTER REQUEST ---------------");
+    console.log("Categories:", categories);
+    console.log("Brands:", brands);
+    console.log("Price:", minPrice, "to", maxPrice);
+    console.log("----------------------------------------------");
+
+    // 1. ساخت شرط‌های WHERE
     const where: Prisma.ProductWhereInput = {
-      isArchived: false,
+      isArchived: false, // فقط محصولات فعال
+      price: { gte: minPrice, lte: maxPrice },
     };
 
-    // ✅ اعمال فیلتر تخفیف‌دارها
-    if (hasDiscount === "true") {
+    if (hasDiscount) {
       where.discount_price = { not: null };
     }
 
-    const whereAndClauses: Prisma.ProductWhereInput[] = [];
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { englishName: { contains: search, mode: "insensitive" } },
+        // جستجو در برند و دسته‌بندی هم اضافه شد
+        { brand: { name: { contains: search, mode: "insensitive" } } },
+        { category: { name: { contains: search, mode: "insensitive" } } },
+      ];
+    }
 
-    const user = (req as AuthenticatedRequest).user;
-    let isSmartFilterActive = false;
+    // --- منطق هوشمند پروفایل کاربری ---
+    // این بخش فقط زمانی اعمال می‌شود که کاربر درخواست داده باشد
+    // نکته مهم: در نسخه جدید، فیلترهای دستی (برند و دسته) اولویت دارند و پاک نمی‌شوند
+    if (profileBasedFilter) {
+      const user = (req as AuthenticatedRequest).user;
+      if (user) {
+        const userProfile = await prisma.user.findUnique({
+          where: { id: user.userId },
+          select: { skinType: true, skinConcerns: true, knownAllergies: true },
+        });
 
-    if (profileBasedFilter === "true" && user) {
-      const userProfile = await prisma.user.findUnique({
-        where: { id: user.userId },
-        select: {
-          skinType: true,
-          skinConcerns: true,
-          knownAllergies: true,
-        },
-      });
-
-      if (userProfile && userProfile.skinType) {
-        isSmartFilterActive = true;
-
-        if (userProfile.skinType) {
+        if (userProfile?.skinType) {
+          // فقط محصولاتی که با نوع پوست کاربر سازگارند
           where.skin_type = { has: userProfile.skinType };
-        }
-        if (userProfile.skinConcerns && userProfile.skinConcerns.length > 0) {
-          where.concern = { hasSome: userProfile.skinConcerns };
-        }
-        if (
-          userProfile.knownAllergies &&
-          userProfile.knownAllergies.length > 0
-        ) {
-          where.NOT = {
-            ingredients: { hasSome: userProfile.knownAllergies },
-          };
+
+          // اگر حساسیت دارد، مواد مضر را حذف کن
+          if (userProfile.knownAllergies.length > 0) {
+            where.NOT = {
+              ingredients: { hasSome: userProfile.knownAllergies },
+            };
+          }
         }
       }
     }
 
-    if (!isSmartFilterActive) {
-      if (categories.length > 0) {
-        whereAndClauses.push({
-          category: {
-            name: {
-              in: categories,
-              mode: "insensitive",
-            },
-          },
-        });
-      }
-      if (brands.length > 0) {
-        whereAndClauses.push({
-          brand: {
-            name: {
-              in: brands,
-              mode: "insensitive",
-            },
-          },
-        });
-      }
+    // --- اعمال فیلترهای دستی (این‌ها همیشه اعمال می‌شوند) ---
+    // از AND استفاده نمی‌کنیم تا با سایر شرط‌ها ترکیب شود
+
+    if (categories.length > 0) {
+      where.category = { name: { in: categories, mode: "insensitive" } };
+    }
+
+    if (brands.length > 0) {
+      where.brand = { name: { in: brands, mode: "insensitive" } };
+    }
+
+    // اگر فیلتر هوشمند فعال نبود، این‌ها را هم اعمال کن
+    if (!profileBasedFilter) {
       if (skin_types.length > 0) {
-        whereAndClauses.push({
-          skin_type: {
-            hasSome: skin_types,
-          },
-        });
+        where.skin_type = { hasSome: skin_types };
       }
       if (concerns.length > 0) {
-        whereAndClauses.push({
-          concern: {
-            hasSome: concerns,
-          },
-        });
-      }
-      if (product_forms.length > 0) {
-        whereAndClauses.push({
-          product_form: {
-            in: product_forms,
-            mode: "insensitive",
-          },
-        });
-      }
-      if (tags.length > 0) {
-        whereAndClauses.push({
-          tags: {
-            hasSome: tags,
-          },
-        });
+        where.concern = { hasSome: concerns };
       }
     }
 
-    whereAndClauses.push({
-      price: { gte: minPrice, lte: maxPrice },
-    });
-
-    if (whereAndClauses.length > 0) {
-      where.AND = whereAndClauses;
-    }
-
+    // 2. اجرای کوئری
     const [products, total] = await Promise.all([
       prisma.product.findMany({
         where,
         skip,
         take: limit,
-        orderBy: {
-          [sortBy]: sortOrder,
-        },
-        include: {
-          images: {
-            take: 1,
-          },
-          brand: true,
-          category: true,
+        orderBy: [
+          // اولویت با محصولاتی است که موجودی دارند (Optional)
+          // { stock: 'desc' },
+          { [sortBy]: sortOrder },
+        ],
+        select: {
+          id: true,
+          name: true,
+          englishName: true,
+          slug: true,
+          price: true,
+          discount_price: true,
+          stock: true,
+          images: { take: 1, select: { url: true, altText: true } },
+          brand: { select: { name: true } },
+          average_rating: true,
+          review_count: true,
         },
       }),
       prisma.product.count({ where }),
     ]);
 
+    // مرتب‌سازی سمت سرور (ناموجودها بروند ته لیست)
+    // این کار UX بهتری دارد تا اینکه در دیتابیس Sort پیچیده بزنیم
+    const sortedProducts = products.sort((a, b) => {
+      const aStock = a.stock > 0 ? 1 : 0;
+      const bStock = b.stock > 0 ? 1 : 0;
+      if (aStock !== bStock) return bStock - aStock; // موجودها اول
+      return 0;
+    });
+
     res.status(200).json({
       success: true,
-      products,
+      products: sortedProducts,
       currentPage: page,
       totalPages: Math.ceil(total / limit),
       totalProducts: total,
     });
   } catch (error) {
     console.error("Error fetching client products:", error);
-    res.status(500).json({ success: false, message: "Some error occurred!" });
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
