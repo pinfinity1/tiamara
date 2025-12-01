@@ -3,22 +3,28 @@ import { cn } from "@/lib/utils";
 
 interface ImagePlaceholderProps {
   className?: string;
+  iconClassName?: string;
 }
 
-export default function ImagePlaceholder({ className }: ImagePlaceholderProps) {
+export default function ImagePlaceholder({
+  className,
+  iconClassName,
+}: ImagePlaceholderProps) {
   return (
     <div
       className={cn(
-        "flex h-full w-full items-center justify-center bg-gray-100",
+        "relative flex h-full w-full items-center justify-center bg-gray-50 overflow-hidden",
         className
       )}
     >
       <Image
-        src="/images/Logo/tiamara-icon-black.png"
+        src="/images/Logo/tiamara-icon-black.png" // استفاده از لوگوی خودتان
         alt="Tiamara Placeholder"
-        width={64}
-        height={64}
-        className="h-16 w-16 opacity-40"
+        fill
+        className={cn(
+          "object-contain opacity-30 p-4", // استایل یکپارچه: شفافیت کم و پدینگ برای فاصله از لبه‌ها
+          iconClassName
+        )}
       />
     </div>
   );

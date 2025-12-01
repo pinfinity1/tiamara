@@ -28,26 +28,31 @@ export const useSearch = () => {
     categories: [],
   });
   const [isLoading, setIsLoading] = useState(false);
+  // ✅ استیت جدید: آیا کاربر در حال تایپ است؟ (مکث Debounce)
+  const [isDebouncing, setIsDebouncing] = useState(false);
 
-  // Get state and actions from the Zustand store
   const { recentSearches, fetchRecentSearches } = useSearchHistoryStore();
 
-  // Load recent searches from store on initial mount
   useEffect(() => {
     fetchRecentSearches();
   }, [fetchRecentSearches]);
 
-  // Effect to perform search when query changes
   useEffect(() => {
     if (!query.trim()) {
       setResults({ products: [], brands: [], categories: [] });
       setIsLoading(false);
+      setIsDebouncing(false);
       return;
     }
 
-    setIsLoading(true);
+    // ✅ به محض تغییر متن، وضعیت دیبانس را فعال می‌کنیم
+    setIsDebouncing(true);
 
     const debounceTimer = setTimeout(async () => {
+      // ✅ وقتی تایپ تمام شد:
+      setIsDebouncing(false); // دیبانس تمام شد
+      setIsLoading(true); // لودینگ سرور شروع شد
+
       try {
         const response = await axiosPublic.get(`/search?q=${query}`);
         if (response.data.success) {
@@ -58,7 +63,7 @@ export const useSearch = () => {
       } finally {
         setIsLoading(false);
       }
-    }, 400);
+    }, 500);
 
     return () => clearTimeout(debounceTimer);
   }, [query]);
@@ -68,6 +73,7 @@ export const useSearch = () => {
     setQuery,
     results,
     isLoading,
-    recentSearches, // This is now always in sync
+    isDebouncing, // ✅ این را اکسپورت می‌کنیم
+    recentSearches,
   };
 };
