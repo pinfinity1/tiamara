@@ -131,7 +131,7 @@ export default async function ProductsPage({ searchParams }: PageProps) {
 
       <div className="flex flex-col lg:flex-row gap-8 items-start">
         {/* --- سایدبار دسکتاپ --- */}
-        <aside className="hidden lg:block w-72 flex-shrink-0 sticky top-24">
+        <aside className="hidden lg:block w-72 flex-shrink-0">
           <FilterSidebar
             allBrands={allBrands}
             allCategories={allCategories}
