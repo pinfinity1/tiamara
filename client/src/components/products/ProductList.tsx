@@ -25,7 +25,7 @@ import {
   DialogFooter,
 } from "../ui/dialog";
 import { ProductCardSkeleton } from "./ProductCardSkeleton";
-import Pagination from "../common/Pagination";
+import StorefrontPagination from "./StorefrontPagination";
 
 export default function ProductList({
   initialProducts,
@@ -320,7 +320,7 @@ export default function ProductList({
                 ))}
               </div>
             )}
-            <Pagination totalPages={totalPages} />
+            <StorefrontPagination totalPages={totalPages} />
           </main>
         </div>
       </div>
