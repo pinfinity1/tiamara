@@ -1,31 +1,50 @@
 // client/src/lib/data/get-filters.ts
 
-// آدرس پایه API
 const BASE_URL = process.env.API_BASE_URL_SERVER || "http://localhost:5001/api";
 
 export interface FilterOption {
   id: string;
   name: string;
+  englishName?: string;
   slug: string;
 }
 
-export async function getFilters() {
+export interface FilterResponse {
+  brands: FilterOption[];
+  categories: FilterOption[];
+  priceRange: {
+    min: number;
+    max: number;
+  };
+}
+
+export async function getFilters(): Promise<FilterResponse> {
   try {
-    // درخواست موازی برای سرعت بیشتر
-    const [brandsRes, categoriesRes] = await Promise.all([
-      fetch(`${BASE_URL}/brands`, { next: { revalidate: 3600 } }), // کش ۱ ساعته
-      fetch(`${BASE_URL}/categories`, { next: { revalidate: 3600 } }),
-    ]);
+    const res = await fetch(`${BASE_URL}/products/filters`, {
+      next: { revalidate: 3600 },
+    });
 
-    const brandsData = await brandsRes.json();
-    const categoriesData = await categoriesRes.json();
+    if (!res.ok) throw new Error("Failed to fetch filters");
 
-    return {
-      brands: (brandsData.brands || []) as FilterOption[],
-      categories: (categoriesData.categories || []) as FilterOption[],
-    };
+    const data = await res.json();
+
+    if (data.success && data.filters) {
+      const serverMin = data.filters.priceRange.min;
+      const serverMax = data.filters.priceRange.max;
+
+      return {
+        brands: data.filters.brands || [],
+        categories: data.filters.categories || [],
+        priceRange: {
+          min: serverMin ?? 0,
+          max: serverMax && serverMax > 0 ? serverMax : 1000000,
+        },
+      };
+    }
+
+    return { brands: [], categories: [], priceRange: { min: 0, max: 1000000 } };
   } catch (error) {
     console.error("Error fetching filters:", error);
-    return { brands: [], categories: [] };
+    return { brands: [], categories: [], priceRange: { min: 0, max: 1000000 } };
   }
 }

@@ -5,6 +5,7 @@ import { prisma } from "../server";
 import fs from "fs";
 import { Prisma } from "@prisma/client";
 import * as xlsx from "xlsx";
+import { cleanText, generateVariations } from "../utils/searchUtils";
 
 const logStockChange = async (
   productId: string,
@@ -64,32 +65,19 @@ export const getProductFilters = async (
       prisma.product.aggregate({
         _max: { price: true },
         _min: { price: true },
-        where: { isArchived: false },
+        where: { isArchived: false, stock: { gt: 0 } }, // فقط محصولات موجود را حساب کن (اختیاری)
       }),
       prisma.$queryRaw`SELECT DISTINCT unnest(skin_type) as value FROM "Product" WHERE cardinality(skin_type) > 0`,
       prisma.$queryRaw`SELECT DISTINCT unnest(concern) as value FROM "Product" WHERE cardinality(concern) > 0`,
       prisma.product.findMany({
         select: { product_form: true },
-        where: {
-          product_form: { not: null },
-          isArchived: false,
-        },
+        where: { product_form: { not: null }, isArchived: false },
         distinct: ["product_form"],
       }),
     ]);
 
-    const skinTypes = (skinTypesRaw as any[])
-      .map((item: any) => item.value)
-      .filter(Boolean)
-      .sort();
-    const concerns = (concernsRaw as any[])
-      .map((item: any) => item.value)
-      .filter(Boolean)
-      .sort();
-    const productForms = productFormsRaw
-      .map((item: any) => item.product_form)
-      .filter(Boolean)
-      .sort() as string[];
+    const dbMinPrice = priceAggregation._min.price;
+    const dbMaxPrice = priceAggregation._max.price;
 
     res.status(200).json({
       success: true,
@@ -97,12 +85,22 @@ export const getProductFilters = async (
         brands,
         categories,
         priceRange: {
-          min: priceAggregation._min.price || 0,
-          max: priceAggregation._max.price || 1000000,
+          // اگر محصولی نبود، 0 برگردان. اگر بود، دقیقاً همان عدد را بفرست
+          min: dbMinPrice !== null ? dbMinPrice : 0,
+          max: dbMaxPrice !== null ? dbMaxPrice : 0,
         },
-        skinTypes,
-        concerns,
-        productForms,
+        skinTypes: (skinTypesRaw as any[])
+          .map((i) => i.value)
+          .filter(Boolean)
+          .sort(),
+        concerns: (concernsRaw as any[])
+          .map((i) => i.value)
+          .filter(Boolean)
+          .sort(),
+        productForms: productFormsRaw
+          .map((i) => i.product_form)
+          .filter(Boolean)
+          .sort(),
       },
     });
   } catch (error) {
@@ -632,18 +630,16 @@ export const getProductsForClient = async (
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 12;
-    const search = req.query.search as string;
+    const rawSearch = req.query.search as string; // کلمه خام کاربر
 
-    // ✅ استفاده از تابع جدید برای دریافت مطمئن آرایه‌ها
+    // ... (بقیه پارامترها مثل قبل) ...
     const categories = parseQueryParamToArray(req.query.categories);
     const brands = parseQueryParamToArray(req.query.brands);
     const skin_types = parseQueryParamToArray(req.query.skin_types);
     const concerns = parseQueryParamToArray(req.query.concerns);
-
     const minPrice = parseFloat(req.query.minPrice as string) || 0;
     const maxPrice =
       parseFloat(req.query.maxPrice as string) || Number.MAX_SAFE_INTEGER;
-
     const sortBy = (req.query.sortBy as string) || "createdAt";
     const sortOrder = (req.query.sortOrder as "asc" | "desc") || "desc";
     const hasDiscount = req.query.hasDiscount === "true";
@@ -651,16 +647,8 @@ export const getProductsForClient = async (
 
     const skip = (page - 1) * limit;
 
-    // --- لاگ کردن برای دیباگ (در کنسول سرور نمایش داده می‌شود) ---
-    console.log("--------------- FILTER REQUEST ---------------");
-    console.log("Categories:", categories);
-    console.log("Brands:", brands);
-    console.log("Price:", minPrice, "to", maxPrice);
-    console.log("----------------------------------------------");
-
-    // 1. ساخت شرط‌های WHERE
     const where: Prisma.ProductWhereInput = {
-      isArchived: false, // فقط محصولات فعال
+      isArchived: false,
       price: { gte: minPrice, lte: maxPrice },
     };
 
@@ -668,19 +656,37 @@ export const getProductsForClient = async (
       where.discount_price = { not: null };
     }
 
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: "insensitive" } },
-        { englishName: { contains: search, mode: "insensitive" } },
-        // جستجو در برند و دسته‌بندی هم اضافه شد
-        { brand: { name: { contains: search, mode: "insensitive" } } },
-        { category: { name: { contains: search, mode: "insensitive" } } },
-      ];
-    }
+    // --- بخش اصلاح شده برای جستجوی هوشمند ---
+    if (rawSearch && rawSearch.trim().length > 0) {
+      const cleanedQuery = cleanText(rawSearch);
+      // کلمات را جدا می‌کنیم (مثلاً "سرم آبرسان" -> ["سرم", "آبرسان"])
+      const words = cleanedQuery.split(/\s+/).filter((w) => w.length > 0);
 
-    // --- منطق هوشمند پروفایل کاربری ---
-    // این بخش فقط زمانی اعمال می‌شود که کاربر درخواست داده باشد
-    // نکته مهم: در نسخه جدید، فیلترهای دستی (برند و دسته) اولویت دارند و پاک نمی‌شوند
+      if (words.length > 0) {
+        // برای هر کلمه، تمام حالت‌های ممکن (با آ، بدون آ و...) را می‌سازیم
+        const searchConditions = words.map((word) => {
+          const variations = generateVariations(word);
+
+          // شرط: این کلمه (با هر املایی) باید در یکی از فیلدها باشد
+          return {
+            OR: variations.flatMap((v) => [
+              { name: { contains: v, mode: "insensitive" } },
+              { englishName: { contains: v, mode: "insensitive" } },
+              { description: { contains: v, mode: "insensitive" } },
+              { brand: { name: { contains: v, mode: "insensitive" } } },
+              { category: { name: { contains: v, mode: "insensitive" } } },
+            ]),
+          };
+        }) as Prisma.ProductWhereInput[];
+
+        // از AND استفاده می‌کنیم تا محصول شامل *همه* کلمات سرچ شده باشد
+        where.AND = searchConditions;
+      }
+    }
+    // ---------------------------------------
+
+    // ... (ادامه کد دقیقاً مثل قبل: فیلترهای پروفایل، دسته‌بندی، برند و...)
+
     if (profileBasedFilter) {
       const user = (req as AuthenticatedRequest).user;
       if (user) {
@@ -690,10 +696,7 @@ export const getProductsForClient = async (
         });
 
         if (userProfile?.skinType) {
-          // فقط محصولاتی که با نوع پوست کاربر سازگارند
           where.skin_type = { has: userProfile.skinType };
-
-          // اگر حساسیت دارد، مواد مضر را حذف کن
           if (userProfile.knownAllergies.length > 0) {
             where.NOT = {
               ingredients: { hasSome: userProfile.knownAllergies },
@@ -703,38 +706,44 @@ export const getProductsForClient = async (
       }
     }
 
-    // --- اعمال فیلترهای دستی (این‌ها همیشه اعمال می‌شوند) ---
-    // از AND استفاده نمی‌کنیم تا با سایر شرط‌ها ترکیب شود
+    // اگر AND قبلاً پر شده (توسط سرچ)، باید حواسمان باشد آن را بازنویسی نکنیم
+    // اما در Prisma می‌توانیم AND را به صورت آرایه داشته باشیم که خودش مرج می‌کند
+    // پس اینجا برای فیلترهای دیگر از یک آرایه شرطی جدید استفاده می‌کنیم و به where اضافه می‌کنیم
+
+    const additionalAndFilters: Prisma.ProductWhereInput[] = [];
 
     if (categories.length > 0) {
-      where.category = { name: { in: categories, mode: "insensitive" } };
+      additionalAndFilters.push({
+        category: { name: { in: categories, mode: "insensitive" } },
+      });
     }
-
     if (brands.length > 0) {
-      where.brand = { name: { in: brands, mode: "insensitive" } };
+      additionalAndFilters.push({
+        brand: { name: { in: brands, mode: "insensitive" } },
+      });
     }
-
-    // اگر فیلتر هوشمند فعال نبود، این‌ها را هم اعمال کن
     if (!profileBasedFilter) {
-      if (skin_types.length > 0) {
-        where.skin_type = { hasSome: skin_types };
-      }
-      if (concerns.length > 0) {
-        where.concern = { hasSome: concerns };
+      if (skin_types.length > 0)
+        additionalAndFilters.push({ skin_type: { hasSome: skin_types } });
+      if (concerns.length > 0)
+        additionalAndFilters.push({ concern: { hasSome: concerns } });
+    }
+
+    // ترکیب شرط‌های سرچ با شرط‌های فیلتر
+    if (additionalAndFilters.length > 0) {
+      if (where.AND && Array.isArray(where.AND)) {
+        (where.AND as Prisma.ProductWhereInput[]).push(...additionalAndFilters);
+      } else {
+        where.AND = additionalAndFilters;
       }
     }
 
-    // 2. اجرای کوئری
     const [products, total] = await Promise.all([
       prisma.product.findMany({
         where,
         skip,
         take: limit,
-        orderBy: [
-          // اولویت با محصولاتی است که موجودی دارند (Optional)
-          // { stock: 'desc' },
-          { [sortBy]: sortOrder },
-        ],
+        orderBy: [{ [sortBy]: sortOrder }],
         select: {
           id: true,
           name: true,
@@ -752,12 +761,10 @@ export const getProductsForClient = async (
       prisma.product.count({ where }),
     ]);
 
-    // مرتب‌سازی سمت سرور (ناموجودها بروند ته لیست)
-    // این کار UX بهتری دارد تا اینکه در دیتابیس Sort پیچیده بزنیم
     const sortedProducts = products.sort((a, b) => {
       const aStock = a.stock > 0 ? 1 : 0;
       const bStock = b.stock > 0 ? 1 : 0;
-      if (aStock !== bStock) return bStock - aStock; // موجودها اول
+      if (aStock !== bStock) return bStock - aStock;
       return 0;
     });
 

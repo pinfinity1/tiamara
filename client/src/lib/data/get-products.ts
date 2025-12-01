@@ -1,11 +1,9 @@
 import qs from "qs";
 
-// آدرس پایه API (برای ارتباط سرور به سرور)
-// در داکر معمولا http://server:3001/api است، اما از متغیر محیطی می‌خوانیم
 const BASE_URL = process.env.API_BASE_URL_SERVER || "http://localhost:5001/api";
 
 interface GetProductsParams {
-  q?: string;
+  search?: string;
   categories?: string[];
   brands?: string[];
   minPrice?: number;
@@ -18,7 +16,7 @@ interface GetProductsParams {
 
 export async function getProducts(params: GetProductsParams) {
   const {
-    q,
+    search, // دریافت search
     categories,
     brands,
     minPrice,
@@ -29,32 +27,43 @@ export async function getProducts(params: GetProductsParams) {
     hasDiscount,
   } = params;
 
+  let sortBy = "createdAt";
+  let sortOrder = "desc";
+
+  if (sort === "price_asc") {
+    sortBy = "price";
+    sortOrder = "asc";
+  } else if (sort === "price_desc") {
+    sortBy = "price";
+    sortOrder = "desc";
+  } else if (sort === "popular") {
+    sortBy = "soldCount";
+    sortOrder = "desc";
+  }
+
   const queryParams = {
     page,
     limit,
-    search: q,
-    categories: categories?.join(","),
-    brands: brands?.join(","),
+    search, // ارسال مستقیم search به API
+    categories,
+    brands,
     minPrice,
     maxPrice,
     hasDiscount,
-    sortBy: sort?.includes("price") ? "price" : "createdAt",
-    sortOrder: sort?.includes("asc") ? "asc" : "desc",
+    sortBy,
+    sortOrder,
   };
 
-  const queryString = qs.stringify(queryParams, { skipNulls: true });
+  const queryString = qs.stringify(queryParams, {
+    skipNulls: true,
+    arrayFormat: "repeat",
+  });
 
   try {
-    console.log(
-      "Fetching URL:",
-      `${BASE_URL}/products/fetch-client-products?${queryString}`
-    );
-
-    // استفاده از fetch با no-store برای جلوگیری از کش شدن نتیجه
     const res = await fetch(
       `${BASE_URL}/products/fetch-client-products?${queryString}`,
       {
-        cache: "no-store", // 👈 کلید حل مشکل شما: همیشه دیتای تازه بگیر
+        cache: "no-store",
         headers: {
           "Content-Type": "application/json",
         },

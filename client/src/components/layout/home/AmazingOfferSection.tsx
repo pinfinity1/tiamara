@@ -1,8 +1,7 @@
 import { getCollectionByType } from "@/lib/data-fetching";
 import ItemsCarousel from "@/components/common/carousel/ItemsCarousel";
-import AmazingOfferProductCard from "@/components/products/AmazingOfferProductCard";
+import AmazingOfferProductCard from "./AmazingOfferProductCard";
 import CountdownTimer from "./CountdownTimer";
-// import { GridPattern } from "@/components/ui/grid-pattern";
 import Link from "next/link";
 import { ArrowLeft, Gift, Timer } from "lucide-react";
 import Image from "next/image";

@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ArrowUpDown } from "lucide-react";
+import { useTransition } from "react";
 
 const sortOptions = [
   { value: "newest", label: "جدیدترین" },
@@ -19,8 +20,17 @@ const sortOptions = [
 ];
 
 export default function SortBar() {
-  // اتصال دوطرفه به URL parameter 'sort'
+  const [_, startTransition] = useTransition();
   const [sort, setSort] = useQueryState("sort", searchParamsParsers.sort);
+  const [page, setPage] = useQueryState("page", searchParamsParsers.page);
+
+  const handleSortChange = (value: string) => {
+    startTransition(() => {
+      const options = { shallow: false }; // اسکرول به بالا فعال شد
+      setSort(value, options);
+      setPage(null, options); // ریست به صفحه ۱
+    });
+  };
 
   return (
     <div className="flex items-center gap-2">
@@ -28,12 +38,7 @@ export default function SortBar() {
         <ArrowUpDown className="w-4 h-4 inline-block ml-1" />
         مرتب‌سازی بر اساس:
       </span>
-      <Select
-        value={sort || "newest"}
-        onValueChange={(value) =>
-          setSort(value, { shallow: false, scroll: true })
-        }
-      >
+      <Select value={sort || "newest"} onValueChange={handleSortChange}>
         <SelectTrigger className="w-[160px] h-9 text-sm bg-white">
           <SelectValue placeholder="مرتب‌سازی" />
         </SelectTrigger>

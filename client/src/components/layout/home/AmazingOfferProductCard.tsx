@@ -4,8 +4,8 @@ import { Product } from "@/store/useProductStore";
 import Image from "next/image";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import ImagePlaceholder from "../common/ImagePlaceholder";
 import { AlertTriangle } from "lucide-react";
+import ImagePlaceholder from "@/components/common/ImagePlaceholder";
 
 export default function AmazingOfferProductCard({
   product,
