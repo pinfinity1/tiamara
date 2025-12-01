@@ -1,8 +1,6 @@
-// client/src/components/user/header/DesktopNav.tsx
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -16,6 +14,7 @@ import ListItem from "./ListItem";
 import { Brand } from "@/store/useBrandStore";
 import { Category } from "@/store/useCategoryStore";
 import { cn } from "@/lib/utils";
+import { AnimatedGrid } from "@/components/ui/animated-grid";
 
 interface DesktopNavProps {
   isVisible: boolean;
@@ -45,12 +44,13 @@ const DesktopNav = ({ isVisible, brands, categories }: DesktopNavProps) => {
               </NavigationMenuLink>
             </Link>
           </NavigationMenuItem>
+
+          {/* ==================== BRANDS ==================== */}
           <NavigationMenuItem>
             <NavigationMenuTrigger>برندها</NavigationMenuTrigger>
             <NavigationMenuContent>
-              <div className="grid grid-cols-2 gap-x-6 w-[600px] p-4">
-                {/* افزودن پس‌زمینه طوسی، پدینگ و گوشه‌های گرد */}
-                <ul className="grid grid-cols-2 gap-x-3 gap-y-1 self-start max-h-56 overflow-y-auto p-2 rounded-lg bg-gray-50 [mask-image:linear-gradient(to_bottom,black_85%,transparent_100%)]">
+              <div className="grid grid-cols-2 gap-x-6 w-[600px] p-4 bg-white">
+                <ul className="grid grid-cols-2 gap-x-3 gap-y-1 self-start max-h-56 overflow-y-auto p-2 rounded-lg bg-gray-50">
                   {brands.map((brand) => (
                     <ListItem
                       key={brand.id}
@@ -63,18 +63,13 @@ const DesktopNav = ({ isVisible, brands, categories }: DesktopNavProps) => {
                 <Link
                   href="/brands"
                   passHref
-                  className="block relative h-full min-h-[192px] w-full bg-gray-100 rounded-md overflow-hidden transition-transform hover:scale-[101%]"
+                  className="block relative h-full min-h-[192px] w-full overflow-hidden group border border-white/10 bg-neutral-950 rounded-[2px]"
                 >
-                  <Image
-                    src="/images/brand-banner.webp"
-                    alt="Brands"
-                    fill
-                    priority
-                    sizes="(max-width: 768px) 100vw, 33vw"
-                    className="object-cover pointer-events-none"
-                  />
-                  <div className="absolute inset-0 bg-black/15 backdrop-blur-[2px] rounded-md flex items-center justify-center w-full h-full">
-                    <span className="text-white text-lg font-semibold">
+                  {/* 2. استفاده از کامپوننت پیشرفته */}
+                  <AnimatedGrid />
+
+                  <div className="absolute inset-0 bg-transparent flex items-center justify-center w-full h-full z-20">
+                    <span className="text-white text-xl font-bold tracking-widest uppercase group-hover:scale-105 transition-transform duration-500 drop-shadow-lg">
                       همه برندها
                     </span>
                   </div>
@@ -82,12 +77,13 @@ const DesktopNav = ({ isVisible, brands, categories }: DesktopNavProps) => {
               </div>
             </NavigationMenuContent>
           </NavigationMenuItem>
+
+          {/* ==================== CATEGORIES ==================== */}
           <NavigationMenuItem>
             <NavigationMenuTrigger>دسته‌بندی‌ها</NavigationMenuTrigger>
             <NavigationMenuContent>
-              <div className="grid grid-cols-2 gap-x-6 w-[600px] p-4">
-                {/* افزودن پس‌زمینه طوسی، پدینگ و گوشه‌های گرد */}
-                <ul className="grid grid-cols-2 gap-x-3 gap-y-1 self-start max-h-56 overflow-y-auto p-2 rounded-lg bg-gray-50 [mask-image:linear-gradient(to_bottom,black_85%,transparent_100%)]">
+              <div className="grid grid-cols-2 gap-x-6 w-[600px] p-4 bg-white">
+                <ul className="grid grid-cols-2 gap-x-3 gap-y-1 self-start max-h-56 overflow-y-auto p-2 rounded-lg bg-gray-50">
                   {categories.map((category) => (
                     <ListItem
                       key={category.id}
@@ -100,18 +96,13 @@ const DesktopNav = ({ isVisible, brands, categories }: DesktopNavProps) => {
                 <Link
                   href="/categories"
                   passHref
-                  className="block relative h-full min-h-[192px] w-full bg-gray-100 rounded-md overflow-hidden transition-transform hover:scale-[101%]"
+                  className="block relative h-full min-h-[192px] w-full overflow-hidden group border border-white/10 bg-neutral-950 rounded-[2px]"
                 >
-                  <Image
-                    src="/images/category-banner.webp"
-                    alt="Categories"
-                    fill
-                    priority
-                    sizes="(max-width: 768px) 100vw, 33vw"
-                    className="object-cover pointer-events-none"
-                  />
-                  <div className="absolute inset-0 bg-black/15 backdrop-blur-[2px] rounded-md flex items-center justify-center w-full h-full">
-                    <span className="text-white text-lg font-semibold">
+                  {/* استفاده مجدد برای هماهنگی (چون رندوم است، تکراری به نظر نمی‌رسد) */}
+                  <AnimatedGrid />
+
+                  <div className="absolute inset-0 bg-transparent flex items-center justify-center w-full h-full z-20">
+                    <span className="text-white text-xl font-bold tracking-widest uppercase group-hover:scale-105 transition-transform duration-500 drop-shadow-lg">
                       همه دسته‌بندی‌ها
                     </span>
                   </div>

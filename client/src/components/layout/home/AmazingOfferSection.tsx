@@ -2,10 +2,11 @@ import { getCollectionByType } from "@/lib/data-fetching";
 import ItemsCarousel from "@/components/common/carousel/ItemsCarousel";
 import AmazingOfferProductCard from "@/components/products/AmazingOfferProductCard";
 import CountdownTimer from "./CountdownTimer";
-import { GridPattern } from "@/components/ui/grid-pattern";
+// import { GridPattern } from "@/components/ui/grid-pattern";
 import Link from "next/link";
 import { ArrowLeft, Gift, Timer } from "lucide-react";
 import Image from "next/image";
+import { AnimatedRoseGrid } from "@/components/ui/animated-rose-grid";
 
 interface ExtendedCollection {
   id: string;
@@ -38,13 +39,7 @@ export default async function AmazingOfferSection() {
         {/* 🎨 باکس اطلاعات (بالا در موبایل / راست در دسکتاپ) */}
         {/* ========================================= */}
         <div className="relative z-20 w-full lg:w-[280px] xl:w-[300px] flex-shrink-0 bg-rose-50/50 border-b lg:border-b-0 lg:border-l border-rose-100 p-5 lg:p-4 flex flex-col items-center justify-center text-center overflow-hidden shadow-[0_4px_20px_-5px_rgba(0,0,0,0.1)] lg:shadow-[-4px_0_15px_-3px_rgba(0,0,0,0.05)]">
-          <GridPattern
-            width={20}
-            height={20}
-            x={-1}
-            y={-1}
-            className="absolute inset-0 h-full w-full fill-rose-600/5 stroke-rose-600/10 [mask-image:linear-gradient(to_bottom_left,white,transparent)]"
-          />
+          <AnimatedRoseGrid />
 
           <div className="relative z-10 w-full flex flex-col items-center gap-4 lg:gap-5">
             {/* لوگو و عنوان */}
@@ -69,12 +64,18 @@ export default async function AmazingOfferSection() {
             </div>
 
             {/* تایمر (جمع و جورتر) */}
-            <div className="w-full max-w-[280px] bg-white/60 backdrop-blur-sm border border-rose-100/50 rounded-xl p-2 lg:p-3 shadow-sm">
-              <div className="flex items-center justify-center gap-1.5 mb-1.5 text-gray-400 text-[10px] font-bold uppercase tracking-widest">
-                <Timer className="w-3 h-3" />
-                زمان باقی‌مانده
+            <div className="w-full max-w-[280px] relative overflow-hidden rounded-2xl p-2 lg:p-3 bg-gradient-to-b from-white/40 to-white/10 backdrop-blur-2xl border border-white/30 shadow-[0_8px_32px_0_rgba(31,38,135,0.07)]">
+              <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/20 to-white/0 pointer-events-none" />
+
+              <div className="relative z-10">
+                <div className="flex items-center justify-center gap-1.5 mb-2 text-rose-900/60 text-[10px] font-bold uppercase tracking-widest">
+                  <Timer className="w-3.5 h-3.5" />
+                  زمان باقی‌مانده
+                </div>
+
+                {/* اینجا تایمر قرار می‌گیرد */}
+                <CountdownTimer targetDate={targetDate} />
               </div>
-              <CountdownTimer targetDate={targetDate} />
             </div>
 
             {/* دکمه مشاهده همه */}
