@@ -320,11 +320,7 @@ export default function ProductList({
                 ))}
               </div>
             )}
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={handlePageChange}
-            />
+            <Pagination totalPages={totalPages} />
           </main>
         </div>
       </div>
