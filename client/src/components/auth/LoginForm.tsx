@@ -261,7 +261,6 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
               type="tel"
               inputMode="numeric"
               dir="ltr"
-              placeholder={toPersianDigits("0912")}
               required
               value={toPersianDigits(phone)}
               onChange={handlePhoneInputChange}
@@ -313,8 +312,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
                   required
                   value={toPersianDigits(passwordSimple)}
                   onChange={handlePasswordInputChange}
-                  className="h-12 bg-gray-50 focus:bg-white border-gray-200 rounded-xl pr-10 pl-4 placeholder:text-right"
-                  placeholder="رمز عبور..."
+                  className="h-12 bg-gray-50 focus:bg-white border-gray-200 rounded-xl pr-10 pl-4"
                 />
                 <Button
                   type="button"
@@ -647,7 +645,6 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
                 value={toPersianDigits(phone)}
                 onChange={handlePhoneInputChange}
                 className="h-12 text-center text-lg tracking-widest bg-gray-50 rounded-xl font-bold"
-                placeholder={toPersianDigits("0912")}
               />
             </div>
             <Button
