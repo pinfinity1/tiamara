@@ -1,13 +1,14 @@
-// server/src/controllers/categoryController.ts
-
 import { Request, Response } from "express";
 import { prisma } from "../server";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
-import cloudinary from "../config/cloudinary";
+// ✅ استفاده از سرویس مرکزی
+import {
+  uploadToCloudinary,
+  deleteFromCloudinary,
+} from "../config/cloudinaryService";
 import fs from "fs";
 import * as xlsx from "xlsx";
 
-// Utility function to generate a slug from an English string
 const generateSlug = (name: string) => {
   return name
     .toLowerCase()
@@ -33,14 +34,14 @@ export const createCategory = async (
       return;
     }
 
-    let imageUrl: string | undefined = undefined;
+    let imageUrl = undefined;
+    let imagePublicId = undefined;
 
     if (file) {
-      const result = await cloudinary.uploader.upload(file.path, {
-        folder: "tiamara_categories",
-      });
-      imageUrl = result.secure_url;
-      fs.unlinkSync(file.path);
+      // ✅ آپلود و دریافت شناسه
+      const upload = await uploadToCloudinary(file.path, "tiamara_categories");
+      imageUrl = upload.url;
+      imagePublicId = upload.publicId;
     }
 
     const category = await prisma.category.create({
@@ -49,6 +50,7 @@ export const createCategory = async (
         englishName,
         slug: generateSlug(englishName),
         imageUrl,
+        imagePublicId, // ✅ ذخیره در دیتابیس
         metaTitle,
         metaDescription,
       },
@@ -63,14 +65,14 @@ export const createCategory = async (
   }
 };
 
-// Get all Categories (Filter out archived)
+// Get all Categories
 export const getAllCategories = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
     const categories = await prisma.category.findMany({
-      where: { isArchived: false }, // ✅ فقط دسته‌های فعال
+      where: { isArchived: false },
       orderBy: { name: "asc" },
     });
     res.status(200).json({ success: true, categories });
@@ -88,31 +90,32 @@ export const updateCategory = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const {
-      name,
-      englishName,
-      metaTitle,
-      metaDescription,
-      imageUrl: existingImageUrl,
-    } = req.body;
+    const { name, englishName, metaTitle, metaDescription } = req.body;
     const file = req.file;
 
-    if (!name || !englishName) {
-      res.status(400).json({
-        success: false,
-        message: "Category name and English name are required.",
-      });
+    // ۱. یافتن دسته‌بندی قدیمی برای دسترسی به عکس قبلی
+    const existingCategory = await prisma.category.findUnique({
+      where: { id },
+    });
+    if (!existingCategory) {
+      res.status(404).json({ success: false, message: "Category not found" });
       return;
     }
 
-    let newImageUrl: string | undefined = existingImageUrl;
+    let imageUrl = existingCategory.imageUrl;
+    let imagePublicId = existingCategory.imagePublicId;
 
+    // ۲. مدیریت جایگزینی عکس
     if (file) {
-      const result = await cloudinary.uploader.upload(file.path, {
-        folder: "tiamara_categories",
-      });
-      newImageUrl = result.secure_url;
-      fs.unlinkSync(file.path);
+      // الف) حذف عکس قبلی
+      if (existingCategory.imagePublicId) {
+        await deleteFromCloudinary(existingCategory.imagePublicId);
+      }
+
+      // ب) آپلود عکس جدید
+      const upload = await uploadToCloudinary(file.path, "tiamara_categories");
+      imageUrl = upload.url;
+      imagePublicId = upload.publicId;
     }
 
     const category = await prisma.category.update({
@@ -121,7 +124,8 @@ export const updateCategory = async (
         name,
         englishName,
         slug: generateSlug(englishName),
-        imageUrl: newImageUrl,
+        imageUrl,
+        imagePublicId, // ✅ آپدیت شناسه
         metaTitle,
         metaDescription,
       },
@@ -142,7 +146,7 @@ export const deleteCategory = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    // ✅ به جای حذف فیزیکی، آرشیو می‌کنیم
+    // Soft delete: عکس را نگه می‌داریم
     await prisma.category.update({
       where: { id },
       data: { isArchived: true },
@@ -170,7 +174,6 @@ export const getCategoryBySlug = async (
     });
 
     if (!category || category.isArchived) {
-      // اگر آرشیو شده بود
       res.status(404).json({ success: false, message: "Category not found" });
       return;
     }
@@ -217,7 +220,6 @@ export const bulkCreateCategoriesFromExcel = async (
 
         const generatedSlug = generateSlug(row.englishName);
 
-        // بررسی وجود دسته‌بندی (حتی اگر آرشیو شده باشد)
         const existingCategory = await prisma.category.findFirst({
           where: {
             OR: [
@@ -234,19 +236,16 @@ export const bulkCreateCategoriesFromExcel = async (
           slug: generatedSlug,
           metaTitle: row.metaTitle || row.name,
           metaDescription: row.metaDescription || null,
-          // ✅ نکته کلیدی: این خط اضافه شد تا دسته‌بندی‌های حذف شده برگردند
           isArchived: false,
         };
 
         if (existingCategory) {
-          // آپدیت و فعال‌سازی مجدد
           await prisma.category.update({
             where: { id: existingCategory.id },
             data: categoryData,
           });
           report.updatedCount++;
         } else {
-          // ساخت جدید
           await prisma.category.create({
             data: categoryData,
           });

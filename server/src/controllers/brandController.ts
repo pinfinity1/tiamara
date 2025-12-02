@@ -1,9 +1,10 @@
-// server/src/controllers/brandController.ts
-
 import { Request, Response } from "express";
 import { prisma } from "../server";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
-import cloudinary from "../config/cloudinary";
+import {
+  uploadToCloudinary,
+  deleteFromCloudinary,
+} from "../config/cloudinaryService";
 import fs from "fs";
 import * as xlsx from "xlsx";
 
@@ -33,14 +34,14 @@ export const createBrand = async (
       return;
     }
 
-    let logoUrl: string | undefined = undefined;
+    let logoUrl = undefined;
+    let logoPublicId = undefined;
 
     if (file) {
-      const result = await cloudinary.uploader.upload(file.path, {
-        folder: "tiamara_logos",
-      });
-      logoUrl = result.secure_url;
-      fs.unlinkSync(file.path);
+      // ✅ استفاده از سرویس جدید و ذخیره شناسه
+      const upload = await uploadToCloudinary(file.path, "tiamara_logos");
+      logoUrl = upload.url;
+      logoPublicId = upload.publicId;
     }
 
     const brand = await prisma.brand.create({
@@ -49,6 +50,7 @@ export const createBrand = async (
         englishName,
         slug: generateSlug(englishName),
         logoUrl,
+        logoPublicId, // ذخیره در دیتابیس
         metaTitle,
         metaDescription,
       },
@@ -63,14 +65,14 @@ export const createBrand = async (
   }
 };
 
-// Get all Brands (Filter out archived ones)
+// Get all Brands
 export const getAllBrands = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
     const brands = await prisma.brand.findMany({
-      where: { isArchived: false }, // ✅ فقط برندهای فعال
+      where: { isArchived: false },
       orderBy: { name: "asc" },
     });
     res.status(200).json({ success: true, brands });
@@ -94,7 +96,6 @@ export const getBrandBySlug = async (
     });
 
     if (!brand || brand.isArchived) {
-      // اگر آرشیو شده بود هم نشون نده
       res.status(404).json({ success: false, message: "Brand not found" });
       return;
     }
@@ -106,38 +107,37 @@ export const getBrandBySlug = async (
   }
 };
 
-// Update a Brand with logo upload
+// Update a Brand
 export const updateBrand = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const {
-      name,
-      englishName,
-      metaTitle,
-      metaDescription,
-      logoUrl: existingLogoUrl,
-    } = req.body;
+    const { name, englishName, metaTitle, metaDescription } = req.body;
     const file = req.file;
 
-    if (!name || !englishName) {
-      res.status(400).json({
-        success: false,
-        message: "Brand name and English name are required.",
-      });
+    // ۱. پیدا کردن برند برای دسترسی به اطلاعات عکس قبلی
+    const existingBrand = await prisma.brand.findUnique({ where: { id } });
+    if (!existingBrand) {
+      res.status(404).json({ success: false, message: "Brand not found" });
       return;
     }
 
-    let newLogoUrl: string | undefined = existingLogoUrl;
+    let logoUrl = existingBrand.logoUrl;
+    let logoPublicId = existingBrand.logoPublicId;
 
+    // ۲. اگر عکس جدید آپلود شده بود
     if (file) {
-      const result = await cloudinary.uploader.upload(file.path, {
-        folder: "tiamara_logos",
-      });
-      newLogoUrl = result.secure_url;
-      fs.unlinkSync(file.path);
+      // الف) حذف عکس قبلی از کلاودینری (اگر وجود داشت)
+      if (existingBrand.logoPublicId) {
+        await deleteFromCloudinary(existingBrand.logoPublicId);
+      }
+
+      // ب) آپلود عکس جدید
+      const upload = await uploadToCloudinary(file.path, "tiamara_logos");
+      logoUrl = upload.url;
+      logoPublicId = upload.publicId;
     }
 
     const brand = await prisma.brand.update({
@@ -146,7 +146,8 @@ export const updateBrand = async (
         name,
         englishName,
         slug: generateSlug(englishName),
-        logoUrl: newLogoUrl,
+        logoUrl,
+        logoPublicId, // آپدیت شناسه جدید
         metaTitle,
         metaDescription,
       },
@@ -168,7 +169,10 @@ export const deleteBrand = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    // ✅ به جای حذف فیزیکی، آرشیو می‌کنیم
+
+    // در حالت آرشیو (Soft Delete)، عکس را نگه می‌داریم.
+    // اگر روزی خواستید Hard Delete کنید، باید اینجا deleteFromCloudinary را صدا بزنید.
+
     await prisma.brand.update({
       where: { id },
       data: { isArchived: true },
@@ -220,7 +224,6 @@ export const bulkCreateBrandsFromExcel = async (
 
         const generatedSlug = generateSlug(row.englishName);
 
-        // بررسی وجود برند (حتی اگر آرشیو شده باشد)
         const existingBrand = await prisma.brand.findFirst({
           where: {
             OR: [
@@ -237,19 +240,16 @@ export const bulkCreateBrandsFromExcel = async (
           slug: generatedSlug,
           metaTitle: row.metaTitle || row.name,
           metaDescription: row.metaDescription || null,
-          // ✅ نکته کلیدی: بازگرداندن برندهای حذف شده به حالت فعال
           isArchived: false,
         };
 
         if (existingBrand) {
-          // اگر برند بود (حتی آرشیو)، آپدیت و فعالش کن
           await prisma.brand.update({
             where: { id: existingBrand.id },
             data: brandData,
           });
           report.updatedCount++;
         } else {
-          // اگر نبود، بساز
           await prisma.brand.create({
             data: brandData,
           });

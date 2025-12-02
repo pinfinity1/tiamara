@@ -1,11 +1,16 @@
 import { Response, Request } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
-import cloudinary from "../config/cloudinary";
+import {
+  uploadToCloudinary,
+  deleteManyFromCloudinary,
+} from "../config/cloudinaryService";
 import { prisma } from "../server";
-import fs from "fs";
 import { Prisma } from "@prisma/client";
 import * as xlsx from "xlsx";
+import fs from "fs";
 import { cleanText, generateVariations } from "../utils/searchUtils";
+
+// --- Helper Functions ---
 
 const logStockChange = async (
   productId: string,
@@ -34,12 +39,28 @@ const generateSlug = (name: string) => {
     .toString()
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, "-") // فاصله‌ها را با خط تیره جایگزین کن
-    .replace(/[^\w\u0600-\u06FF\-]+/g, "") // فقط حروف انگلیسی، اعداد، حروف فارسی و خط تیره را نگه دار
-    .replace(/\-\-+/g, "-") // خط تیره‌های تکراری را حذف کن
-    .replace(/^-+/, "") // خط تیره اول را حذف کن
-    .replace(/-+$/, ""); // خط تیره آخر را حذف کن
+    .replace(/\s+/g, "-")
+    .replace(/[^\w\u0600-\u06FF\-]+/g, "")
+    .replace(/\-\-+/g, "-")
+    .replace(/^-+/, "")
+    .replace(/-+$/, "");
 };
+
+const parseQueryParamToArray = (param: any): string[] => {
+  if (!param) return [];
+  if (Array.isArray(param)) {
+    return param.map((item) => String(item).trim()).filter(Boolean);
+  }
+  if (typeof param === "string") {
+    return param
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return [];
+};
+
+// --- Controllers ---
 
 export const getProductFilters = async (
   req: Request,
@@ -65,7 +86,7 @@ export const getProductFilters = async (
       prisma.product.aggregate({
         _max: { price: true },
         _min: { price: true },
-        where: { isArchived: false, stock: { gt: 0 } }, // فقط محصولات موجود را حساب کن (اختیاری)
+        where: { isArchived: false, stock: { gt: 0 } },
       }),
       prisma.$queryRaw`SELECT DISTINCT unnest(skin_type) as value FROM "Product" WHERE cardinality(skin_type) > 0`,
       prisma.$queryRaw`SELECT DISTINCT unnest(concern) as value FROM "Product" WHERE cardinality(concern) > 0`,
@@ -85,7 +106,6 @@ export const getProductFilters = async (
         brands,
         categories,
         priceRange: {
-          // اگر محصولی نبود، 0 برگردان. اگر بود، دقیقاً همان عدد را بفرست
           min: dbMinPrice !== null ? dbMinPrice : 0,
           max: dbMaxPrice !== null ? dbMaxPrice : 0,
         },
@@ -145,26 +165,23 @@ export const createProduct = async (
     } = req.body;
 
     const files = req.files as Express.Multer.File[];
+    const imageCreateData = [];
 
-    const uploadPromises = files.map((file) =>
-      cloudinary.uploader.upload(file.path, {
-        folder: "tiamara",
-      })
-    );
+    // آپلود تصاویر با استفاده از سرویس مرکزی
+    if (files && files.length > 0) {
+      for (const file of files) {
+        const upload = await uploadToCloudinary(file.path, "tiamara_products");
+        imageCreateData.push({
+          url: upload.url,
+          publicId: upload.publicId, // ذخیره شناسه برای مدیریت بعدی
+          altText: name,
+        });
+      }
+    }
 
-    const uploadResults = await Promise.all(uploadPromises);
-
-    const imageCreateData = uploadResults.map((result, index) => ({
-      url: result.secure_url,
-      altText: `${name} image ${index + 1}`,
-    }));
-
-    // ✅ تغییر استراتژی اسلاگ: اولویت با نام انگلیسی است
-    // این برای سئو (URLهای تمیز) بسیار بهتر است
     let slugBase = englishName || name;
     let generatedSlug = generateSlug(slugBase);
 
-    // بررسی تکراری بودن اسلاگ و اضافه کردن عدد تصادفی در صورت تکرار (برای اطمینان)
     const existingSlug = await prisma.product.findUnique({
       where: { slug: generatedSlug },
     });
@@ -173,10 +190,11 @@ export const createProduct = async (
     }
 
     const stockAmount = parseInt(stock);
+
     const newlyCreatedProduct = await prisma.product.create({
       data: {
         name,
-        englishName, // ✅ ذخیره نام انگلیسی
+        englishName,
         slug: generatedSlug,
         brandId,
         categoryId,
@@ -186,8 +204,8 @@ export const createProduct = async (
         price: parseFloat(price),
         discount_price: discount_price ? parseFloat(discount_price) : null,
         stock: stockAmount,
-        sku,
-        barcode,
+        sku: sku || null,
+        barcode: barcode || null,
         volume: volume ? parseFloat(volume) : null,
         unit,
         expiry_date: expiry_date ? new Date(expiry_date) : null,
@@ -199,17 +217,14 @@ export const createProduct = async (
         ingredients:
           typeof ingredients === "string" ? ingredients.split(",") : [],
         tags: typeof tags === "string" ? tags.split(",") : [],
-        soldCount: 0,
-        average_rating: 0,
-        review_count: 0,
         metaTitle: metaTitle || name,
-        metaDescription: metaDescription,
+        metaDescription,
         isArchived: false,
-
         images: {
           create: imageCreateData,
         },
       },
+      include: { images: true },
     });
 
     if (stockAmount > 0) {
@@ -223,199 +238,17 @@ export const createProduct = async (
       );
     }
 
-    files.forEach((file) => fs.unlinkSync(file.path));
     res.status(201).json(newlyCreatedProduct);
   } catch (e) {
     console.error("Error creating product:", e);
-    res.status(500).json({ success: false, message: "Some error occurred!" });
-  }
-};
-
-export const fetchAllProductsForAdmin = async (
-  req: AuthenticatedRequest,
-  res: Response
-): Promise<void> => {
-  try {
-    const fetchAllProducts = await prisma.product.findMany({
-      orderBy: {
-        createdAt: "desc",
-      },
-      include: {
-        images: true,
-        brand: true,
-        category: true,
-      },
-    });
-    res.status(200).json(fetchAllProducts);
-  } catch (e) {
-    console.error("Error fetching admin products:", e);
-    res.status(500).json({ success: false, message: "Some error occurred!" });
-  }
-};
-
-export const getAdminProductsPaginated = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
-    const search = req.query.search as string;
-    const brandId = req.query.brandId as string;
-    const categoryId = req.query.categoryId as string;
-    const sort = (req.query.sort as string) || "createdAt";
-    const order = (req.query.order as "asc" | "desc") || "desc";
-    const stockStatus = req.query.stockStatus as string; // 'low', 'out', 'in'
-
-    const where: Prisma.ProductWhereInput = {
-      isArchived: false, // فعلاً فقط فعال‌ها، مگر اینکه فیلتر آرشیو اضافه کنیم
-    };
-
-    // 1. جستجو
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: "insensitive" } },
-        { englishName: { contains: search, mode: "insensitive" } },
-        { sku: { contains: search, mode: "insensitive" } },
-        { barcode: { contains: search, mode: "insensitive" } },
-      ];
-    }
-
-    // 2. فیلترها
-    if (brandId && brandId !== "all") where.brandId = brandId;
-    if (categoryId && categoryId !== "all") where.categoryId = categoryId;
-
-    // 3. فیلتر موجودی
-    if (stockStatus) {
-      if (stockStatus === "out") {
-        where.stock = 0;
-      } else if (stockStatus === "low") {
-        where.stock = { gt: 0, lte: 10 }; // مثلا زیر ۱۰ تا کم محسوب میشه
-      } else if (stockStatus === "in") {
-        where.stock = { gt: 10 };
-      }
-    }
-
-    const skip = (page - 1) * limit;
-
-    const [products, total] = await prisma.$transaction([
-      prisma.product.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { [sort]: order },
-        include: {
-          images: { take: 1 },
-          brand: true,
-          category: true,
-        },
-      }),
-      prisma.product.count({ where }),
-    ]);
-
-    res.status(200).json({
-      success: true,
-      products,
-      total,
-      totalPages: Math.ceil(total / limit),
-      currentPage: page,
-    });
-  } catch (e) {
-    console.error("Error fetching admin products:", e);
-    res.status(500).json({ success: false, message: "Server Error" });
-  }
-};
-
-export const getProductBySlug = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    const { slug } = req.params;
-    const product = await prisma.product.findUnique({
-      where: { slug },
-      include: {
-        images: true,
-        brand: true,
-        category: true,
-      },
-    });
-
-    if (!product || product.isArchived) {
-      res.status(404).json({
-        success: false,
-        message: "Product not found",
+    // پاکسازی فایل‌های موقت در صورت بروز خطا
+    if (req.files) {
+      const files = req.files as Express.Multer.File[];
+      files.forEach((f) => {
+        if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
       });
-      return;
     }
-
-    res.status(200).json(product);
-  } catch (e) {
-    console.error("Error fetching product by slug:", e);
     res.status(500).json({ success: false, message: "Some error occurred!" });
-  }
-};
-
-export const getProductByID = async (
-  req: AuthenticatedRequest,
-  res: Response
-): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const product = await prisma.product.findUnique({
-      where: { id },
-      include: {
-        images: true,
-        brand: true,
-        category: true,
-      },
-    });
-
-    if (!product) {
-      res.status(404).json({
-        success: false,
-        message: "Product not found",
-      });
-      return;
-    }
-
-    res.status(200).json(product);
-  } catch (e) {
-    console.error("Error fetching product by ID:", e);
-    res.status(500).json({ success: false, message: "Some error occurred!" });
-  }
-};
-
-export const getProductsByIds = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    const { ids } = req.body;
-
-    if (!ids || !Array.isArray(ids)) {
-      res.status(400).json({ success: false, message: "No IDs provided" });
-      return;
-    }
-
-    const products = await prisma.product.findMany({
-      where: {
-        id: { in: ids },
-        isArchived: false,
-      },
-      include: {
-        images: { take: 1 },
-        brand: true,
-      },
-    });
-
-    const sortedProducts = ids
-      .map((id) => products.find((p: any) => p.id === id))
-      .filter(Boolean);
-
-    res.status(200).json({ success: true, products: sortedProducts });
-  } catch (error) {
-    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -428,7 +261,7 @@ export const updateProduct = async (
     const { id } = req.params;
     const {
       name,
-      englishName, // ✅
+      englishName,
       slug,
       brandId,
       categoryId,
@@ -466,48 +299,46 @@ export const updateProduct = async (
       return;
     }
 
-    const imageUpdateOperations: any = {};
-
+    // 1. مدیریت حذف تصاویر
     if (imagesToDelete) {
       const idsToDelete = (imagesToDelete as string).split(",").filter(Boolean);
-      if (idsToDelete.length > 0) {
-        imageUpdateOperations.deleteMany = {
-          id: { in: idsToDelete },
-        };
 
-        const imagesToDeleteFromCloud = existingProduct.images.filter(
-          (img: any) => idsToDelete.includes(img.id)
-        );
-        if (imagesToDeleteFromCloud.length > 0) {
-          const publicIdsForCloudinary = imagesToDeleteFromCloud.map(
-            (img: any) => `tiamara/${img.url.split("/").pop()?.split(".")[0]}`
-          );
-          await cloudinary.api.delete_resources(publicIdsForCloudinary);
+      if (idsToDelete.length > 0) {
+        const imagesToDeleteInfo = await prisma.image.findMany({
+          where: { id: { in: idsToDelete }, productId: id },
+        });
+
+        const publicIds = imagesToDeleteInfo
+          .map((img) => img.publicId)
+          .filter(Boolean);
+
+        if (publicIds.length > 0) {
+          await deleteManyFromCloudinary(publicIds);
         }
+
+        await prisma.image.deleteMany({
+          where: { id: { in: idsToDelete } },
+        });
       }
     }
 
+    // 2. آپلود تصاویر جدید
     const files = req.files as Express.Multer.File[];
+    const newImagesCreateData = [];
+
     if (files && files.length > 0) {
-      const uploadPromises = files.map((file) =>
-        cloudinary.uploader.upload(file.path, { folder: "tiamara" })
-      );
-      const uploadResults = await Promise.all(uploadPromises);
-      const newImagesData = uploadResults.map((result, index) => ({
-        url: result.secure_url,
-        altText: `${name} image ${existingProduct.images.length + index + 1}`,
-      }));
-
-      imageUpdateOperations.create = newImagesData;
-
-      files.forEach((file) => fs.unlinkSync(file.path));
+      for (const file of files) {
+        const upload = await uploadToCloudinary(file.path, "tiamara_products");
+        newImagesCreateData.push({
+          url: upload.url,
+          publicId: upload.publicId,
+          altText: name,
+        });
+      }
     }
 
-    // ✅ بازسازی اسلاگ اگر نام انگلیسی یا فارسی تغییر کرده باشد و اسلاگ دستی وارد نشده باشد
     let finalSlug = slug;
     if (!finalSlug || finalSlug === existingProduct.slug) {
-      // اگر اسلاگ جدیدی از فرانت نیامده بود، چک میکنیم آیا نیاز به تغییر هست؟
-      // (برای سادگی فعلا فرض میکنیم اگر نام انگلیسی اضافه شد، اسلاگ آپدیت شود بهتر است)
       if (englishName && englishName !== existingProduct.englishName) {
         finalSlug = generateSlug(englishName);
       } else if (
@@ -519,11 +350,12 @@ export const updateProduct = async (
     }
 
     const newStockAmount = parseInt(stock);
+
     const product = await prisma.product.update({
       where: { id },
       data: {
         name,
-        englishName, // ✅ آپدیت نام انگلیسی
+        englishName,
         slug: finalSlug || generateSlug(englishName || name),
         brandId,
         categoryId,
@@ -548,7 +380,11 @@ export const updateProduct = async (
         tags: typeof tags === "string" ? tags.split(",") : [],
         metaTitle: metaTitle || name,
         metaDescription,
-        images: imageUpdateOperations,
+
+        images:
+          newImagesCreateData.length > 0
+            ? { create: newImagesCreateData }
+            : undefined,
         isArchived:
           isArchived === "false"
             ? false
@@ -556,6 +392,7 @@ export const updateProduct = async (
             ? true
             : existingProduct.isArchived,
       },
+      include: { images: true },
     });
 
     const stockChange = newStockAmount - existingProduct.stock;
@@ -566,7 +403,7 @@ export const updateProduct = async (
         newStockAmount,
         "ADJUSTMENT",
         userId || null,
-        "Stock manually adjusted in admin panel"
+        "Stock updated by admin"
       );
     }
 
@@ -584,7 +421,8 @@ export const deleteProduct = async (
   try {
     const { id } = req.params;
 
-    const product = await prisma.product.update({
+    // Soft Delete (Archive)
+    await prisma.product.update({
       where: { id },
       data: {
         isArchived: true,
@@ -592,6 +430,7 @@ export const deleteProduct = async (
       },
     });
 
+    // پاکسازی وابستگی‌ها
     await prisma.cartItem.deleteMany({ where: { productId: id } });
     await prisma.wishlistItem.deleteMany({ where: { productId: id } });
 
@@ -604,23 +443,143 @@ export const deleteProduct = async (
   }
 };
 
-const parseQueryParamToArray = (param: any): string[] => {
-  if (!param) return [];
-
-  // اگر خودش آرایه است (مثل ?brands=a&brands=b)
-  if (Array.isArray(param)) {
-    return param.map((item) => String(item).trim()).filter(Boolean);
+export const fetchAllProductsForAdmin = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const fetchAllProducts = await prisma.product.findMany({
+      orderBy: { createdAt: "desc" },
+      include: { images: true, brand: true, category: true },
+    });
+    res.status(200).json(fetchAllProducts);
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Some error occurred!" });
   }
+};
 
-  // اگر رشته است (مثل ?brands=a,b)
-  if (typeof param === "string") {
-    return param
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
+export const getAdminProductsPaginated = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const search = req.query.search as string;
+    const brandId = req.query.brandId as string;
+    const categoryId = req.query.categoryId as string;
+    const sort = (req.query.sort as string) || "createdAt";
+    const order = (req.query.order as "asc" | "desc") || "desc";
+    const stockStatus = req.query.stockStatus as string;
+
+    const where: Prisma.ProductWhereInput = {
+      isArchived: false,
+    };
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { englishName: { contains: search, mode: "insensitive" } },
+        { sku: { contains: search, mode: "insensitive" } },
+        { barcode: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    if (brandId && brandId !== "all") where.brandId = brandId;
+    if (categoryId && categoryId !== "all") where.categoryId = categoryId;
+
+    if (stockStatus) {
+      if (stockStatus === "out") where.stock = 0;
+      else if (stockStatus === "low") where.stock = { gt: 0, lte: 10 };
+      else if (stockStatus === "in") where.stock = { gt: 10 };
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [products, total] = await prisma.$transaction([
+      prisma.product.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { [sort]: order },
+        include: { images: { take: 1 }, brand: true, category: true },
+      }),
+      prisma.product.count({ where }),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      products,
+      total,
+      totalPages: Math.ceil(total / limit),
+      currentPage: page,
+    });
+  } catch (e) {
+    console.error("Error fetching admin products:", e);
+    res.status(500).json({ success: false, message: "Server Error" });
   }
+};
 
-  return [];
+export const getProductBySlug = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { slug } = req.params;
+    const product = await prisma.product.findUnique({
+      where: { slug },
+      include: { images: true, brand: true, category: true },
+    });
+
+    if (!product || product.isArchived) {
+      res.status(404).json({ success: false, message: "Product not found" });
+      return;
+    }
+    res.status(200).json(product);
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Some error occurred!" });
+  }
+};
+
+export const getProductByID = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const product = await prisma.product.findUnique({
+      where: { id },
+      include: { images: true, brand: true, category: true },
+    });
+
+    if (!product) {
+      res.status(404).json({ success: false, message: "Product not found" });
+      return;
+    }
+    res.status(200).json(product);
+  } catch (e) {
+    res.status(500).json({ success: false, message: "Some error occurred!" });
+  }
+};
+
+export const getProductsByIds = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids)) {
+      res.status(400).json({ success: false, message: "No IDs provided" });
+      return;
+    }
+    const products = await prisma.product.findMany({
+      where: { id: { in: ids }, isArchived: false },
+      include: { images: { take: 1 }, brand: true },
+    });
+    res.status(200).json({ success: true, products });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Server error" });
+  }
 };
 
 export const getProductsForClient = async (
@@ -630,13 +589,13 @@ export const getProductsForClient = async (
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 12;
-    const rawSearch = req.query.search as string; // کلمه خام کاربر
+    const rawSearch = req.query.search as string;
 
-    // ... (بقیه پارامترها مثل قبل) ...
     const categories = parseQueryParamToArray(req.query.categories);
     const brands = parseQueryParamToArray(req.query.brands);
     const skin_types = parseQueryParamToArray(req.query.skin_types);
     const concerns = parseQueryParamToArray(req.query.concerns);
+
     const minPrice = parseFloat(req.query.minPrice as string) || 0;
     const maxPrice =
       parseFloat(req.query.maxPrice as string) || Number.MAX_SAFE_INTEGER;
@@ -656,18 +615,13 @@ export const getProductsForClient = async (
       where.discount_price = { not: null };
     }
 
-    // --- بخش اصلاح شده برای جستجوی هوشمند ---
     if (rawSearch && rawSearch.trim().length > 0) {
       const cleanedQuery = cleanText(rawSearch);
-      // کلمات را جدا می‌کنیم (مثلاً "سرم آبرسان" -> ["سرم", "آبرسان"])
       const words = cleanedQuery.split(/\s+/).filter((w) => w.length > 0);
 
       if (words.length > 0) {
-        // برای هر کلمه، تمام حالت‌های ممکن (با آ، بدون آ و...) را می‌سازیم
         const searchConditions = words.map((word) => {
           const variations = generateVariations(word);
-
-          // شرط: این کلمه (با هر املایی) باید در یکی از فیلدها باشد
           return {
             OR: variations.flatMap((v) => [
               { name: { contains: v, mode: "insensitive" } },
@@ -678,37 +632,9 @@ export const getProductsForClient = async (
             ]),
           };
         }) as Prisma.ProductWhereInput[];
-
-        // از AND استفاده می‌کنیم تا محصول شامل *همه* کلمات سرچ شده باشد
         where.AND = searchConditions;
       }
     }
-    // ---------------------------------------
-
-    // ... (ادامه کد دقیقاً مثل قبل: فیلترهای پروفایل، دسته‌بندی، برند و...)
-
-    if (profileBasedFilter) {
-      const user = (req as AuthenticatedRequest).user;
-      if (user) {
-        const userProfile = await prisma.user.findUnique({
-          where: { id: user.userId },
-          select: { skinType: true, skinConcerns: true, knownAllergies: true },
-        });
-
-        if (userProfile?.skinType) {
-          where.skin_type = { has: userProfile.skinType };
-          if (userProfile.knownAllergies.length > 0) {
-            where.NOT = {
-              ingredients: { hasSome: userProfile.knownAllergies },
-            };
-          }
-        }
-      }
-    }
-
-    // اگر AND قبلاً پر شده (توسط سرچ)، باید حواسمان باشد آن را بازنویسی نکنیم
-    // اما در Prisma می‌توانیم AND را به صورت آرایه داشته باشیم که خودش مرج می‌کند
-    // پس اینجا برای فیلترهای دیگر از یک آرایه شرطی جدید استفاده می‌کنیم و به where اضافه می‌کنیم
 
     const additionalAndFilters: Prisma.ProductWhereInput[] = [];
 
@@ -722,14 +648,33 @@ export const getProductsForClient = async (
         brand: { name: { in: brands, mode: "insensitive" } },
       });
     }
-    if (!profileBasedFilter) {
+
+    if (profileBasedFilter) {
+      const user = (req as AuthenticatedRequest).user;
+      if (user) {
+        const userProfile = await prisma.user.findUnique({
+          where: { id: user.userId },
+          select: { skinType: true, skinConcerns: true, knownAllergies: true },
+        });
+
+        if (userProfile?.skinType) {
+          additionalAndFilters.push({
+            skin_type: { has: userProfile.skinType },
+          });
+          if (userProfile.knownAllergies.length > 0) {
+            additionalAndFilters.push({
+              NOT: { ingredients: { hasSome: userProfile.knownAllergies } },
+            });
+          }
+        }
+      }
+    } else {
       if (skin_types.length > 0)
         additionalAndFilters.push({ skin_type: { hasSome: skin_types } });
       if (concerns.length > 0)
         additionalAndFilters.push({ concern: { hasSome: concerns } });
     }
 
-    // ترکیب شرط‌های سرچ با شرط‌های فیلتر
     if (additionalAndFilters.length > 0) {
       if (where.AND && Array.isArray(where.AND)) {
         (where.AND as Prisma.ProductWhereInput[]).push(...additionalAndFilters);
@@ -781,7 +726,6 @@ export const getProductsForClient = async (
   }
 };
 
-// Bulk Create Products from Excel (Updated to include englishName)
 export const bulkCreateProductsFromExcel = async (
   req: AuthenticatedRequest,
   res: Response
@@ -792,7 +736,6 @@ export const bulkCreateProductsFromExcel = async (
       .json({ success: false, message: "No Excel file provided." });
     return;
   }
-
   try {
     const workbook = xlsx.readFile(req.file.path);
     const sheetName = workbook.SheetNames[0];
@@ -810,13 +753,12 @@ export const bulkCreateProductsFromExcel = async (
       try {
         const {
           name,
-          englishName, // ✅
+          englishName,
           sku,
           price,
           stock,
           brandName,
           categoryName,
-          // ...
           description,
           how_to_use,
           caution,
@@ -838,30 +780,21 @@ export const bulkCreateProductsFromExcel = async (
           !brandName ||
           !categoryName
         ) {
-          throw new Error(
-            "Missing required fields (name, sku, price, stock, brandName, categoryName)."
-          );
+          throw new Error("Missing required fields.");
         }
 
         const brand = await prisma.brand.findFirst({
-          where: {
-            OR: [{ name: brandName }, { englishName: brandName }],
-          },
+          where: { OR: [{ name: brandName }, { englishName: brandName }] },
         });
-        if (!brand) {
-          throw new Error(`Brand '${brandName}' not found.`);
-        }
+        if (!brand) throw new Error(`Brand '${brandName}' not found.`);
 
         const category = await prisma.category.findFirst({
           where: {
             OR: [{ name: categoryName }, { englishName: categoryName }],
           },
         });
-        if (!category) {
-          throw new Error(`Category '${categoryName}' not found.`);
-        }
+        if (!category) throw new Error(`Category '${categoryName}' not found.`);
 
-        // تبدیل رشته ترکیبات به آرایه
         let ingredientsArray: string[] = [];
         if (typeof ingredients === "string") {
           ingredientsArray = ingredients
@@ -872,17 +805,15 @@ export const bulkCreateProductsFromExcel = async (
 
         const productData = {
           name,
-          englishName, // ✅
+          englishName,
           slug:
             (englishName || name).toLowerCase().replace(/\s+/g, "-") +
             "-" +
-            sku.toLowerCase(), // ✅
-
+            sku.toLowerCase(),
           description: description || null,
           how_to_use: how_to_use || null,
           caution: caution || null,
           ingredients: ingredientsArray,
-
           price: parseFloat(price),
           stock: parseInt(stock, 10),
           sku,
@@ -909,21 +840,14 @@ export const bulkCreateProductsFromExcel = async (
           });
           report.updatedCount++;
         } else {
-          await prisma.product.create({
-            data: productData,
-          });
+          await prisma.product.create({ data: productData });
           report.createdCount++;
         }
       } catch (e: any) {
         report.failedCount++;
-        report.errors.push({
-          sku: row.sku || "N/A",
-          name: row.name || "N/A",
-          error: e.message,
-        });
+        report.errors.push({ sku: row.sku, name: row.name, error: e.message });
       }
     }
-
     res.status(201).json({
       success: true,
       message: "Product import finished.",
@@ -934,8 +858,6 @@ export const bulkCreateProductsFromExcel = async (
       .status(500)
       .json({ success: false, message: "Failed to process Excel file." });
   } finally {
-    if (req.file) {
-      fs.unlinkSync(req.file.path);
-    }
+    if (req.file) fs.unlinkSync(req.file.path);
   }
 };

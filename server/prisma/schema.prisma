@@ -131,6 +131,7 @@ enum PurchaseOrderStatus {
 model Image {
   id        String   @id @default(cuid())
   url       String
+  publicId  String
   altText   String?
   title     String?
   productId String?
@@ -144,6 +145,7 @@ model Brand {
   englishName        String?             @unique
   slug               String              @unique
   logoUrl            String?
+  logoPublicId       String?
   metaTitle          String?
   metaDescription    String?
   products           Product[]
@@ -159,6 +161,7 @@ model Category {
   englishName     String?   @unique
   slug            String    @unique
   imageUrl        String?
+  imagePublicId   String?
   metaTitle       String?
   metaDescription String?
   products        Product[]
@@ -171,7 +174,9 @@ model FeatureBanner {
   id             String    @id @default(cuid())
   group          String
   imageUrl       String
+  imagePublicId  String
   imageUrlMobile String?
+  imageMobilePublicId String?
   linkUrl        String?
   altText        String?
   
@@ -207,6 +212,7 @@ model ProductCollection {
   brand     Brand?      @relation(fields: [brandId], references: [id])
   products  Product[]
   imageUrl  String?
+  imagePublicId  String?
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
   expiresAt DateTime?
@@ -441,6 +447,7 @@ model NewsletterSubscription {
 model VideoShowcaseItem {
   id        String   @id @default(cuid())
   videoUrl  String
+  videoPublicId String
   order     Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

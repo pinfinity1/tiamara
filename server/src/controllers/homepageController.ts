@@ -1,28 +1,13 @@
 import { Response, Request } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
-import cloudinary from "../config/cloudinary";
+import {
+  uploadToCloudinary,
+  deleteFromCloudinary,
+  deleteManyFromCloudinary,
+} from "../config/cloudinaryService";
 import { prisma } from "../server";
 import fs from "fs";
 import { Prisma, SectionType } from "@prisma/client";
-
-// --- Type Generation using Prisma GetPayload ---
-const productCollectionWithRelations =
-  Prisma.validator<Prisma.ProductCollectionDefaultArgs>()({
-    include: {
-      products: {
-        include: {
-          images: { take: 1 },
-          brand: true,
-          category: true,
-        },
-      },
-      brand: true,
-    },
-  });
-
-type ProductCollectionWithRelations = Prisma.ProductCollectionGetPayload<
-  typeof productCollectionWithRelations
->;
 
 // --- Banner Management ---
 
@@ -100,7 +85,6 @@ export const addFeatureBanner = async (
     const files = req.files as Express.Multer.File[];
     const parsedBannersData = JSON.parse(bannersData);
 
-    // اعتبار سنجی: تعداد فایل‌ها باید دقیقاً ۲ برابر تعداد بنرها باشد (دسکتاپ + موبایل)
     if (
       !group ||
       !files ||
@@ -109,7 +93,7 @@ export const addFeatureBanner = async (
     ) {
       res.status(400).json({
         success: false,
-        message: "تعداد فایل‌های ارسالی با تعداد بنرها همخوانی ندارد.",
+        message: "Number of files does not match number of banners.",
       });
       return;
     }
@@ -121,32 +105,27 @@ export const addFeatureBanner = async (
 
     let currentOrder = lastBannerInGroup ? lastBannerInGroup.order : 0;
 
-    // آپلود فایل‌ها در Cloudinary
-    const uploadResults = await Promise.all(
-      files.map((file) =>
-        cloudinary.uploader.upload(file.path, {
-          folder: "tiamara-banners",
-        })
-      )
+    // آپلود موازی تمام فایل‌ها
+    const uploadPromises = files.map((file) =>
+      uploadToCloudinary(file.path, "tiamara-banners")
     );
+    const uploadResults = await Promise.all(uploadPromises);
 
-    // پاکسازی فایل‌های موقت
-    files.forEach((file) => fs.unlinkSync(file.path));
-
-    // ساختن بنرها در دیتابیس
     const bannerCreateOperations = parsedBannersData.map(
       (metadata: any, index: number) => {
         currentOrder++;
 
-        // فایل‌ها به ترتیب جفتی ارسال شده‌اند: (دسکتاپ ۱, موبایل ۱, دسکتاپ ۲, موبایل ۲, ...)
+        // فایل‌ها به ترتیب جفتی هستند: دسکتاپ، موبایل
         const desktopImage = uploadResults[index * 2];
         const mobileImage = uploadResults[index * 2 + 1];
 
         return prisma.featureBanner.create({
           data: {
             group,
-            imageUrl: desktopImage.secure_url,
-            imageUrlMobile: mobileImage.secure_url,
+            imageUrl: desktopImage.url,
+            imagePublicId: desktopImage.publicId,
+            imageUrlMobile: mobileImage.url,
+            imageMobilePublicId: mobileImage.publicId,
             linkUrl: metadata.linkUrl,
             altText: metadata.altText,
             title: metadata.title || null,
@@ -169,14 +148,8 @@ export const addFeatureBanner = async (
     console.error("Error adding feature banners:", e);
     if (req.files) {
       const files = req.files as Express.Multer.File[];
-      files.forEach((file) => {
-        try {
-          if (fs.existsSync(file.path)) {
-            fs.unlinkSync(file.path);
-          }
-        } catch (unlinkErr) {
-          console.error("Failed to delete temp file on error:", unlinkErr);
-        }
+      files.forEach((f) => {
+        if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
       });
     }
     res.status(500).json({ success: false, message: "Failed to add banners." });
@@ -200,31 +173,49 @@ export const updateFeatureBanner = async (
       group,
       startDate,
       endDate,
-      imageUrl,
-      imageUrlMobile,
     } = req.body;
 
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
 
+    const existingBanner = await prisma.featureBanner.findUnique({
+      where: { id },
+    });
+    if (!existingBanner) {
+      res.status(404).json({ success: false, message: "Banner not found" });
+      return;
+    }
+
     const desktopFile = files?.["images[desktop]"]?.[0];
     const mobileFile = files?.["images[mobile]"]?.[0];
 
-    let newImageUrl = imageUrl;
+    let newImageUrl = existingBanner.imageUrl;
+    let newImagePublicId = existingBanner.imagePublicId;
+
     if (desktopFile) {
-      const result = await cloudinary.uploader.upload(desktopFile.path, {
-        folder: "tiamara-banners",
-      });
-      newImageUrl = result.secure_url;
-      fs.unlinkSync(desktopFile.path);
+      if (existingBanner.imagePublicId) {
+        await deleteFromCloudinary(existingBanner.imagePublicId);
+      }
+      const result = await uploadToCloudinary(
+        desktopFile.path,
+        "tiamara-banners"
+      );
+      newImageUrl = result.url;
+      newImagePublicId = result.publicId;
     }
 
-    let newImageUrlMobile = imageUrlMobile;
+    let newImageUrlMobile = existingBanner.imageUrlMobile;
+    let newImageMobilePublicId = existingBanner.imageMobilePublicId;
+
     if (mobileFile) {
-      const result = await cloudinary.uploader.upload(mobileFile.path, {
-        folder: "tiamara-banners",
-      });
-      newImageUrlMobile = result.secure_url;
-      fs.unlinkSync(mobileFile.path);
+      if (existingBanner.imageMobilePublicId) {
+        await deleteFromCloudinary(existingBanner.imageMobilePublicId);
+      }
+      const result = await uploadToCloudinary(
+        mobileFile.path,
+        "tiamara-banners"
+      );
+      newImageUrlMobile = result.url;
+      newImageMobilePublicId = result.publicId;
     }
 
     const updatedBanner = await prisma.featureBanner.update({
@@ -241,7 +232,9 @@ export const updateFeatureBanner = async (
         startDate: startDate ? new Date(startDate) : null,
         endDate: endDate ? new Date(endDate) : null,
         imageUrl: newImageUrl,
+        imagePublicId: newImagePublicId,
         imageUrlMobile: newImageUrlMobile,
+        imageMobilePublicId: newImageMobilePublicId,
       },
     });
 
@@ -269,36 +262,30 @@ export const deleteFeatureBanner = async (
       return;
     }
 
-    await prisma.$transaction(async (prisma) => {
-      if (bannerToDelete.imageUrl) {
-        const publicId = `tiamara-banners/${
-          bannerToDelete.imageUrl.split("/").pop()?.split(".")[0]
-        }`;
-        try {
-          await cloudinary.uploader.destroy(publicId);
-        } catch (err) {
-          console.log("Image not found on cloudinary, proceeding...");
-        }
-      }
+    if (bannerToDelete.imagePublicId) {
+      await deleteFromCloudinary(bannerToDelete.imagePublicId);
+    }
+    if (bannerToDelete.imageMobilePublicId) {
+      await deleteFromCloudinary(bannerToDelete.imageMobilePublicId);
+    }
 
-      await prisma.featureBanner.delete({ where: { id } });
+    await prisma.featureBanner.delete({ where: { id } });
 
-      const bannersToUpdate = await prisma.featureBanner.findMany({
-        where: {
-          group: bannerToDelete.group,
-          order: { gt: bannerToDelete.order },
-        },
-        orderBy: { order: "asc" },
-      });
-
-      const updatePromises = bannersToUpdate.map((banner) =>
-        prisma.featureBanner.update({
-          where: { id: banner.id },
-          data: { order: banner.order - 1 },
-        })
-      );
-      await Promise.all(updatePromises);
+    const bannersToUpdate = await prisma.featureBanner.findMany({
+      where: {
+        group: bannerToDelete.group,
+        order: { gt: bannerToDelete.order },
+      },
+      orderBy: { order: "asc" },
     });
+
+    const updatePromises = bannersToUpdate.map((banner) =>
+      prisma.featureBanner.update({
+        where: { id: banner.id },
+        data: { order: banner.order - 1 },
+      })
+    );
+    await prisma.$transaction(updatePromises);
 
     res
       .status(200)
@@ -356,21 +343,15 @@ export const deleteBannerGroup = async (
       where: { group: groupName },
     });
 
-    if (bannersToDelete.length > 0) {
-      const publicIds = bannersToDelete
-        .map((banner) => {
-          if (banner.imageUrl) {
-            return `tiamara-banners/${
-              banner.imageUrl.split("/").pop()?.split(".")[0]
-            }`;
-          }
-          return null;
-        })
-        .filter(Boolean) as string[];
+    const publicIdsToDelete: string[] = [];
+    bannersToDelete.forEach((banner) => {
+      if (banner.imagePublicId) publicIdsToDelete.push(banner.imagePublicId);
+      if (banner.imageMobilePublicId)
+        publicIdsToDelete.push(banner.imageMobilePublicId);
+    });
 
-      if (publicIds.length > 0) {
-        await cloudinary.api.delete_resources(publicIds);
-      }
+    if (publicIdsToDelete.length > 0) {
+      await deleteManyFromCloudinary(publicIdsToDelete);
     }
 
     await prisma.featureBanner.deleteMany({
@@ -390,6 +371,7 @@ export const deleteBannerGroup = async (
 };
 
 // --- Product Collection Management ---
+
 export const getProductCollections = async (
   req: Request,
   res: Response
@@ -398,21 +380,20 @@ export const getProductCollections = async (
     const { location } = req.query;
     const whereClause = location ? { location: location as string } : {};
 
-    const collections: ProductCollectionWithRelations[] =
-      await prisma.productCollection.findMany({
-        where: whereClause,
-        orderBy: { order: "asc" },
-        include: {
-          products: {
-            include: {
-              images: { take: 1 },
-              brand: true,
-              category: true,
-            },
+    const collections = await prisma.productCollection.findMany({
+      where: whereClause,
+      orderBy: { order: "asc" },
+      include: {
+        products: {
+          include: {
+            images: { take: 1 },
+            brand: true,
+            category: true,
           },
-          brand: true,
         },
-      });
+        brand: true,
+      },
+    });
 
     const [discountedProducts, bestSellingProducts] = await Promise.all([
       prisma.product.findMany({
@@ -433,11 +414,14 @@ export const getProductCollections = async (
       .filter((s) => s.type === "BRAND" && s.brandId)
       .map((s) => s.brandId!);
 
-    const brandProducts = await prisma.product.findMany({
-      where: { brandId: { in: brandCollectionIds }, isArchived: false },
-      orderBy: { createdAt: "desc" },
-      include: { images: { take: 1 }, brand: true, category: true },
-    });
+    let brandProducts: any[] = [];
+    if (brandCollectionIds.length > 0) {
+      brandProducts = await prisma.product.findMany({
+        where: { brandId: { in: brandCollectionIds }, isArchived: false },
+        orderBy: { createdAt: "desc" },
+        include: { images: { take: 1 }, brand: true, category: true },
+      });
+    }
 
     const finalCollections = collections.map((collection) => {
       if (collection.type === SectionType.DISCOUNTED) {
@@ -460,10 +444,12 @@ export const getProductCollections = async (
     res.status(200).json({ success: true, collections: finalCollections });
   } catch (error) {
     console.error("Error fetching product collections:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch product collections.",
-    });
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Failed to fetch product collections.",
+      });
   }
 };
 
@@ -501,7 +487,6 @@ export const fetchCollectionByType = async (
     });
 
     if (!collection) {
-      // به جای خطا، موفقیت برمی‌گردانیم اما با دیتای null
       res.status(200).json({ success: true, collection: null });
       return;
     }
@@ -544,19 +529,9 @@ export const fetchCollectionByType = async (
     }
   } catch (error) {
     console.error("Error fetching product collection by type:", error);
-
-    if (error instanceof Error && error.message.includes("Invalid")) {
-      res.status(400).json({
-        success: false,
-        message: `Invalid collection type provided: '${req.query.type}'.`,
-      });
-      return;
-    }
-
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch product collection.",
-    });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch product collection." });
   }
 };
 
@@ -566,30 +541,33 @@ export const createProductCollection = async (
 ): Promise<void> => {
   try {
     const { title, type, productIds, brandId, location, expiresAt } = req.body;
-    const collectionType = type as SectionType;
     const file = req.file;
-    let imageUrl: string | undefined = undefined;
+
+    let imageUrl = undefined;
+    let imagePublicId = undefined;
 
     if (file) {
-      const result = await cloudinary.uploader.upload(file.path, {
-        folder: "tiamara-collections",
-      });
-      imageUrl = result.secure_url;
-      fs.unlinkSync(file.path);
+      const upload = await uploadToCloudinary(file.path, "tiamara-collections");
+      imageUrl = upload.url;
+      imagePublicId = upload.publicId;
     }
 
     const collection = await prisma.productCollection.create({
       data: {
         title,
-        type: collectionType,
+        type: type as SectionType,
         location: location || "homepage",
         brandId: type === "BRAND" ? brandId : null,
         imageUrl,
+        imagePublicId,
         expiresAt: expiresAt ? new Date(expiresAt) : null,
         products:
           type === "MANUAL" && productIds
             ? {
-                connect: (productIds as string[]).map((id: string) => ({ id })),
+                connect: (Array.isArray(productIds)
+                  ? productIds
+                  : [productIds]
+                ).map((id: string) => ({ id })),
               }
             : {},
       },
@@ -598,10 +576,13 @@ export const createProductCollection = async (
     res.status(201).json({ success: true, collection });
   } catch (error) {
     console.error("Error creating product collection:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to create product collection.",
-    });
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Failed to create product collection.",
+      });
   }
 };
 
@@ -611,38 +592,28 @@ export const updateProductCollection = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const {
-      title,
-      type,
-      productIds,
-      brandId,
-      location,
-      existingImageUrl,
-      expiresAt,
-    } = req.body;
+    const { title, type, productIds, brandId, location, expiresAt } = req.body;
     const file = req.file;
-    let imageUrl: string | undefined = existingImageUrl;
 
     const existingCollection = await prisma.productCollection.findUnique({
       where: { id },
     });
 
+    if (!existingCollection) {
+      res.status(404).json({ success: false, message: "Collection not found" });
+      return;
+    }
+
+    let imageUrl = existingCollection.imageUrl;
+    let imagePublicId = existingCollection.imagePublicId;
+
     if (file) {
-      if (existingCollection?.imageUrl) {
-        const publicId = `tiamara-collections/${
-          existingCollection.imageUrl.split("/").pop()?.split(".")[0]
-        }`;
-        try {
-          await cloudinary.uploader.destroy(publicId);
-        } catch (err) {
-          console.log("Old image not found on Cloudinary, proceeding...");
-        }
+      if (existingCollection.imagePublicId) {
+        await deleteFromCloudinary(existingCollection.imagePublicId);
       }
-      const result = await cloudinary.uploader.upload(file.path, {
-        folder: "tiamara-collections",
-      });
-      imageUrl = result.secure_url;
-      fs.unlinkSync(file.path);
+      const upload = await uploadToCloudinary(file.path, "tiamara-collections");
+      imageUrl = upload.url;
+      imagePublicId = upload.publicId;
     }
 
     const collection = await prisma.productCollection.update({
@@ -650,13 +621,21 @@ export const updateProductCollection = async (
       data: {
         title,
         type,
-        location: location || "homepage",
+        location,
         imageUrl,
+        imagePublicId,
         brandId: type === "BRAND" ? brandId : null,
         expiresAt: expiresAt ? new Date(expiresAt) : null,
         products:
           type === "MANUAL"
-            ? { set: (productIds as string[]).map((id: string) => ({ id })) }
+            ? {
+                set: (Array.isArray(productIds)
+                  ? productIds
+                  : productIds
+                  ? [productIds]
+                  : []
+                ).map((id: string) => ({ id })),
+              }
             : { set: [] },
       },
     });
@@ -664,10 +643,12 @@ export const updateProductCollection = async (
     res.status(200).json({ success: true, collection });
   } catch (error) {
     console.error("Error updating product collection:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to update product collection.",
-    });
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Failed to update product collection.",
+      });
   }
 };
 
@@ -677,16 +658,26 @@ export const deleteProductCollection = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
+
+    const collectionToDelete = await prisma.productCollection.findUnique({
+      where: { id },
+    });
+
+    if (collectionToDelete?.imagePublicId) {
+      await deleteFromCloudinary(collectionToDelete.imagePublicId);
+    }
+
     await prisma.productCollection.delete({ where: { id } });
     res
       .status(200)
       .json({ success: true, message: "Collection deleted successfully." });
   } catch (error) {
-    console.error("Error deleting product collection:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to delete product collection.",
-    });
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Failed to delete product collection.",
+      });
   }
 };
 
@@ -724,9 +715,7 @@ export const reorderProductCollections = async (
   }
 };
 
-// ===================================================
-// ================ VIDEO SHOWCASE CONTROLLERS =======
-// ===================================================
+// --- Video Showcase ---
 
 export const addVideoShowcaseItem = async (
   req: AuthenticatedRequest,
@@ -737,58 +726,40 @@ export const addVideoShowcaseItem = async (
     const file = req.file;
 
     if (!productId || !file) {
-      res.status(400).json({
-        success: false,
-        message: "Product ID and a video file are required.",
-      });
+      res
+        .status(400)
+        .json({
+          success: false,
+          message: "Product ID and video file required.",
+        });
       return;
     }
 
-    const existingItem = await prisma.videoShowcaseItem.findFirst({
-      where: { productId },
-    });
-
-    if (existingItem) {
-      res.status(409).json({
-        success: false,
-        message:
-          "ویدیو برای این محصول از قبل وجود دارد و امکان افزودن مجدد نیست.",
-      });
-      return;
-    }
-
-    const result = await cloudinary.uploader.upload(file.path, {
-      resource_type: "video",
-      folder: "tiamara-videos",
-    });
-
-    fs.unlinkSync(file.path);
+    // آپلود ویدیو با تایپ صحیح
+    const upload = await uploadToCloudinary(
+      file.path,
+      "tiamara-videos",
+      "video"
+    );
 
     const newItemData = await prisma.videoShowcaseItem.create({
       data: {
         productId,
-        videoUrl: result.secure_url,
+        videoUrl: upload.url,
+        videoPublicId: upload.publicId,
         order: Number(order) || 0,
       },
     });
 
     const newItem = await prisma.videoShowcaseItem.findUnique({
       where: { id: newItemData.id },
-      include: {
-        product: {
-          include: {
-            images: { take: 1 },
-          },
-        },
-      },
+      include: { product: { include: { images: { take: 1 } } } },
     });
 
     res.status(201).json({ success: true, item: newItem });
   } catch (error) {
     console.error("Error adding video showcase item:", error);
-    if (req.file) {
-      fs.unlinkSync(req.file.path);
-    }
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     res
       .status(500)
       .json({ success: false, message: "Failed to add showcase item." });
@@ -801,12 +772,21 @@ export const deleteVideoShowcaseItem = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
+
+    const itemToDelete = await prisma.videoShowcaseItem.findUnique({
+      where: { id },
+    });
+
+    if (itemToDelete?.videoPublicId) {
+      // حذف ویدیو از کلاودینری
+      await deleteFromCloudinary(itemToDelete.videoPublicId, "video");
+    }
+
     await prisma.videoShowcaseItem.delete({ where: { id } });
     res
       .status(200)
       .json({ success: true, message: "Showcase item deleted successfully." });
   } catch (error) {
-    console.error("Error deleting video showcase item:", error);
     res
       .status(500)
       .json({ success: false, message: "Failed to delete showcase item." });
