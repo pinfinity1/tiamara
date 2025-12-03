@@ -1,65 +1,68 @@
-# --- Stage 1: Base (پایه) ---
+# ───────────────────────────────────────────────────────────────
+# Stage 1: Base
+# ───────────────────────────────────────────────────────────────
 FROM node:20-alpine AS base
-
-# --- Stage 2: Dependencies (نصب پکیج‌ها برای بیلد) ---
-FROM base AS deps
 WORKDIR /app
+
+# ───────────────────────────────────────────────────────────────
+# Stage 2: Deps (cache-optimised)
+# ───────────────────────────────────────────────────────────────
+FROM base AS deps
 COPY package*.json ./
-# استفاده از ci برای نصب تمیزتر و سریع‌تر در CI/CD
 RUN npm ci
 
-# --- Stage 3: Builder (ساخت پروژه) ---
+# ───────────────────────────────────────────────────────────────
+# Stage 3: Builder
+# ───────────────────────────────────────────────────────────────
 FROM base AS builder
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+
+COPY --from=deps /app/node_modules node_modules
+COPY prisma prisma
 COPY . .
 
-# جنریت کردن پریزما
 RUN npx prisma generate
-# بیلد کردن پروژه (تبدیل TS به JS)
 RUN npm run build
 
-# --- Stage 4: Production Runner (اجرا کننده نهایی) ---
-FROM base AS runner
+# ───────────────────────────────────────────────────────────────
+# Stage 4: Production deps only
+# ───────────────────────────────────────────────────────────────
+FROM base AS proddeps
 WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
 
-# ✅ ۱. نصب پکیج‌های سیستمی ضروری برای Puppeteer و Chromium
-# این بخش حیاتی‌ترین تغییر است
+# ───────────────────────────────────────────────────────────────
+# Stage 5: Chromium Layer (needed for Puppeteer)
+# ───────────────────────────────────────────────────────────────
+FROM node:20-alpine AS chromium
 RUN apk add --no-cache \
     chromium \
     nss \
     freetype \
     harfbuzz \
     ca-certificates \
-    ttf-freefont \
-    nodejs \
-    yarn
+    ttf-freefont
 
-# ✅ ۲. تنظیم متغیرهای محیطی برای Puppeteer
-# به پاپتیر می‌گوییم کروم را دانلود نکن (چون بالا نصب کردیم) و از مسیر سیستمی استفاده کن
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
-ENV NODE_ENV=production
+# ───────────────────────────────────────────────────────────────
+# Stage 6: Final Runtime (Distroless)
+# ───────────────────────────────────────────────────────────────
+FROM gcr.io/distroless/nodejs20 AS runner
+WORKDIR /app
 
-# کپی کردن فایل‌های پکیج
-COPY package*.json ./
+ENV NODE_ENV=production \
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser \
+    PORT=5001
 
-# ۳. نصب فقط پکیج‌های پروداکشن (بدون devDependencies) برای کاهش حجم
-RUN npm ci --only=production && npm cache clean --force
+COPY --from=proddeps /app/node_modules node_modules
+COPY --from=builder /app/dist dist
+COPY --from=builder /app/prisma prisma
+COPY --from=chromium /usr/bin/chromium-browser /usr/bin/chromium-browser
+COPY --from=chromium /usr/lib/ /usr/lib/
 
-# ۴. کپی کردن پریزما و جنریت کلاینت برای محیط پروداکشن
-COPY prisma ./prisma
-RUN npx prisma generate
+USER nonroot
 
-# ۵. کپی کردن فایل‌های بیلد شده از مرحله Builder
-COPY --from=builder /app/dist ./dist
-
-# ۶. تنظیم دسترسی‌ها (Best Practice امنیتی)
-# تغییر مالکیت فایل‌ها به کاربر 'node' و اجرای کانتینر با این کاربر
-RUN chown -R node:node /app
-USER node
-
-# پورت (مطمئن شوید با پورت اپلیکیشن یکی است، معمولا 5001 یا 3001)
 EXPOSE 5001
 
-CMD ["npm", "start"]
+CMD ["dist/index.js"]
