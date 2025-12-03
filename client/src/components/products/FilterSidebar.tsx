@@ -210,11 +210,7 @@ export default function FilterSidebar({
         />
       </div>
 
-      <Accordion
-        type="multiple"
-        defaultValue={["category", "brand", "price"]}
-        className="w-full"
-      >
+      <Accordion type="multiple" defaultValue={["price"]} className="w-full">
         {/* --- دسته‌بندی --- */}
         <AccordionItem value="category" className="border-b border-gray-100">
           <AccordionTrigger className="hover:no-underline py-4 text-sm font-bold text-gray-800">
