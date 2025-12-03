@@ -18,7 +18,12 @@ services:
     depends_on:
       - postgres
     # دستور شروع: مایگریشن + سید + اجرا
-    entrypoint: sh -c "npx prisma migrate deploy && node dist/prisma/seed.js && npm start"
+    entrypoint:
+      [
+        "/bin/sh",
+        "-c",
+        "npx prisma migrate deploy && node dist/prisma/seed.js && npm start",
+      ]
 
   client:
     # استفاده از ایمیج آماده GHCR
