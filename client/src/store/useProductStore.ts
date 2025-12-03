@@ -177,12 +177,17 @@ export const useProductStore = create<ProductState>((set, get) => ({
           "Content-Type": "multipart/form-data",
         },
       });
-      // بعد از آپدیت، لیست را رفرش می‌کنیم
-      // نکته: اینجا بهتر است از fetchAdminProducts استفاده کنید اگر در صفحه ادمین هستید
-      // اما فعلاً همان متد قدیمی را صدا می‌زنیم تا چیزی نشکند
-      await get().fetchAllProductsForAdmin();
-      set({ isLoading: false });
-      return response.data;
+      const updatedProduct = response.data;
+
+      set((state) => ({
+        products: state.products.map((p) => (p.id === id ? updatedProduct : p)),
+        adminProducts: state.adminProducts.map((p) =>
+          p.id === id ? updatedProduct : p
+        ),
+        isLoading: false,
+      }));
+
+      return updatedProduct;
     } catch (e) {
       set({ error: "Failed to update product", isLoading: false });
       return null;
