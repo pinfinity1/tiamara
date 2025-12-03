@@ -1,41 +1,32 @@
-# ───────────────────────────────────────────────────────────────
-# Stage 1: Base
-# ───────────────────────────────────────────────────────────────
-FROM node:20-alpine AS base
-WORKDIR /app
+# server/Dockerfile
 
-# ───────────────────────────────────────────────────────────────
-# Stage 2: Deps (cache-optimised)
-# ───────────────────────────────────────────────────────────────
+# --- Stage 1: Base ---
+FROM node:20-alpine AS base
+
+# --- Stage 2: Dependencies ---
 FROM base AS deps
+WORKDIR /app
 COPY package*.json ./
+# نصب پکیج‌ها (شامل devDependencies برای بیلد)
 RUN npm ci
 
-# ───────────────────────────────────────────────────────────────
-# Stage 3: Builder
-# ───────────────────────────────────────────────────────────────
+# --- Stage 3: Builder ---
 FROM base AS builder
 WORKDIR /app
-
-COPY --from=deps /app/node_modules node_modules
-COPY prisma prisma
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# جنریت کردن کلاینت پریزما
 RUN npx prisma generate
+# بیلد کردن پروژه (Typescript -> JS)
 RUN npm run build
 
-# ───────────────────────────────────────────────────────────────
-# Stage 4: Production deps only
-# ───────────────────────────────────────────────────────────────
-FROM base AS proddeps
+# --- Stage 4: Production Runner (Final Image) ---
+FROM base AS runner
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
 
-# ───────────────────────────────────────────────────────────────
-# Stage 5: Chromium Layer (needed for Puppeteer)
-# ───────────────────────────────────────────────────────────────
-FROM node:20-alpine AS chromium
+# ✅ بهینه‌سازی ۱: نصب Chromium برای Puppeteer
+# این بخش حیاتی است تا Puppeteer بدون دانلود کروم کار کند
 RUN apk add --no-cache \
     chromium \
     nss \
@@ -44,25 +35,34 @@ RUN apk add --no-cache \
     ca-certificates \
     ttf-freefont
 
-# ───────────────────────────────────────────────────────────────
-# Stage 6: Final Runtime (Distroless)
-# ───────────────────────────────────────────────────────────────
-FROM gcr.io/distroless/nodejs20 AS runner
-WORKDIR /app
+# تنظیم متغیرهای محیطی Puppeteer
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+ENV NODE_ENV=production
 
-ENV NODE_ENV=production \
-    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser \
-    PORT=5001
+# کپی کردن فایل‌های پکیج
+COPY package*.json ./
 
-COPY --from=proddeps /app/node_modules node_modules
-COPY --from=builder /app/dist dist
-COPY --from=builder /app/prisma prisma
-COPY --from=chromium /usr/bin/chromium-browser /usr/bin/chromium-browser
-COPY --from=chromium /usr/lib/ /usr/lib/
+# ✅ بهینه‌سازی ۲: نصب فقط پکیج‌های پروداکشن (کاهش حجم)
+RUN npm ci --only=production && npm cache clean --force
 
-USER nonroot
+# کپی کردن فایل‌های بیلد شده و پریزما از مرحله قبل
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/prisma ./prisma
 
+# جنریت مجدد کلاینت برای اطمینان در محیط پروداکشن
+RUN npx prisma generate
+
+# ✅ بهینه‌سازی ۳: امنیت (کاربر غیر روت)
+# تغییر مالکیت فایل‌ها به کاربر node
+RUN chown -R node:node /app
+
+# تغییر کاربر به node
+USER node
+
+# پورت سرور
 EXPOSE 5001
 
-CMD ["dist/index.js"]
+# دستور پیش‌فرض (این دستور توسط docker-compose.prod.yml بازنویسی می‌شود اما بودنش استاندارد است)
+CMD ["npm", "start"]
