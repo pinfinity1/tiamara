@@ -9,6 +9,7 @@ import { Prisma } from "@prisma/client";
 import * as xlsx from "xlsx";
 import fs from "fs";
 import { cleanText, generateVariations } from "../utils/searchUtils";
+import { scrapeDataFromUrl } from "../utils/crawlerService";
 
 // --- Helper Functions ---
 
@@ -421,16 +422,34 @@ export const deleteProduct = async (
   try {
     const { id } = req.params;
 
-    // Soft Delete (Archive)
+    const product = await prisma.product.findUnique({ where: { id } });
+
+    if (!product) {
+      res.status(404).json({ success: false, message: "Product not found" });
+      return;
+    }
+
+    // آبجکت تغییرات را می‌سازیم
+    const updateData: any = {
+      isArchived: true,
+      stock: 0,
+    };
+
+    // فقط اگر SKU وجود داشت (نال نبود) آن را تغییر بده
+    if (product.sku) {
+      updateData.sku = `${product.sku}-DELETED-${Date.now()}`;
+    }
+
+    // فقط اگر Slug وجود داشت آن را تغییر بده
+    if (product.slug) {
+      updateData.slug = `${product.slug}-deleted-${Date.now()}`;
+    }
+
     await prisma.product.update({
       where: { id },
-      data: {
-        isArchived: true,
-        stock: 0,
-      },
+      data: updateData,
     });
 
-    // پاکسازی وابستگی‌ها
     await prisma.cartItem.deleteMany({ where: { productId: id } });
     await prisma.wishlistItem.deleteMany({ where: { productId: id } });
 
@@ -440,6 +459,120 @@ export const deleteProduct = async (
   } catch (e) {
     console.error("Error archiving product:", e);
     res.status(500).json({ success: false, message: "Some error occurred!" });
+  }
+};
+
+// بازیابی محصول آرشیو شده (Undo Delete)
+export const restoreProduct = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const product = await prisma.product.findUnique({ where: { id } });
+
+    if (!product || !product.isArchived) {
+      res.status(400).json({
+        success: false,
+        message: "Product is not archived or not found.",
+      });
+      return;
+    }
+
+    // ✅ اصلاح باگ: اطمینان از اینکه sku و slug وجود دارند
+    if (!product.sku || !product.slug) {
+      res.status(500).json({
+        success: false,
+        message: "Product data is corrupted (Missing SKU/Slug).",
+      });
+      return;
+    }
+
+    // بازگرداندن SKU و Slug به حالت اصلی
+    const originalSku = product.sku.split("-DELETED-")[0];
+    const originalSlug = product.slug.split("-deleted-")[0];
+
+    // چک تداخل (آیا در این مدت محصولی با نام قبلی ساخته شده؟)
+    const conflictCheck = await prisma.product.findUnique({
+      where: { sku: originalSku },
+    });
+
+    if (conflictCheck) {
+      res.status(409).json({
+        success: false,
+        message:
+          "Cannot restore: A new product with this SKU already exists. Please rename one of them.",
+      });
+      return;
+    }
+
+    await prisma.product.update({
+      where: { id },
+      data: {
+        isArchived: false,
+        sku: originalSku, // الان مطمئنیم که string است
+        slug: originalSlug, // الان مطمئنیم که string است
+      },
+    });
+
+    res
+      .status(200)
+      .json({ success: true, message: "Product restored successfully." });
+  } catch (e) {
+    console.error("Error restoring product:", e);
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to restore product." });
+  }
+};
+
+// حذف کامل و دائمی محصول (Hard Delete)
+export const hardDeleteProduct = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const product = await prisma.product.findUnique({
+      where: { id },
+      include: { images: true },
+    });
+
+    if (!product) {
+      res.status(404).json({ success: false, message: "Product not found" });
+      return;
+    }
+
+    // ۱. حذف عکس‌ها از Cloudinary (برای اینکه فضای ابری آزاد شود)
+    const publicIds = product.images.map((img) => img.publicId).filter(Boolean);
+    if (publicIds.length > 0) {
+      await deleteManyFromCloudinary(publicIds);
+    }
+
+    // ۲. حذف از دیتابیس
+    // به خاطر Cascade Delete در اسکیما، عکس‌ها و ردیف‌های وابسته خودکار پاک می‌شوند
+    // اما برای اطمینان بیشتر، وابستگی‌های حساس را دستی پاک می‌کنیم
+    await prisma.cartItem.deleteMany({ where: { productId: id } });
+    await prisma.wishlistItem.deleteMany({ where: { productId: id } });
+
+    // نکته: اگر محصول در سفارشات (OrderItems) باشد، این دستور ممکن است ارور بدهد.
+    // در سیستم‌های واقعی، معمولاً اجازه حذف محصولی که فروخته شده را نمی‌دهند.
+    // اما چون این یک درخواست "اجباری" است، فرض می‌کنیم ادمین می‌داند چه می‌کند.
+
+    await prisma.product.delete({ where: { id } });
+
+    res
+      .status(200)
+      .json({ success: true, message: "Product permanently deleted." });
+  } catch (e) {
+    console.error("Error hard deleting product:", e);
+    // ارور معمولاً مربوط به Foreign Key Constraint (سفارشات) است
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete. Product might be in user orders.",
+    });
   }
 };
 
@@ -603,6 +736,7 @@ export const getProductsForClient = async (
     const sortOrder = (req.query.sortOrder as "asc" | "desc") || "desc";
     const hasDiscount = req.query.hasDiscount === "true";
     const profileBasedFilter = req.query.profileBasedFilter === "true";
+    const onlyInStock = req.query.inStock === "true";
 
     const skip = (page - 1) * limit;
 
@@ -610,6 +744,10 @@ export const getProductsForClient = async (
       isArchived: false,
       price: { gte: minPrice, lte: maxPrice },
     };
+
+    if (onlyInStock) {
+      where.stock = { gt: 0 };
+    }
 
     if (hasDiscount) {
       where.discount_price = { not: null };
@@ -859,5 +997,302 @@ export const bulkCreateProductsFromExcel = async (
       .json({ success: false, message: "Failed to process Excel file." });
   } finally {
     if (req.file) fs.unlinkSync(req.file.path);
+  }
+};
+
+export const prepareProductFromUrl = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  const { url } = req.body;
+
+  if (!url) {
+    res.status(400).json({ success: false, message: "URL is required." });
+    return;
+  }
+
+  try {
+    const scrapedData = await scrapeDataFromUrl(url);
+
+    const [existingBrands, existingCategories] = await prisma.$transaction([
+      prisma.brand.findMany({ select: { name: true, englishName: true } }),
+      prisma.category.findMany({ select: { name: true, englishName: true } }),
+    ]);
+
+    const brandList = existingBrands
+      .map((b) => b.englishName || b.name)
+      .filter(Boolean)
+      .join(", ");
+
+    const categoryList = existingCategories
+      .map((c) => c.name)
+      .filter(Boolean)
+      .join(", ");
+
+    const aiPrompt = `
+You are the Senior Content Strategist for "Tiamara", a premier beauty e-commerce platform.
+Your task is to transform raw product data into a **Masterpiece Product Entry** in Persian (Farsi).
+
+**PRODUCT TITLE:** "${scrapedData.title}"
+
+**SOURCE DATA:**
+"""
+${scrapedData.rawText}
+"""
+
+**🚨 STRICT GUIDELINES:**
+1.  **Persona:** Write like a beauty expert—knowledgeable, empathetic, and trustworthy. Avoid robotic translations.
+2.  **Accuracy:** NO HALLUCINATIONS. If specific details (like volume) are missing in the text, leave them as null or 0. Do not guess.
+3.  **Description Formatting (HTML):** - Start with a **Hook** (emotional benefit).
+    - Use **<p>** tags for paragraphs.
+    - MUST include a **<ul>** list with **<li>** items for "Key Benefits" (ویژگی‌های کلیدی).
+    - Use **<strong>** to highlight ingredients or key claims.
+    - Mention **Texture** (بافت) and **Scent** (رایحه) if available in the source.
+4.  **SKU Generation:** Create a meaningful SKU based on Brand + Product Name (e.g., BRAND-PRODUCT-VOL).
+5.  **Tags:** Generate 5-8 high-traffic Persian search tags.
+
+**REQUIRED JSON OUTPUT (Flat Object):**
+{
+  "name": "Persian Name + English Brand (e.g., اسنس حلزون 96 کوزارکس COSRX)",
+  "englishName": "Exact English Name",
+  "brandName": "Select from the provided list (e.g. ${
+    existingBrands[0]?.englishName || "Brand"
+  })",
+  "categoryName": "Select from the provided list (e.g. ${
+    existingCategories[0]?.name || "Category"
+  })",
+  "description": "HTML string: Intro paragraph + <ul><li>Benefit 1</li><li>Benefit 2</li></ul> + Conclusion/Texture description.",
+  "how_to_use": "Clear, step-by-step instructions in Persian.",
+  "caution": "Safety warnings (e.g., patch test recommended).",
+  "ingredients": ["Ingredient 1", "Ingredient 2", "Key Active Ingredient"],
+  "skin_type": ["Select from: چرب, خشک, مختلط, نرمال, حساس"],
+  "concern": ["Select from: آکنه و جوش, لک و تیرگی, چروک و پیری, منافذ باز, خشکی, التهاب"],
+  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"],
+  "price": 0,
+  "stock": 10,
+  "sku": "SUGGESTED-SMART-SKU (e.g. CSX-SNAIL-100)",
+  "volume": 0,
+  "unit": "ml",
+  "country_of_origin": "Manufacturing Country (e.g. South Korea)",
+  "product_form": "Type (e.g. سرم, کرم, تونر, فوم)",
+  "metaTitle": "Click-worthy SEO Title (max 60 chars)",
+  "metaDescription": "Compelling SEO Description (max 160 chars)"
+}
+`;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        images: scrapedData.images,
+        prompt: aiPrompt,
+      },
+    });
+  } catch (error) {
+    console.error("Preparation Error:", error);
+    res
+      .status(500)
+      .json({ success: false, message: "خطا در آماده‌سازی اطلاعات." });
+  }
+};
+
+export const createProductFromExternalJson = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = req.user?.userId;
+    const data = req.body;
+
+    if (!data.name || data.price === undefined || data.price === null) {
+      res
+        .status(400)
+        .json({ success: false, message: "اطلاعات محصول ناقص است." });
+      return;
+    }
+
+    // ۱. مدیریت SKU (اگر نبود بسازیم)
+    let finalSku = data.sku;
+    if (!finalSku) {
+      finalSku = `GEN-SKU-${Math.floor(Math.random() * 100000)}`;
+    }
+
+    // ۲. چک کردن محصول تکراری (بر اساس SKU)
+    const existingProduct = await prisma.product.findUnique({
+      where: { sku: finalSku },
+      include: { images: true }, // عکس‌های قبلی را می‌گیریم که اگر خواستیم اضافه کنیم
+    });
+
+    // ۳. مدیریت تصاویر (مشترک برای آپدیت و ساخت)
+    const imageCreateData = [];
+    if (data.selectedImages && Array.isArray(data.selectedImages)) {
+      for (const imgUrl of data.selectedImages) {
+        try {
+          const upload = await uploadToCloudinary(imgUrl, "tiamara_products");
+          imageCreateData.push({
+            url: upload.url,
+            publicId: upload.publicId,
+            altText: data.name,
+          });
+        } catch (err) {
+          console.error(err);
+        }
+      }
+    }
+
+    // ۴. یافتن برند و دسته (مشترک)
+    let brandId = null;
+    if (data.brandName) {
+      const brandNameClean = data.brandName.trim();
+      const brand = await prisma.brand.findFirst({
+        where: {
+          OR: [
+            { name: { equals: brandNameClean, mode: "insensitive" } },
+            { englishName: { equals: brandNameClean, mode: "insensitive" } },
+          ],
+        },
+      });
+      if (brand) brandId = brand.id;
+    }
+
+    let categoryId = null;
+    if (data.categoryName) {
+      const catNameClean = data.categoryName.trim();
+      const category = await prisma.category.findFirst({
+        where: {
+          OR: [
+            { name: { equals: catNameClean, mode: "insensitive" } },
+            { englishName: { equals: catNameClean, mode: "insensitive" } },
+          ],
+        },
+      });
+      if (category) categoryId = category.id;
+    }
+
+    // ۵. انشعاب منطق: آپدیت یا ساخت
+    let resultProduct;
+    const newStock = parseInt(data.stock) || 0;
+
+    if (existingProduct) {
+      // --- سناریو آپدیت (موجود کردن مجدد) ---
+
+      // محاسبه موجودی جدید (موجودی قبلی + موجودی جدید)
+      // اگر می‌خواهید فقط جایگزین شود، خط زیر را عوض کنید به: const finalStock = newStock;
+      const finalStock = existingProduct.stock + newStock;
+
+      resultProduct = await prisma.product.update({
+        where: { id: existingProduct.id },
+        data: {
+          // اطلاعات متنی را آپدیت می‌کنیم (شاید توضیحات بهتر شده باشد)
+          name: data.name,
+          englishName: data.englishName,
+          description: data.description,
+          price: parseFloat(data.price),
+          discount_price: data.discount_price
+            ? parseFloat(data.discount_price)
+            : null,
+          stock: finalStock, // موجودی جمع شده
+          isArchived: false, // اگر آرشیو بود، فعالش کن
+
+          // سایر فیلدها
+          brandId: brandId || existingProduct.brandId,
+          categoryId: categoryId || existingProduct.categoryId,
+          how_to_use: data.how_to_use,
+          caution: data.caution,
+          volume: data.volume
+            ? parseFloat(data.volume)
+            : existingProduct.volume,
+          skin_type: data.skin_type || existingProduct.skin_type,
+          concern: data.concern || existingProduct.concern,
+          ingredients: data.ingredients || existingProduct.ingredients,
+
+          // عکس‌های جدید را به لیست عکس‌های قبلی اضافه کن
+          images: {
+            create: imageCreateData,
+          },
+        },
+      });
+
+      // ثبت تاریخچه تغییر موجودی
+      if (newStock > 0) {
+        await logStockChange(
+          existingProduct.id,
+          newStock,
+          finalStock,
+          "PURCHASE",
+          userId || null,
+          "Restock via AI Import"
+        );
+      }
+
+      res.status(200).json({
+        success: true,
+        message: "محصول موجود بروزرسانی و موجودی افزایش یافت.",
+        product: resultProduct,
+      });
+    } else {
+      // --- سناریو ساخت جدید ---
+
+      // اسلاگ فقط برای محصول جدید مهم است
+      let slugBase = data.englishName || data.name;
+      let generatedSlug = generateSlug(slugBase);
+      const slugCheck = await prisma.product.findUnique({
+        where: { slug: generatedSlug },
+      });
+      if (slugCheck)
+        generatedSlug = `${generatedSlug}-${Math.floor(Math.random() * 1000)}`;
+
+      resultProduct = await prisma.product.create({
+        data: {
+          name: data.name,
+          englishName: data.englishName,
+          slug: generatedSlug,
+          sku: finalSku, // SKU تضمین شده
+          brandId,
+          categoryId,
+          description: data.description,
+          how_to_use: data.how_to_use,
+          caution: data.caution,
+          price: parseFloat(data.price),
+          discount_price: data.discount_price
+            ? parseFloat(data.discount_price)
+            : null,
+          stock: newStock,
+          volume: data.volume ? parseFloat(data.volume) : null,
+          unit: data.unit,
+          country_of_origin: data.country_of_origin,
+          skin_type: data.skin_type || [],
+          concern: data.concern || [],
+          product_form: data.product_form,
+          ingredients: data.ingredients || [],
+          tags: data.tags || [],
+          metaTitle: data.metaTitle || data.name,
+          metaDescription: data.metaDescription,
+          isArchived: false,
+          images: {
+            create: imageCreateData,
+          },
+        },
+      });
+
+      if (newStock > 0) {
+        await logStockChange(
+          resultProduct.id,
+          newStock,
+          newStock,
+          "INITIAL",
+          userId || null,
+          "AI Import"
+        );
+      }
+
+      res.status(201).json({
+        success: true,
+        message: "محصول جدید با موفقیت ساخته شد.",
+        product: resultProduct,
+      });
+    }
+  } catch (error) {
+    console.error("JSON Import Error:", error);
+    res.status(500).json({ success: false, message: "خطا در پردازش محصول." });
   }
 };

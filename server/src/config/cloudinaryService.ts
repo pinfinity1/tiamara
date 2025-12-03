@@ -6,24 +6,19 @@ interface UploadResult {
   publicId: string;
 }
 
-/**
- * آپلود تصویر یا ویدیو به کلاودینری
- */
 export const uploadToCloudinary = async (
-  filePath: string,
+  fileSource: string,
   folder: string,
   resourceType: "image" | "video" = "image"
 ): Promise<UploadResult> => {
   try {
-    // اصلاح: حذف .v2
-    const result = await cloudinary.uploader.upload(filePath, {
+    const result = await cloudinary.uploader.upload(fileSource, {
       folder: folder,
       resource_type: resourceType,
     });
 
-    // پاک کردن فایل موقت از سرور لوکال
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    if (!fileSource.startsWith("http") && fs.existsSync(fileSource)) {
+      fs.unlinkSync(fileSource);
     }
 
     return {
@@ -31,24 +26,19 @@ export const uploadToCloudinary = async (
       publicId: result.public_id,
     };
   } catch (error) {
-    // حتی اگر ارور داد، فایل موقت را پاک کن تا سرور پر نشود
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    if (!fileSource.startsWith("http") && fs.existsSync(fileSource)) {
+      fs.unlinkSync(fileSource);
     }
     throw error;
   }
 };
 
-/**
- * حذف یک فایل تکی از کلاودینری
- */
 export const deleteFromCloudinary = async (
   publicId: string | null | undefined,
   resourceType: "image" | "video" = "image"
 ) => {
   if (!publicId) return;
   try {
-    // اصلاح: حذف .v2
     await cloudinary.uploader.destroy(publicId, {
       resource_type: resourceType,
     });
@@ -58,13 +48,9 @@ export const deleteFromCloudinary = async (
   }
 };
 
-/**
- * حذف گروهی فایل‌ها (مثلاً وقتی یک محصول با چند عکس حذف می‌شود)
- */
 export const deleteManyFromCloudinary = async (publicIds: string[]) => {
   if (!publicIds || publicIds.length === 0) return;
   try {
-    // اصلاح: حذف .v2
     await cloudinary.api.delete_resources(publicIds);
     console.log(`Deleted ${publicIds.length} images from Cloudinary`);
   } catch (error) {

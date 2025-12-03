@@ -76,6 +76,7 @@ export default async function ProductsPage({ searchParams }: PageProps) {
   const search = (params.search as string) || "";
   const sort = (params.sort as string) || "newest";
   const hasDiscount = params.hasDiscount === "true";
+  const inStock = params.inStock === "true";
 
   // فچ کردن فیلترها (برند، دسته، قیمت واقعی)
   const filtersData = await getFilters();

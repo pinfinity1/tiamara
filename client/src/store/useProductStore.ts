@@ -62,6 +62,19 @@ export interface Product {
   isArchived: boolean;
 }
 
+// ✅ اینترفیس پارامترهای ادمین (آپدیت شده)
+interface FetchAdminProductsParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  brandId?: string;
+  categoryId?: string;
+  sort?: string;
+  order?: "asc" | "desc";
+  stockStatus?: string;
+  isArchived?: boolean; // ✅ اضافه شد برای پشتیبانی از سطل زباله
+}
+
 interface ProductState {
   products: Product[];
   isLoading: boolean;
@@ -90,23 +103,14 @@ interface ProductState {
     sortBy?: string;
     sortOrder?: "asc" | "desc";
     profileBasedFilter?: boolean;
-    hasDiscount?: boolean; // ✅ موجود است
+    hasDiscount?: boolean;
   }) => Promise<void>;
   setCurrentPage: (page: number) => void;
   fetchProductsByIds: (ids: string[]) => Promise<Product[] | null>;
   uploadProductsFromExcel: (
     file: File
   ) => Promise<{ success: boolean; data?: any; error?: string }>;
-  fetchAdminProducts: (params: {
-    page?: number;
-    limit?: number;
-    search?: string;
-    brandId?: string;
-    categoryId?: string;
-    sort?: string;
-    order?: "asc" | "desc";
-    stockStatus?: string;
-  }) => Promise<void>;
+  fetchAdminProducts: (params: FetchAdminProductsParams) => Promise<void>; // ✅ استفاده از اینترفیس جدید
 }
 
 export const useProductStore = create<ProductState>((set, get) => ({
@@ -173,6 +177,9 @@ export const useProductStore = create<ProductState>((set, get) => ({
           "Content-Type": "multipart/form-data",
         },
       });
+      // بعد از آپدیت، لیست را رفرش می‌کنیم
+      // نکته: اینجا بهتر است از fetchAdminProducts استفاده کنید اگر در صفحه ادمین هستید
+      // اما فعلاً همان متد قدیمی را صدا می‌زنیم تا چیزی نشکند
       await get().fetchAllProductsForAdmin();
       set({ isLoading: false });
       return response.data;
@@ -227,8 +234,6 @@ export const useProductStore = create<ProductState>((set, get) => ({
         brands: params.brands?.join(","),
         skin_types: params.skin_types?.join(","),
         concerns: params.concerns?.join(","),
-
-        // ✅ اضافه کردن منطق تبدیل boolean به string برای API
         hasDiscount: params.hasDiscount ? "true" : undefined,
       };
 

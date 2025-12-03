@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, ChangeEvent } from "react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -45,6 +45,8 @@ import {
   Filter,
   MoreHorizontal,
   ArrowUpDown,
+  RotateCcw, // آیکون جدید برای بازیابی
+  Archive,
 } from "lucide-react";
 import Image from "next/image";
 import { Textarea } from "@/components/ui/textarea";
@@ -67,8 +69,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import AiProductImport from "@/components/super-admin/products/AiProductImport";
+import axiosAuth from "@/lib/axios"; // برای درخواست‌های Restore/ForceDelete
 
-// ... (همان ثابت‌های قبلی مثل skinTypesForAdmin و initialFormState که در پیام قبلی فرستادم را اینجا کپی کنید)
 const skinTypesForAdmin = ["چرب", "خشک", "مختلط", "نرمال", "حساس"];
 const concernsForAdmin = [
   "آکنه",
@@ -106,7 +109,6 @@ const initialFormState = {
 function ManageProductsPage() {
   const { toast } = useToast();
 
-  // استفاده از متدهای جدید استور
   const {
     adminProducts: products,
     adminTotalPages: totalPages,
@@ -115,7 +117,7 @@ function ManageProductsPage() {
     fetchAdminProducts,
     createProduct,
     updateProduct,
-    deleteProduct,
+    deleteProduct, // این همان Soft Delete (آرشیو) است
     uploadProductsFromExcel,
   } = useProductStore();
 
@@ -124,13 +126,14 @@ function ManageProductsPage() {
   const { brands, fetchBrands } = useBrandStore();
   const { categories, fetchCategories } = useCategoryStore();
 
-  // --- مدیریت فیلترها و جستجو ---
+  // --- مدیریت فیلترها و تب‌ها ---
+  const [activeTab, setActiveTab] = useState<"active" | "archived">("active"); // ✅ تب فعال/آرشیو
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 500);
   const [page, setPage] = useState(1);
   const [filterBrand, setFilterBrand] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
-  const [filterStock, setFilterStock] = useState("all"); // all, low, out, in
+  const [filterStock, setFilterStock] = useState("all");
   const [sortConfig, setSortConfig] = useState({
     key: "createdAt",
     order: "desc" as "asc" | "desc",
@@ -140,7 +143,6 @@ function ManageProductsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
-  // Stateهای فرم (مثل قبل)
   const [formState, setFormState] = useState(initialFormState);
   const [existingImages, setExistingImages] = useState<
     { id: string; url: string }[]
@@ -150,13 +152,12 @@ function ManageProductsPage() {
   const [selectedSkinTypes, setSelectedSkinTypes] = useState<string[]>([]);
   const [selectedConcerns, setSelectedConcerns] = useState<string[]>([]);
 
-  // لود اولیه برندها و دسته‌ها
   useEffect(() => {
     fetchBrands();
     fetchCategories();
   }, [fetchBrands, fetchCategories]);
 
-  // فچ کردن محصولات با تغییر فیلترها
+  // فچ کردن محصولات (با پشتیبانی از تب آرشیو)
   useEffect(() => {
     fetchAdminProducts({
       page,
@@ -167,6 +168,7 @@ function ManageProductsPage() {
       stockStatus: filterStock === "all" ? undefined : filterStock,
       sort: sortConfig.key,
       order: sortConfig.order,
+      isArchived: activeTab === "archived", // ✅ ارسال وضعیت به بک‌اند
     });
   }, [
     page,
@@ -175,10 +177,10 @@ function ManageProductsPage() {
     filterCategory,
     filterStock,
     sortConfig,
+    activeTab, // با تغییر تب دوباره فچ می‌شود
     fetchAdminProducts,
   ]);
 
-  // ریست کردن فرم
   const resetForm = () => {
     setEditingProduct(null);
     setFormState(initialFormState);
@@ -189,7 +191,6 @@ function ManageProductsPage() {
     setSelectedConcerns([]);
   };
 
-  // هندلرهای فرم (مانند قبل - کدهای handleAddNew, handleEdit, handleChange... را از پیام قبلی اینجا بگذارید)
   const handleAddNew = () => {
     resetForm();
     setIsDialogOpen(true);
@@ -198,7 +199,6 @@ function ManageProductsPage() {
   const handleEdit = (product: Product) => {
     resetForm();
     setEditingProduct(product);
-    // پر کردن formState مثل پیام قبلی...
     setFormState({
       name: product.name || "",
       englishName: product.englishName || "",
@@ -272,7 +272,6 @@ function ManageProductsPage() {
       toast({ title: "نام انگلیسی محصول الزامی است.", variant: "destructive" });
       return;
     }
-    // ... منطق ارسال فرم دقیقاً مثل پیام قبلی
     const formDataToSend = new FormData();
     Object.entries(formState).forEach(([key, value]) =>
       formDataToSend.append(key, value)
@@ -309,26 +308,61 @@ function ManageProductsPage() {
         title: `محصول با موفقیت ${editingProduct ? "ویرایش" : "ایجاد"} شد.`,
       });
       setIsDialogOpen(false);
-      // رفرش لیست
-      fetchAdminProducts({ page, limit: 10 });
+      handleRefresh();
     } else {
       toast({ title: "خطا در ذخیره‌سازی", variant: "destructive" });
     }
   };
 
-  const handleDelete = async (id: string) => {
+  // ✅ عملیات حذف (آرشیو)
+  const handleArchive = async (id: string) => {
     const success = await deleteProduct(id);
     if (success) {
-      toast({ title: "محصول حذف شد." });
-      // رفرش لیست
-      fetchAdminProducts({ page, limit: 10 });
+      toast({ title: "محصول به سطل زباله منتقل شد." });
+      handleRefresh();
     } else {
       toast({ title: "خطا در حذف.", variant: "destructive" });
     }
   };
 
+  // ✅ عملیات بازیابی (Restore)
+  const handleRestore = async (id: string) => {
+    try {
+      const { data } = await axiosAuth.patch(`/products/${id}/restore`);
+      if (data.success) {
+        toast({
+          title: "محصول با موفقیت بازیابی شد.",
+          className: "bg-green-600 text-white",
+        });
+        handleRefresh();
+      }
+    } catch (error: any) {
+      toast({
+        title: "خطا در بازیابی",
+        description: error.response?.data?.message || "مشکلی پیش آمد",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // ✅ عملیات حذف دائم (Hard Delete)
+  const handleForceDelete = async (id: string) => {
+    try {
+      const { data } = await axiosAuth.delete(`/products/${id}/force`);
+      if (data.success) {
+        toast({ title: "محصول برای همیشه حذف شد." });
+        handleRefresh();
+      }
+    } catch (error) {
+      toast({
+        title: "خطا",
+        description: "ممکن است محصول دارای سفارش ثبت شده باشد.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleExcelUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    // ... (کد آپلود اکسل مثل قبل)
     const file = event.target.files?.[0];
     if (file) {
       const result = await uploadProductsFromExcel(file);
@@ -352,58 +386,105 @@ function ManageProductsPage() {
     }));
   };
 
+  const handleRefresh = () => {
+    fetchAdminProducts({
+      page,
+      limit: 10,
+      search: debouncedSearch,
+      brandId: filterBrand,
+      categoryId: filterCategory,
+      stockStatus: filterStock === "all" ? undefined : filterStock,
+      isArchived: activeTab === "archived",
+    });
+  };
+
   return (
     <div className="p-6 space-y-6 bg-gray-50/50 min-h-screen">
-      {/* هدر و دکمه‌ها */}
+      {/* هدر */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">مدیریت محصولات</h1>
           <p className="text-sm text-gray-500 mt-1">
-            {totalProducts} محصول موجود است
+            {totalProducts} محصول در{" "}
+            {activeTab === "active" ? "لیست فعال" : "سطل زباله"}
           </p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
-          <Button
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex-1 sm:flex-none"
-          >
-            <Upload className="ml-2 h-4 w-4" /> اکسل
-            <input
-              type="file"
-              ref={fileInputRef}
-              className="hidden"
-              accept=".xlsx, .xls, .csv"
-              onChange={handleExcelUpload}
-            />
-          </Button>
-          <Button
-            onClick={handleAddNew}
-            className="flex-1 sm:flex-none shadow-md shadow-primary/20"
-          >
-            <PlusCircle className="ml-2 h-4 w-4" /> محصول جدید
-          </Button>
+          {activeTab === "active" && (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex-1 sm:flex-none"
+              >
+                <Upload className="ml-2 h-4 w-4" /> اکسل
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept=".xlsx, .xls, .csv"
+                  onChange={handleExcelUpload}
+                />
+              </Button>
+              <AiProductImport onSuccess={handleRefresh} />
+              <Button
+                onClick={handleAddNew}
+                className="flex-1 sm:flex-none shadow-md shadow-primary/20"
+              >
+                <PlusCircle className="ml-2 h-4 w-4" /> محصول جدید
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* نوار ابزار فیلتر */}
+      {/* ✅ تب‌های بالای صفحه */}
+      <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg w-fit">
+        <button
+          onClick={() => {
+            setActiveTab("active");
+            setPage(1);
+          }}
+          className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+            activeTab === "active"
+              ? "bg-white text-gray-900 shadow-sm"
+              : "text-gray-500 hover:text-gray-900"
+          }`}
+        >
+          محصولات فعال
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab("archived");
+            setPage(1);
+          }}
+          className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
+            activeTab === "archived"
+              ? "bg-white text-red-600 shadow-sm"
+              : "text-gray-500 hover:text-gray-900"
+          }`}
+        >
+          <Trash2 className="w-4 h-4" /> سطل زباله
+        </button>
+      </div>
+
+      {/* نوار فیلتر (فقط در تب فعال نمایش داده شود بهتر است، یا برای هر دو) */}
       <div className="bg-white p-4 rounded-xl border shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="relative">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
-            placeholder="جستجو (نام، SKU، بارکد)..."
+            placeholder="جستجو..."
             className="pr-9"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-
         <Select value={filterBrand} onValueChange={setFilterBrand}>
           <SelectTrigger>
-            <SelectValue placeholder="همه برندها" />
+            <SelectValue placeholder="برند" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">همه برندها</SelectItem>
+            <SelectItem value="all">همه</SelectItem>
             {brands.map((b) => (
               <SelectItem key={b.id} value={b.id}>
                 {b.name}
@@ -411,13 +492,12 @@ function ManageProductsPage() {
             ))}
           </SelectContent>
         </Select>
-
         <Select value={filterCategory} onValueChange={setFilterCategory}>
           <SelectTrigger>
-            <SelectValue placeholder="همه دسته‌بندی‌ها" />
+            <SelectValue placeholder="دسته‌بندی" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">همه دسته‌بندی‌ها</SelectItem>
+            <SelectItem value="all">همه</SelectItem>
             {categories.map((c) => (
               <SelectItem key={c.id} value={c.id}>
                 {c.name}
@@ -425,18 +505,19 @@ function ManageProductsPage() {
             ))}
           </SelectContent>
         </Select>
-
-        <Select value={filterStock} onValueChange={setFilterStock}>
-          <SelectTrigger>
-            <SelectValue placeholder="وضعیت موجودی" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">همه وضعیت‌ها</SelectItem>
-            <SelectItem value="in">موجود</SelectItem>
-            <SelectItem value="low">کمبود موجودی</SelectItem>
-            <SelectItem value="out">ناموجود</SelectItem>
-          </SelectContent>
-        </Select>
+        {activeTab === "active" && (
+          <Select value={filterStock} onValueChange={setFilterStock}>
+            <SelectTrigger>
+              <SelectValue placeholder="وضعیت موجودی" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">همه</SelectItem>
+              <SelectItem value="in">موجود</SelectItem>
+              <SelectItem value="low">کمبود</SelectItem>
+              <SelectItem value="out">ناموجود</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {/* جدول محصولات */}
@@ -447,29 +528,23 @@ function ManageProductsPage() {
               <TableRow>
                 <TableHead className="w-[80px]">تصویر</TableHead>
                 <TableHead
-                  className="cursor-pointer hover:text-primary"
+                  className="cursor-pointer"
                   onClick={() => toggleSort("name")}
                 >
-                  <div className="flex items-center gap-1">
-                    نام محصول <ArrowUpDown className="h-3 w-3" />
-                  </div>
+                  نام محصول
                 </TableHead>
                 <TableHead>برند</TableHead>
                 <TableHead
-                  className="cursor-pointer hover:text-primary"
+                  className="cursor-pointer"
                   onClick={() => toggleSort("stock")}
                 >
-                  <div className="flex items-center gap-1">
-                    موجودی <ArrowUpDown className="h-3 w-3" />
-                  </div>
+                  موجودی
                 </TableHead>
                 <TableHead
-                  className="cursor-pointer hover:text-primary"
+                  className="cursor-pointer"
                   onClick={() => toggleSort("price")}
                 >
-                  <div className="flex items-center gap-1">
-                    قیمت <ArrowUpDown className="h-3 w-3" />
-                  </div>
+                  قیمت
                 </TableHead>
                 <TableHead className="text-left">عملیات</TableHead>
               </TableRow>
@@ -510,87 +585,124 @@ function ManageProductsPage() {
                       >
                         {product.name}
                       </div>
-                      {product.englishName && (
-                        <div className="text-xs text-gray-400 truncate font-sans">
-                          {product.englishName}
-                        </div>
-                      )}
+                      <div className="text-xs text-gray-400 truncate font-sans">
+                        {product.sku}
+                      </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="font-normal">
-                        {product.brand?.name}
-                      </Badge>
+                      <Badge variant="outline">{product.brand?.name}</Badge>
                     </TableCell>
                     <TableCell>
                       {product.stock === 0 ? (
                         <Badge variant="destructive">ناموجود</Badge>
                       ) : product.stock <= 10 ? (
-                        <Badge className="bg-amber-500 hover:bg-amber-600">
-                          کمبود ({product.stock})
-                        </Badge>
+                        <Badge className="bg-amber-500">کمبود</Badge>
                       ) : (
-                        <Badge
-                          variant="secondary"
-                          className="bg-green-100 text-green-700 hover:bg-green-100 border-0"
-                        >
-                          {product.stock} عدد
-                        </Badge>
+                        <Badge variant="secondary">{product.stock} عدد</Badge>
                       )}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
                         <span>{product.price.toLocaleString("fa-IR")}</span>
-                        {product.discount_price && (
-                          <span className="text-xs text-red-500 line-through">
-                            {product.discount_price.toLocaleString("fa-IR")}
-                          </span>
-                        )}
                       </div>
                     </TableCell>
                     <TableCell className="text-left">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>عملیات</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => handleEdit(product)}>
-                            <Pencil className="ml-2 h-4 w-4" /> ویرایش
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-red-600 focus:text-red-600"
-                            onSelect={(e) => e.preventDefault()} // جلوگیری از بسته شدن برای باز شدن دیالوگ
+                      {/* ✅ دکمه‌های عملیات بر اساس تب فعال */}
+                      {activeTab === "active" ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>عملیات</DropdownMenuLabel>
+                            <DropdownMenuItem
+                              onClick={() => handleEdit(product)}
+                            >
+                              <Pencil className="ml-2 h-4 w-4" /> ویرایش
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-red-600 focus:text-red-600"
+                              onSelect={(e) => e.preventDefault()}
+                            >
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <div className="flex items-center w-full cursor-pointer">
+                                    <Trash2 className="ml-2 h-4 w-4" /> حذف
+                                    (آرشیو)
+                                  </div>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>
+                                      حذف محصول
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      آیا مطمئن هستید؟ محصول به سطل زباله منتقل
+                                      می‌شود.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>
+                                      انصراف
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleArchive(product.id)}
+                                      className="bg-red-600"
+                                    >
+                                      حذف
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-green-600 border-green-200 hover:bg-green-50 h-8"
+                            onClick={() => handleRestore(product.id)}
                           >
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <div className="flex items-center w-full cursor-pointer">
-                                  <Trash2 className="ml-2 h-4 w-4" /> حذف
-                                </div>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>حذف محصول</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    آیا از حذف "{product.name}" مطمئن هستید؟ این
-                                    عمل غیرقابل بازگشت است.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>انصراف</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => handleDelete(product.id)}
-                                    className="bg-red-600"
-                                  >
-                                    حذف
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            <RotateCcw className="w-3 h-3 ml-1" /> بازیابی
+                          </Button>
+
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="h-8"
+                              >
+                                <Trash2 className="w-3 h-3 ml-1" /> حذف دائم
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>
+                                  حذف دائمی و غیرقابل بازگشت
+                                </AlertDialogTitle>
+                                <AlertDialogDescription className="text-red-600 font-bold">
+                                  هشدار: این محصول برای همیشه پاک خواهد شد و
+                                  قابل بازیابی نیست.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>انصراف</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleForceDelete(product.id)}
+                                  className="bg-red-600"
+                                >
+                                  بله، نابود کن
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
@@ -600,7 +712,6 @@ function ManageProductsPage() {
         </div>
       </div>
 
-      {/* صفحه‌بندی */}
       <div className="flex justify-center">
         <Pagination
           currentPage={page}
@@ -609,7 +720,7 @@ function ManageProductsPage() {
         />
       </div>
 
-      {/* --- مودال ویرایش/افزودن (همان کد Tab بندی شده که در پیام قبلی بود) --- */}
+      {/* --- مودال فرم (بدون تغییر) --- */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-5xl max-h-[95vh] flex flex-col p-0">
           <DialogHeader className="p-6 pb-2">
@@ -617,7 +728,6 @@ function ManageProductsPage() {
               {editingProduct ? "ویرایش محصول" : "افزودن محصول جدید"}
             </DialogTitle>
           </DialogHeader>
-
           <div className="flex-1 overflow-hidden">
             <Tabs
               defaultValue="basic"
@@ -633,7 +743,6 @@ function ManageProductsPage() {
                   <TabsTrigger value="seo">سئو</TabsTrigger>
                 </TabsList>
               </div>
-
               <div className="flex-1 overflow-y-auto p-6">
                 <TabsContent value="basic" className="mt-0 space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -643,7 +752,6 @@ function ManageProductsPage() {
                         <Input
                           id="name"
                           name="name"
-                          placeholder="مثال: سرم ضد جوش..."
                           className="mt-1"
                           onChange={handleInputChange}
                           value={formState.name}
@@ -657,7 +765,6 @@ function ManageProductsPage() {
                         <Input
                           id="englishName"
                           name="englishName"
-                          placeholder="e.g: Niacinamide 10%..."
                           className="mt-1 text-left"
                           dir="ltr"
                           onChange={handleInputChange}
@@ -666,7 +773,6 @@ function ManageProductsPage() {
                         />
                       </div>
                     </div>
-
                     <div>
                       <Label htmlFor="brandId">برند</Label>
                       <Select
@@ -687,7 +793,6 @@ function ManageProductsPage() {
                         </SelectContent>
                       </Select>
                     </div>
-
                     <div>
                       <Label htmlFor="categoryId">دسته‌بندی</Label>
                       <Select
@@ -708,7 +813,6 @@ function ManageProductsPage() {
                         </SelectContent>
                       </Select>
                     </div>
-
                     <div className="grid grid-cols-2 gap-4 md:col-span-2 border-t pt-4 mt-2">
                       <div>
                         <Label htmlFor="price">قیمت (تومان)</Label>
@@ -734,7 +838,6 @@ function ManageProductsPage() {
                         />
                       </div>
                     </div>
-
                     <div className="grid grid-cols-3 gap-4 md:col-span-2">
                       <div>
                         <Label htmlFor="stock">موجودی</Label>
@@ -771,14 +874,7 @@ function ManageProductsPage() {
                     </div>
                   </div>
                 </TabsContent>
-
-                {/* ... بقیه تب‌ها (details, classification, images, seo) را عیناً از کد قبلی کپی کنید (تغییری نکردند) ... */}
-                {/* برای جلوگیری از طولانی شدن بیش از حد پیام، محتوای تب‌ها را تکرار نکردم. همان کدی که در پیام قبلی دادم عالی است. */}
-                {/* فقط ساختار TabsList و TabsContent مهم است که در اینجا رعایت شده. */}
-
-                {/* (اینجا فقط یک نمونه از تب Details را می‌گذارم، بقیه مشابه قبل است) */}
                 <TabsContent value="details" className="mt-0 space-y-4">
-                  {/* ... محتویات تب توضیحات ... */}
                   <div className="md:col-span-2">
                     <Label htmlFor="description">توضیحات محصول</Label>
                     <Textarea
@@ -789,11 +885,29 @@ function ManageProductsPage() {
                       onChange={handleInputChange}
                     />
                   </div>
-                  {/* ... بقیه فیلدها ... */}
+                  <div className="md:col-span-2">
+                    <Label htmlFor="how_to_use">نحوه مصرف</Label>
+                    <Textarea
+                      id="how_to_use"
+                      name="how_to_use"
+                      className="mt-1"
+                      value={formState.how_to_use}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label htmlFor="ingredients">ترکیبات</Label>
+                    <Textarea
+                      id="ingredients"
+                      name="ingredients"
+                      className="mt-1"
+                      placeholder="با کاما جدا کنید..."
+                      value={formState.ingredients}
+                      onChange={handleInputChange}
+                    />
+                  </div>
                 </TabsContent>
-
                 <TabsContent value="classification" className="mt-0 space-y-6">
-                  {/* ... محتویات تب تخصصی ... */}
                   <div>
                     <Label className="text-base font-semibold mb-2 block">
                       نوع پوست مناسب
@@ -824,9 +938,37 @@ function ManageProductsPage() {
                       ))}
                     </div>
                   </div>
-                  {/* ... */}
+                  <div className="mt-4">
+                    <Label className="text-base font-semibold mb-2 block">
+                      دغدغه پوستی (Concern)
+                    </Label>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {concernsForAdmin.map((item) => (
+                        <div
+                          key={item}
+                          className="flex items-center gap-2 border p-3 rounded-md hover:bg-accent"
+                        >
+                          <Checkbox
+                            id={`concern-${item}`}
+                            checked={selectedConcerns.includes(item)}
+                            onCheckedChange={() =>
+                              handleToggleFilterCheckBox(
+                                setSelectedConcerns,
+                                item
+                              )
+                            }
+                          />
+                          <Label
+                            htmlFor={`concern-${item}`}
+                            className="font-normal cursor-pointer flex-1"
+                          >
+                            {item}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </TabsContent>
-
                 <TabsContent value="images" className="mt-0 space-y-4">
                   <div
                     className="flex flex-col items-center justify-center py-10 border-2 border-dashed rounded-xl cursor-pointer hover:bg-accent/30 transition-colors"
@@ -894,9 +1036,7 @@ function ManageProductsPage() {
                     ))}
                   </div>
                 </TabsContent>
-
                 <TabsContent value="seo" className="mt-0 space-y-4">
-                  {/* ... فیلدهای سئو ... */}
                   <div>
                     <Label htmlFor="metaTitle">عنوان متا</Label>
                     <Input
@@ -907,12 +1047,31 @@ function ManageProductsPage() {
                       onChange={handleInputChange}
                     />
                   </div>
-                  {/* ... */}
+                  <div>
+                    <Label htmlFor="metaDescription">توضیحات متا</Label>
+                    <Textarea
+                      id="metaDescription"
+                      name="metaDescription"
+                      className="mt-1"
+                      value={formState.metaDescription}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="tags">تگ‌ها (کلمات کلیدی)</Label>
+                    <Textarea
+                      id="tags"
+                      name="tags"
+                      className="mt-1"
+                      placeholder="با کاما جدا کنید..."
+                      value={formState.tags}
+                      onChange={handleInputChange}
+                    />
+                  </div>
                 </TabsContent>
               </div>
             </Tabs>
           </div>
-
           <DialogFooter className="p-6 pt-2 border-t bg-background z-10">
             <DialogClose asChild>
               <Button type="button" variant="secondary">

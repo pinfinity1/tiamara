@@ -43,8 +43,13 @@ export default function FilterSidebar({
 }: FilterSidebarProps) {
   const [isLoading, startTransition] = useTransition();
 
-  // 1. فراخوانی هوک صفحه (برای ریست کردن آن)
+  // 1. فراخوانی هوک صفحه
   const [page, setPage] = useQueryState("page", searchParamsParsers.page);
+
+  const [inStock, setInStock] = useQueryState(
+    "inStock",
+    searchParamsParsers.inStock
+  );
 
   const [categories, setCategories] = useQueryState(
     "categories",
@@ -119,7 +124,6 @@ export default function FilterSidebar({
     startTransition(() => {
       const options = { shallow: false, scroll: true };
 
-      // ✅ بازگرداندن منطق ریست صفحه
       setPage(null, options);
 
       const exists = isChecked(list, value);
@@ -140,13 +144,12 @@ export default function FilterSidebar({
     startTransition(() => {
       const options = { shallow: false, scroll: true };
 
-      // ✅ بازگرداندن منطق ریست صفحه
       setPage(null, options);
-
       setCategories(null, options);
       setBrands(null, options);
       setMinPriceParam(null, options);
       setMaxPriceParam(null, options);
+      setInStock(null, options); // پاک کردن فیلتر موجودی
       setLocalPriceRange([minPriceData, maxPriceData]);
     });
   };
@@ -155,7 +158,8 @@ export default function FilterSidebar({
     (categories?.length || 0) > 0 ||
     (brands?.length || 0) > 0 ||
     minPriceParam !== null ||
-    maxPriceParam !== null;
+    maxPriceParam !== null ||
+    inStock === "true"; // بررسی فعال بودن فیلتر موجودی
 
   return (
     <div
@@ -184,7 +188,33 @@ export default function FilterSidebar({
         </div>
       )}
 
-      <Accordion type="multiple" defaultValue={["price"]} className="w-full">
+      {/* سوییچ فقط کالاهای موجود */}
+      <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-100">
+        <Label
+          htmlFor="in-stock-switch"
+          className="text-sm font-medium text-gray-700 cursor-pointer"
+        >
+          فقط کالاهای موجود
+        </Label>
+        <Checkbox
+          id="in-stock-switch"
+          checked={inStock === "true"}
+          onCheckedChange={(checked) => {
+            startTransition(() => {
+              const options = { shallow: false, scroll: true };
+              setInStock(checked ? "true" : null, options);
+              setPage(null, options);
+            });
+          }}
+          className="data-[state=checked]:bg-black data-[state=checked]:border-black w-5 h-5"
+        />
+      </div>
+
+      <Accordion
+        type="multiple"
+        defaultValue={["category", "brand", "price"]}
+        className="w-full"
+      >
         {/* --- دسته‌بندی --- */}
         <AccordionItem value="category" className="border-b border-gray-100">
           <AccordionTrigger className="hover:no-underline py-4 text-sm font-bold text-gray-800">

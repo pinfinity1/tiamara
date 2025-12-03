@@ -12,6 +12,7 @@ interface GetProductsParams {
   page?: number;
   limit?: number;
   hasDiscount?: boolean;
+  inStock?: boolean;
 }
 
 export async function getProducts(params: GetProductsParams) {

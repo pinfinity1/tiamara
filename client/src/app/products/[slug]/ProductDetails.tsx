@@ -529,7 +529,13 @@ export default function ProductDetails({
                       value="description"
                       className="text-gray-700 leading-8 text-justify prose max-w-none animate-in fade-in slide-in-from-bottom-4 duration-500"
                     >
-                      <p>{product.description || "توضیحاتی ثبت نشده است."}</p>
+                      {/* <p>{product.description || "توضیحاتی ثبت نشده است."}</p> */}
+                      <div
+                        className="prose prose-sm sm:prose-base text-gray-700 leading-loose text-justify"
+                        dangerouslySetInnerHTML={{
+                          __html: product.description || "",
+                        }}
+                      />
                     </TabsContent>
 
                     <TabsContent

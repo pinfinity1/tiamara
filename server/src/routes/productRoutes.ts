@@ -17,6 +17,10 @@ import {
   getProductBySlug,
   getProductFilters,
   getAdminProductsPaginated,
+  prepareProductFromUrl,
+  createProductFromExternalJson,
+  restoreProduct,
+  hardDeleteProduct,
 } from "../controllers/productController";
 
 const router = expess.Router();
@@ -45,7 +49,7 @@ router.get(
 );
 
 router.get(
-  "/admin/list", // آدرس جدید
+  "/admin/list",
   authenticateUser,
   authorizeAdmin,
   getAdminProductsPaginated
@@ -61,6 +65,15 @@ router.put(
 
 router.delete("/:id", authenticateUser, authorizeAdmin, deleteProduct);
 
+router.patch("/:id/restore", authenticateUser, authorizeAdmin, restoreProduct);
+
+router.delete(
+  "/:id/force",
+  authenticateUser,
+  authorizeAdmin,
+  hardDeleteProduct
+);
+
 router.get("/filters", getProductFilters);
 
 router.get(
@@ -69,9 +82,21 @@ router.get(
   getProductsForClient
 );
 router.get("/slug/:slug", optionalAuthenticateUser, getProductBySlug);
-// ---
 
 router.post("/by-ids", getProductsByIds);
 router.get("/:id", getProductByID);
+
+router.post(
+  "/prepare-from-url",
+  authenticateUser,
+  authorizeAdmin,
+  prepareProductFromUrl
+);
+router.post(
+  "/import-json",
+  authenticateUser,
+  authorizeAdmin,
+  createProductFromExternalJson
+);
 
 export default router;
