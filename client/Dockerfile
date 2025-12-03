@@ -1,55 +1,25 @@
-# ───────────────────────────────────────────────────────────────
-# Stage 1: Base image
-# ───────────────────────────────────────────────────────────────
-FROM node:20-alpine AS base
+# client/Dockerfile (Multi-stage)
+
+# --- Stage 1: Build ---
+FROM node:18-alpine AS builder
 WORKDIR /app
-
-# ───────────────────────────────────────────────────────────────
-# Stage 2: Dependencies (cache-friendly)
-# ───────────────────────────────────────────────────────────────
-FROM base AS deps
-COPY package.json package-lock.json ./
-RUN npm ci
-
-# ───────────────────────────────────────────────────────────────
-# Stage 3: Builder (Next.js build)
-# ───────────────────────────────────────────────────────────────
-FROM base AS builder
-WORKDIR /app
-
-COPY --from=deps /app/node_modules node_modules
+COPY package.json package-lock.json* ./
+RUN npm install
 COPY . .
 
 ARG NEXT_PUBLIC_API_BASE_URL
-ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+
 
 RUN npm run build
 
-# ───────────────────────────────────────────────────────────────
-# Stage 4: Production deps only
-# ───────────────────────────────────────────────────────────────
-FROM base AS proddeps
+# --- Stage 2: Production ---
+FROM node:18-alpine
 WORKDIR /app
-
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
-
-# ───────────────────────────────────────────────────────────────
-# Stage 5: Distroless Final Runtime
-# ───────────────────────────────────────────────────────────────
-FROM gcr.io/distroless/nodejs20 as runner
-WORKDIR /app
-
-ENV NODE_ENV=production
-ENV PORT=3000
-
-COPY --from=proddeps /app/node_modules node_modules
-COPY --from=builder /app/.next .next
-COPY --from=builder /app/public public
-COPY next.config.js ./
-
-USER nonroot
-
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/next.config.ts ./next.config.ts
 EXPOSE 3000
-
 CMD ["npm", "start"]
