@@ -37,7 +37,7 @@ services:
       - PORT=3000
     depends_on:
       - server
-    entrypoint: ["/bin/sh", "-c", "node server.js"]
+    entrypoint: ["/bin/sh", "-c", "npm start"]
 
 volumes:
   postgres-data:
