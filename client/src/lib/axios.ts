@@ -36,18 +36,14 @@ axiosAuth.interceptors.request.use(
     if (!isServer) {
       const session = await getSession();
 
-      // !! --- بخش جدید: جلوگیری از ارسال درخواست با توکن سوخته --- !!
+      // !! --- اصلاح: حذف ریدایرکت سخت برای جلوگیری از چشمک زدن --- !!
       // @ts-ignore
       if (session?.error === "RefreshAccessTokenError") {
-        // اگر رفرش توکن فیل شده باشد، درخواست را لغو کن تا بار اضافه روی سرور نباشد
+        // درخواست را کنسل می‌کنیم تا بار اضافی روی سرور نباشد
         const controller = new AbortController();
         config.signal = controller.signal;
-        controller.abort("Session expired"); // کنسل کردن درخواست
+        controller.abort("Session expired");
 
-        // هدایت فوری به لاگین برای جلوگیری از گیج شدن کاربر
-        if (window.location.pathname !== "/auth/login") {
-          window.location.href = "/auth/login";
-        }
         return config;
       }
       // !! ------------------------------------------------------ !!
