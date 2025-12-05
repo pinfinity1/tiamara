@@ -39,7 +39,7 @@ const SessionManager = ({ children }: { children: React.ReactNode }) => {
   // وقتی کاربر بعد از چند ساعت می‌آید، NextAuth ابتدا در حالت 'loading' است
   // تا زمانی که توکن را چک کند. در این فاصله ما لودینگ نشان می‌دهیم.
   if (status === "loading") {
-    return <FullPageLoader text="در حال بارگذاری..." />;
+    return <FullPageLoader />;
   }
 
   return <>{children}</>;

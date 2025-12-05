@@ -1,29 +1,34 @@
-// client/src/components/common/FullPageLoader.tsx
 "use client";
 
 import Image from "next/image";
-import { Loader2 } from "lucide-react";
-import logo from "../../../public/images/Logo/tiamara-logo.png"; // مسیر لوگوی خود را چک کنید
+import logo from "../../../public/images/Logo/tiamara-logo.png";
 
-export default function FullPageLoader({
-  text = "در حال بررسی امنیت...",
-}: {
-  text?: string;
-}) {
+export default function FullPageLoader() {
   return (
-    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm transition-all duration-500">
-      <div className="relative w-[150px] h-[80px] mb-6 animate-pulse">
-        <Image
-          src={logo}
-          alt="Tiamara Loading"
-          fill
-          className="object-contain"
-          priority
-        />
-      </div>
-      <div className="flex items-center gap-3 text-primary">
-        <Loader2 className="h-6 w-6 animate-spin" />
-        <span className="text-sm font-medium text-gray-600">{text}</span>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+      {/* لایه پس‌زمینه: کمی تار و سفید تا محتوای زیرین کمتر دیده شود */}
+      <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px]" />
+
+      {/* کارت شیشه‌ای (Glassmorphism Card) */}
+      <div
+        className="relative z-10 flex items-center justify-center p-10 rounded-[2rem] 
+                      bg-white/40 backdrop-blur-xl 
+                      border border-white/60 
+                      shadow-[0_8px_32px_0_rgba(0,0,0,0.05)]"
+      >
+        {/* لوگوی مرکزی با انیمیشن تپش نرم */}
+        <div className="relative w-36 h-16 md:w-44 md:h-20 animate-pulse duration-[2000ms]">
+          <Image
+            src={logo}
+            alt="Tiamara"
+            fill
+            className="object-contain drop-shadow-sm"
+            priority
+          />
+        </div>
+
+        {/* افکت نوری روی شیشه (Reflection) - اختیاری برای زیبایی بیشتر */}
+        <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/20 to-transparent rounded-t-[2rem] pointer-events-none" />
       </div>
     </div>
   );
