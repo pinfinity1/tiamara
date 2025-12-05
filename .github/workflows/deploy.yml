@@ -6,10 +6,9 @@ on:
 
 env:
     REGISTRY: ghcr.io
-    IMAGE_OWNER: pinfinity1 # نام کاربری شما (با حروف کوچک)
+    IMAGE_OWNER: pinfinity1
 
 jobs:
-    # 🏗️ جاب ۱: ساخت ایمیج‌ها (این بخش جدید است!)
     build-and-push:
         runs-on: ubuntu-latest
         permissions:
@@ -20,7 +19,6 @@ jobs:
             - name: Checkout repository
               uses: actions/checkout@v4
 
-            # ✅ این مرحله جدید اضافه شد: راه‌اندازی Buildx با درایور کانتینر
             - name: Set up Docker Buildx
               uses: docker/setup-buildx-action@v3
 
@@ -31,35 +29,34 @@ jobs:
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
 
-            # بیلد و ارسال سرور
+            # بیلد سرور (فقط amd64)
             - name: Build and push Server
               uses: docker/build-push-action@v5
               with:
                   context: ./server
                   file: ./server/Dockerfile
                   push: true
-                  platforms: linux/amd64,linux/arm64
+                  platforms: linux/amd64 # <--- تغییر اینجاست
                   tags: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/tiamara-server:latest
                   cache-from: type=gha,scope=server
                   cache-to: type=gha,mode=max,scope=server
 
-            # بیلد و ارسال کلاینت
+            # بیلد کلاینت (فقط amd64)
             - name: Build and push Client
               uses: docker/build-push-action@v5
               with:
                   context: ./client
                   file: ./client/Dockerfile
                   push: true
-                  platforms: linux/amd64,linux/arm64
+                  platforms: linux/amd64 # <--- تغییر اینجاست
                   build-args: |
                       NEXT_PUBLIC_API_BASE_URL=https://api.tiamara.ir/api
                   tags: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/tiamara-client:latest
                   cache-from: type=gha,scope=client
                   cache-to: type=gha,mode=max,scope=client
 
-    # 🚀 جاب ۲: فقط دستور آپدیت می‌دهد (این بخش قبلاً بود ولی تغییر کرده)
     deploy:
-        needs: build-and-push # منتظر می‌ماند تا بیلد تمام شود
+        needs: build-and-push
         runs-on: ubuntu-latest
         steps:
             - name: Deploy to VPS
@@ -72,7 +69,6 @@ jobs:
                       cd /var/www/tiamara || exit
                       git pull origin main
                       echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u ${{ env.IMAGE_OWNER }} --password-stdin
-                      # اینجا فقط pull می‌کنیم، دیگر build نمی‌کنیم!
                       docker-compose -f docker-compose.prod.yml pull
                       docker-compose -f docker-compose.prod.yml down
                       docker-compose -f docker-compose.prod.yml up -d
