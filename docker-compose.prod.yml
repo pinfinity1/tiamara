@@ -7,37 +7,69 @@ services:
     env_file: .env
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d tiamara"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   server:
-    # استفاده از ایمیج آماده GHCR
     image: ghcr.io/pinfinity1/tiamara-server:latest
     restart: always
     ports:
       - "5001:3001"
     env_file: .env
     depends_on:
-      - postgres
-    # دستور شروع: مایگریشن + سید + اجرا
+      postgres:
+        condition: service_healthy
     entrypoint:
       [
         "/bin/sh",
         "-c",
         "npx prisma migrate deploy && node dist/prisma/seed.js && npm start",
       ]
+    # بررسی سلامت سرور (روی پورت داخلی 3001)
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "autoheal=true"
 
   client:
-    # استفاده از ایمیج آماده GHCR
     image: ghcr.io/pinfinity1/tiamara-client:latest
     restart: always
     ports:
       - "3000:3000"
     env_file: .env
-    # !!! حیاتی: جلوگیری از تداخل پورت با سرور !!!
     environment:
       - PORT=3000
+      # اطمینان از پاس دادن متغیر حیاتی
+      - API_BASE_URL_SERVER=${API_BASE_URL_SERVER}
     depends_on:
-      - server
+      server:
+        condition: service_healthy
     entrypoint: ["/bin/sh", "-c", "node server.js"]
+    # بررسی سلامت کلاینت (جلوگیری از هنگ کردن)
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      interval: 40s # هر 40 ثانیه چک کن
+      timeout: 10s # اگر 10 ثانیه جواب نداد، تایم‌اوت بده
+      retries: 3 # اگر 3 بار پشت سر هم تایم‌اوت شد، اعلام خرابی کن
+      start_period: 60s # 60 ثانیه اول کاری نداشته باش (زمان لود اولیه)
+    labels:
+      - "autoheal=true" # به سرویس autoheal میگه این کانتینر رو مانیتور کن
+
+  # سرویس جدید: پرستار سیستم!
+  autoheal:
+    image: willfarrell/autoheal
+    restart: always
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=all
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   postgres-data:
