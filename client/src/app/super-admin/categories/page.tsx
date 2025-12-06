@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, ChangeEvent } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -31,11 +31,33 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Category, useCategoryStore } from "@/store/useCategoryStore";
-import { Pencil, PlusCircle, Trash2, UploadCloud, Upload } from "lucide-react";
+import {
+  Pencil,
+  PlusCircle,
+  Trash2,
+  Upload,
+  UploadCloud,
+  LayoutGrid,
+  Maximize,
+  Grid,
+  RectangleHorizontal,
+} from "lucide-react";
 import Image from "next/image";
-import { buttonVariants } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+
+// تنظیمات اولیه فرم
+const initialFormData = {
+  name: "",
+  englishName: "",
+  metaTitle: "",
+  metaDescription: "",
+  gridSize: "SMALL" as "SMALL" | "MEDIUM" | "LARGE", // مقدار پیش‌فرض
+};
 
 function ManageCategoriesPage() {
   const {
@@ -49,16 +71,13 @@ function ManageCategoriesPage() {
   } = useCategoryStore();
   const { toast } = useToast();
 
-  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
-    name: "",
-    englishName: "", // فیلد جدید
-    metaTitle: "",
-    metaDescription: "",
-  });
+
+  const [formData, setFormData] = useState(initialFormData);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const excelInputRef = useRef<HTMLInputElement>(null);
@@ -67,6 +86,7 @@ function ManageCategoriesPage() {
     fetchCategories();
   }, [fetchCategories]);
 
+  // هندل کردن پیش‌نمایش عکس
   useEffect(() => {
     if (imageFile) {
       const url = URL.createObjectURL(imageFile);
@@ -77,22 +97,15 @@ function ManageCategoriesPage() {
 
   const resetForm = () => {
     setEditingCategory(null);
-    setFormData({
-      name: "",
-      englishName: "",
-      metaTitle: "",
-      metaDescription: "",
-    });
+    setFormData(initialFormData);
     setImageFile(null);
     setPreviewUrl(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleAddNew = () => {
     resetForm();
-    setIsFormDialogOpen(true);
+    setIsDialogOpen(true);
   };
 
   const handleEdit = (category: Category) => {
@@ -100,17 +113,24 @@ function ManageCategoriesPage() {
     setEditingCategory(category);
     setFormData({
       name: category.name,
-      englishName: category.englishName || "", // مقداردهی فیلد جدید
+      englishName: category.englishName || "",
       metaTitle: category.metaTitle || "",
       metaDescription: category.metaDescription || "",
+      gridSize: category.gridSize || "SMALL",
     });
     setPreviewUrl(category.imageUrl || null);
-    setIsFormDialogOpen(true);
+    setIsDialogOpen(true);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleGridSizeChange = (size: "SMALL" | "MEDIUM" | "LARGE") => {
+    setFormData((prev) => ({ ...prev, gridSize: size }));
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -123,20 +143,8 @@ function ManageCategoriesPage() {
     const file = event.target.files?.[0];
     if (file) {
       const result = await uploadCategoriesFromExcel(file);
-      if (result.success && result.data) {
-        toast({
-          title: "آپلود با موفقیت انجام شد",
-          description: (
-            <div>
-              <p>{result.data.createdCount} دسته‌بندی جدید ایجاد شد.</p>
-              {result.data.failedCount > 0 && (
-                <p className="text-red-500">
-                  {result.data.failedCount} مورد با خطا مواجه شد.
-                </p>
-              )}
-            </div>
-          ),
-        });
+      if (result.success) {
+        toast({ title: "آپلود موفقیت‌آمیز بود." });
       } else {
         toast({
           title: "خطا در آپلود",
@@ -144,18 +152,26 @@ function ManageCategoriesPage() {
           variant: "destructive",
         });
       }
-      if (excelInputRef.current) {
-        excelInputRef.current.value = "";
-      }
+      if (excelInputRef.current) excelInputRef.current.value = "";
     }
   };
 
   const handleSubmit = async () => {
+    if (!formData.name || !formData.englishName) {
+      toast({
+        title: "نام فارسی و انگلیسی الزامی است.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const data = new FormData();
     data.append("name", formData.name);
-    data.append("englishName", formData.englishName); // ارسال فیلد جدید
+    data.append("englishName", formData.englishName);
     data.append("metaTitle", formData.metaTitle);
     data.append("metaDescription", formData.metaDescription);
+    data.append("gridSize", formData.gridSize);
+
     if (imageFile) {
       data.append("image", imageFile);
     } else if (editingCategory) {
@@ -172,10 +188,10 @@ function ManageCategoriesPage() {
           editingCategory ? "ویرایش" : "ایجاد"
         } شد.`,
       });
-      setIsFormDialogOpen(false);
+      setIsDialogOpen(false);
     } else {
       toast({
-        title: `خطا در ${editingCategory ? "ویرایش" : "ایجاد"} دسته‌بندی.`,
+        title: "خطا در ذخیره‌سازی",
         variant: "destructive",
       });
     }
@@ -184,23 +200,30 @@ function ManageCategoriesPage() {
   const handleDelete = async (id: string) => {
     const success = await deleteCategory(id);
     if (success) {
-      toast({ title: "دسته‌بندی با موفقیت حذف شد." });
+      toast({ title: "دسته‌بندی آرشیو شد." });
     } else {
-      toast({ title: "خطا در حذف دسته‌بندی.", variant: "destructive" });
+      toast({ title: "خطا در حذف.", variant: "destructive" });
     }
   };
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">مدیریت دسته‌بندی‌ها</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">
+            مدیریت دسته‌بندی‌ها
+          </h1>
+          <p className="text-sm text-gray-500">
+            مدیریت ساختار فروشگاه و نحوه نمایش در Bento Grid
+          </p>
+        </div>
         <div className="flex gap-2">
           <Button
             variant="outline"
             onClick={() => excelInputRef.current?.click()}
             disabled={isLoading}
           >
-            <Upload className="ml-2 h-4 w-4" /> ایمپورت از اکسل
+            <Upload className="ml-2 h-4 w-4" /> اکسل
             <input
               type="file"
               ref={excelInputRef}
@@ -210,96 +233,295 @@ function ManageCategoriesPage() {
             />
           </Button>
           <Button onClick={handleAddNew}>
-            <PlusCircle className="ml-2" /> افزودن دسته‌بندی جدید
+            <PlusCircle className="ml-2 h-4 w-4" /> افزودن دسته
           </Button>
         </div>
       </div>
 
-      <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
-        <DialogContent>
+      <div className="border rounded-xl overflow-hidden bg-white shadow-sm">
+        <Table>
+          <TableHeader className="bg-gray-50">
+            <TableRow>
+              <TableHead>تصویر</TableHead>
+              <TableHead>نام دسته‌بندی</TableHead>
+              <TableHead>سایز نمایش</TableHead>
+              <TableHead>سئو</TableHead>
+              <TableHead className="text-left">عملیات</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {categories.map((category) => (
+              <TableRow key={category.id} className="hover:bg-gray-50/50">
+                <TableCell>
+                  <div className="relative w-12 h-12 rounded-lg overflow-hidden border bg-gray-100">
+                    {category.imageUrl ? (
+                      <Image
+                        src={category.imageUrl}
+                        alt={category.name}
+                        width={48}
+                        height={48}
+                        className="object-cover w-full h-full"
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center w-full h-full text-gray-300">
+                        <LayoutGrid className="w-6 h-6" />
+                      </div>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="font-bold text-gray-800">{category.name}</div>
+                  <div className="text-xs text-gray-500 font-sans">
+                    {category.englishName}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  {/* نمایش بج برای سایز گرید */}
+                  <Badge
+                    variant="secondary"
+                    className={cn(
+                      "text-[10px] font-medium border",
+                      category.gridSize === "LARGE" &&
+                        "bg-purple-50 text-purple-700 border-purple-200",
+                      category.gridSize === "MEDIUM" &&
+                        "bg-blue-50 text-blue-700 border-blue-200",
+                      category.gridSize === "SMALL" &&
+                        "bg-gray-50 text-gray-600 border-gray-200"
+                    )}
+                  >
+                    {category.gridSize === "LARGE" && "بزرگ (4x)"}
+                    {category.gridSize === "MEDIUM" && "متوسط (2x)"}
+                    {category.gridSize === "SMALL" && "کوچک (1x)"}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-xs text-gray-500 max-w-[150px] truncate">
+                  {category.metaTitle || "-"}
+                </TableCell>
+                <TableCell className="text-left">
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleEdit(category)}
+                    >
+                      <Pencil className="h-4 w-4 text-blue-600" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>حذف دسته‌بندی</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            آیا از آرشیو کردن این دسته‌بندی مطمئن هستید؟
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>لغو</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleDelete(category.id)}
+                            className={buttonVariants({
+                              variant: "destructive",
+                            })}
+                          >
+                            حذف
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingCategory ? "ویرایش دسته‌بندی" : "افزودن دسته‌بندی جدید"}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">نام دسته‌بندی (فارسی)</Label>
-              <Input
-                id="name"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                placeholder="مثال: مراقبت از پوست"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="englishName">نام دسته‌بندی (انگلیسی)</Label>
-              <Input
-                id="englishName"
-                name="englishName"
-                value={formData.englishName}
-                onChange={handleInputChange}
-                placeholder="Example: Skincare"
-                dir="ltr"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>تصویر دسته‌بندی (اختیاری)</Label>
-              <div
-                className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md cursor-pointer"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <div className="space-y-1 text-center">
-                  {previewUrl ? (
-                    <Image
-                      src={previewUrl}
-                      alt="Preview"
-                      width={80}
-                      height={80}
-                      className="mx-auto h-20 w-20 object-contain"
+
+          <Tabs defaultValue="info" className="w-full mt-4" dir="rtl">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="info">اطلاعات پایه</TabsTrigger>
+              <TabsTrigger value="visuals">ظاهر و گرید</TabsTrigger>
+              <TabsTrigger value="seo">سئو</TabsTrigger>
+            </TabsList>
+
+            {/* تب اطلاعات پایه */}
+            <TabsContent value="info" className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>نام فارسی *</Label>
+                  <Input
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    placeholder="مثال: مراقبت از پوست"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>نام انگلیسی (URL) *</Label>
+                  <Input
+                    name="englishName"
+                    value={formData.englishName}
+                    onChange={handleInputChange}
+                    placeholder="Example: Skincare"
+                    dir="ltr"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>توضیحات مختصر</Label>
+                <Textarea
+                  name="metaDescription" // استفاده موقت از فیلد دیسکریپشن برای UI
+                  value={formData.metaDescription}
+                  onChange={handleInputChange}
+                  placeholder="توضیحی که در صفحه دسته‌بندی نمایش داده می‌شود..."
+                />
+              </div>
+            </TabsContent>
+
+            {/* تب ظاهر و گرید (Bento Grid Settings) */}
+            <TabsContent value="visuals" className="space-y-6 py-4">
+              {/* انتخابگر بصری سایز گرید */}
+              <div className="space-y-3">
+                <Label>سایز نمایش در صفحه (Bento Grid)</Label>
+                <div className="grid grid-cols-3 gap-4">
+                  {/* گزینه SMALL */}
+                  <div
+                    onClick={() => handleGridSizeChange("SMALL")}
+                    className={cn(
+                      "cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center gap-2 transition-all hover:bg-gray-50",
+                      formData.gridSize === "SMALL"
+                        ? "border-primary bg-primary/5"
+                        : "border-gray-200"
+                    )}
+                  >
+                    <div className="w-8 h-8 bg-gray-300 rounded-md" />{" "}
+                    {/* نماد مربع کوچک */}
+                    <span className="text-xs font-bold">کوچک (1x1)</span>
+                  </div>
+
+                  {/* گزینه MEDIUM */}
+                  <div
+                    onClick={() => handleGridSizeChange("MEDIUM")}
+                    className={cn(
+                      "cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center gap-2 transition-all hover:bg-gray-50",
+                      formData.gridSize === "MEDIUM"
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-gray-200"
+                    )}
+                  >
+                    <div className="w-16 h-8 bg-gray-300 rounded-md flex items-center justify-center">
+                      <RectangleHorizontal className="w-4 h-4 text-gray-500" />
+                    </div>{" "}
+                    {/* نماد مستطیل */}
+                    <span className="text-xs font-bold">متوسط (2x1)</span>
+                  </div>
+
+                  {/* گزینه LARGE */}
+                  <div
+                    onClick={() => handleGridSizeChange("LARGE")}
+                    className={cn(
+                      "cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center gap-2 transition-all hover:bg-gray-50",
+                      formData.gridSize === "LARGE"
+                        ? "border-purple-500 bg-purple-50"
+                        : "border-gray-200"
+                    )}
+                  >
+                    <div className="w-16 h-16 bg-gray-300 rounded-md flex items-center justify-center">
+                      <Maximize className="w-6 h-6 text-gray-500" />
+                    </div>{" "}
+                    {/* نماد مربع بزرگ */}
+                    <span className="text-xs font-bold">بزرگ (2x2)</span>
+                  </div>
+                </div>
+                <p className="text-[11px] text-gray-500">
+                  سایز "بزرگ" برای دسته‌بندی‌های اصلی (مثل مراقبت پوست) و سایز
+                  "متوسط" برای بنرهای افقی مناسب است.
+                </p>
+              </div>
+
+              {/* آپلود تصویر */}
+              <div className="space-y-2">
+                <Label>تصویر پس‌زمینه کارت</Label>
+                <div
+                  className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-xl cursor-pointer hover:bg-gray-50 transition-colors group"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <div className="space-y-1 text-center">
+                    {previewUrl ? (
+                      <div className="relative w-full h-40">
+                        <Image
+                          src={previewUrl}
+                          alt="Preview"
+                          fill
+                          className="object-contain rounded-md"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-md">
+                          <span className="text-white text-sm font-medium">
+                            تغییر تصویر
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
+                        <div className="flex text-sm text-gray-600 justify-center">
+                          <span className="font-medium text-indigo-600 hover:text-indigo-500">
+                            آپلود تصویر
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          PNG, JPG, WEBP (حداکثر 5MB)
+                        </p>
+                      </>
+                    )}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      className="hidden"
+                      onChange={handleFileChange}
+                      accept="image/*"
                     />
-                  ) : (
-                    <UploadCloud className="mx-auto h-12 w-12 text-gray-400" />
-                  )}
-                  <div className="flex text-sm text-gray-600 justify-center">
-                    <span className="relative rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none">
-                      <span>آپلود فایل</span>
-                      <input
-                        ref={fileInputRef}
-                        id="image"
-                        name="image"
-                        type="file"
-                        className="sr-only"
-                        onChange={handleFileChange}
-                        accept="image/*"
-                      />
-                    </span>
-                    <p className="pr-1">یا فایل را اینجا بکشید</p>
                   </div>
                 </div>
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="metaTitle">عنوان متا (برای سئو)</Label>
-              <Input
-                id="metaTitle"
-                name="metaTitle"
-                value={formData.metaTitle}
-                onChange={handleInputChange}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="metaDescription">توضیحات متا (برای سئو)</Label>
-              <Input
-                id="metaDescription"
-                name="metaDescription"
-                value={formData.metaDescription}
-                onChange={handleInputChange}
-              />
-            </div>
-          </div>
-          <DialogFooter>
+            </TabsContent>
+
+            {/* تب سئو */}
+            <TabsContent value="seo" className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>عنوان متا (Meta Title)</Label>
+                <Input
+                  name="metaTitle"
+                  value={formData.metaTitle}
+                  onChange={handleInputChange}
+                  placeholder="عنوان جذاب برای گوگل..."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>توضیحات متا (Meta Description)</Label>
+                <Textarea
+                  name="metaDescription"
+                  value={formData.metaDescription}
+                  onChange={handleInputChange}
+                  placeholder="توضیحاتی که در نتایج جستجو نمایش داده می‌شود..."
+                  className="h-24"
+                />
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          <DialogFooter className="mt-4 gap-2">
             <DialogClose asChild>
               <Button type="button" variant="secondary">
                 انصراف
@@ -311,81 +533,6 @@ function ManageCategoriesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <div className="border rounded-lg overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>تصویر</TableHead>
-              <TableHead>نام (فارسی)</TableHead>
-              <TableHead>نام (انگلیسی)</TableHead>
-              <TableHead className="text-left">عملیات</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {categories.map((category) => (
-              <TableRow key={category.id}>
-                <TableCell>
-                  {category.imageUrl ? (
-                    <Image
-                      src={category.imageUrl}
-                      alt={category.name}
-                      width={40}
-                      height={40}
-                      className="object-contain bg-gray-100"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 bg-gray-100 rounded-md" />
-                  )}
-                </TableCell>
-                <TableCell className="font-medium">{category.name}</TableCell>
-                <TableCell className="font-mono text-xs">
-                  {category.englishName}
-                </TableCell>
-                <TableCell className="text-left">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleEdit(category)}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>
-                          آیا کاملا مطمئن هستید؟
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                          این عمل غیرقابل بازگشت است.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>انصراف</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => handleDelete(category.id)}
-                          className={buttonVariants({ variant: "destructive" })}
-                        >
-                          بله، حذف کن
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
     </div>
   );
 }

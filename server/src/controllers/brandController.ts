@@ -1,3 +1,5 @@
+// server/src/controllers/brandController.ts
+
 import { Request, Response } from "express";
 import { prisma } from "../server";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
@@ -17,14 +19,17 @@ const generateSlug = (name: string) => {
     .replace(/[^\w\-]+/g, "");
 };
 
-// Create a new Brand with logo upload
+// Create a new Brand with logo AND cover upload
 export const createBrand = async (
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
-    const { name, englishName, metaTitle, metaDescription } = req.body;
-    const file = req.file;
+    const { name, englishName, metaTitle, metaDescription, isFeatured } =
+      req.body;
+
+    // دریافت فایل‌ها به صورت دیکشنری
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
 
     if (!name || !englishName) {
       res.status(400).json({
@@ -36,12 +41,26 @@ export const createBrand = async (
 
     let logoUrl = undefined;
     let logoPublicId = undefined;
+    let coverImageUrl = undefined;
+    let coverPublicId = undefined;
 
-    if (file) {
-      // ✅ استفاده از سرویس جدید و ذخیره شناسه
+    // 1. Upload Logo if exists
+    if (files?.["logo"]?.[0]) {
+      const file = files["logo"][0];
       const upload = await uploadToCloudinary(file.path, "tiamara_logos");
       logoUrl = upload.url;
       logoPublicId = upload.publicId;
+    }
+
+    // 2. Upload Cover Image if exists
+    if (files?.["coverImage"]?.[0]) {
+      const file = files["coverImage"][0];
+      const upload = await uploadToCloudinary(
+        file.path,
+        "tiamara_brand_covers"
+      );
+      coverImageUrl = upload.url;
+      coverPublicId = upload.publicId;
     }
 
     const brand = await prisma.brand.create({
@@ -50,7 +69,10 @@ export const createBrand = async (
         englishName,
         slug: generateSlug(englishName),
         logoUrl,
-        logoPublicId, // ذخیره در دیتابیس
+        logoPublicId,
+        coverImageUrl, // ✅ فیلد جدید
+        coverPublicId, // ✅ فیلد جدید
+        isFeatured: isFeatured === "true", // ✅ تبدیل رشته به بولین
         metaTitle,
         metaDescription,
       },
@@ -59,6 +81,15 @@ export const createBrand = async (
     res.status(201).json({ success: true, brand });
   } catch (error) {
     console.error("Error creating brand:", error);
+    // Cleanup potential temp files
+    if (req.files) {
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      Object.values(files)
+        .flat()
+        .forEach((f) => {
+          if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
+        });
+    }
     res
       .status(500)
       .json({ success: false, message: "Failed to create brand." });
@@ -73,7 +104,8 @@ export const getAllBrands = async (
   try {
     const brands = await prisma.brand.findMany({
       where: { isArchived: false },
-      orderBy: { name: "asc" },
+      // برندهای ویژه اول بیایند
+      orderBy: [{ isFeatured: "desc" }, { name: "asc" }],
     });
     res.status(200).json({ success: true, brands });
   } catch (error) {
@@ -114,10 +146,17 @@ export const updateBrand = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, englishName, metaTitle, metaDescription } = req.body;
-    const file = req.file;
+    const {
+      name,
+      englishName,
+      metaTitle,
+      metaDescription,
+      isFeatured,
+      // مقادیر قبلی اگر عکسی آپلود نشود باقی می‌مانند
+    } = req.body;
 
-    // ۱. پیدا کردن برند برای دسترسی به اطلاعات عکس قبلی
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+
     const existingBrand = await prisma.brand.findUnique({ where: { id } });
     if (!existingBrand) {
       res.status(404).json({ success: false, message: "Brand not found" });
@@ -126,18 +165,32 @@ export const updateBrand = async (
 
     let logoUrl = existingBrand.logoUrl;
     let logoPublicId = existingBrand.logoPublicId;
+    let coverImageUrl = existingBrand.coverImageUrl;
+    let coverPublicId = existingBrand.coverPublicId;
 
-    // ۲. اگر عکس جدید آپلود شده بود
-    if (file) {
-      // الف) حذف عکس قبلی از کلاودینری (اگر وجود داشت)
+    // 1. Handle Logo Update
+    if (files?.["logo"]?.[0]) {
       if (existingBrand.logoPublicId) {
         await deleteFromCloudinary(existingBrand.logoPublicId);
       }
-
-      // ب) آپلود عکس جدید
+      const file = files["logo"][0];
       const upload = await uploadToCloudinary(file.path, "tiamara_logos");
       logoUrl = upload.url;
       logoPublicId = upload.publicId;
+    }
+
+    // 2. Handle Cover Image Update
+    if (files?.["coverImage"]?.[0]) {
+      if (existingBrand.coverPublicId) {
+        await deleteFromCloudinary(existingBrand.coverPublicId);
+      }
+      const file = files["coverImage"][0];
+      const upload = await uploadToCloudinary(
+        file.path,
+        "tiamara_brand_covers"
+      );
+      coverImageUrl = upload.url;
+      coverPublicId = upload.publicId;
     }
 
     const brand = await prisma.brand.update({
@@ -147,7 +200,10 @@ export const updateBrand = async (
         englishName,
         slug: generateSlug(englishName),
         logoUrl,
-        logoPublicId, // آپدیت شناسه جدید
+        logoPublicId,
+        coverImageUrl, // ✅ آپدیت
+        coverPublicId, // ✅ آپدیت
+        isFeatured: isFeatured === "true", // ✅ آپدیت
         metaTitle,
         metaDescription,
       },
@@ -156,6 +212,14 @@ export const updateBrand = async (
     res.status(200).json({ success: true, brand });
   } catch (error) {
     console.error("Error updating brand:", error);
+    if (req.files) {
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      Object.values(files)
+        .flat()
+        .forEach((f) => {
+          if (fs.existsSync(f.path)) fs.unlinkSync(f.path);
+        });
+    }
     res
       .status(500)
       .json({ success: false, message: "Failed to update brand." });
@@ -169,10 +233,6 @@ export const deleteBrand = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-
-    // در حالت آرشیو (Soft Delete)، عکس را نگه می‌داریم.
-    // اگر روزی خواستید Hard Delete کنید، باید اینجا deleteFromCloudinary را صدا بزنید.
-
     await prisma.brand.update({
       where: { id },
       data: { isArchived: true },
@@ -189,7 +249,7 @@ export const deleteBrand = async (
   }
 };
 
-// Bulk create brands from Excel
+// Bulk create brands from Excel (Needs update for englishName)
 export const bulkCreateBrandsFromExcel = async (
   req: AuthenticatedRequest,
   res: Response

@@ -146,6 +146,9 @@ model Brand {
   slug               String              @unique
   logoUrl            String?
   logoPublicId       String?
+  coverImageUrl      String?
+  coverPublicId      String?
+  isFeatured         Boolean             @default(false)
   metaTitle          String?
   metaDescription    String?
   products           Product[]
@@ -155,6 +158,12 @@ model Brand {
   isArchived         Boolean             @default(false)
 }
 
+enum GridSize {
+  SMALL
+  MEDIUM
+  LARGE
+}
+
 model Category {
   id              String    @id @default(cuid())
   name            String    @unique
@@ -162,6 +171,7 @@ model Category {
   slug            String    @unique
   imageUrl        String?
   imagePublicId   String?
+  gridSize        GridSize  @default(SMALL)
   metaTitle       String?
   metaDescription String?
   products        Product[]

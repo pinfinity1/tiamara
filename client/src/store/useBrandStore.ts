@@ -7,6 +7,8 @@ export interface Brand {
   englishName?: string | null;
   slug: string;
   logoUrl?: string | null;
+  coverImageUrl?: string | null;
+  isFeatured: boolean;
   metaTitle?: string | null;
   metaDescription?: string | null;
 }

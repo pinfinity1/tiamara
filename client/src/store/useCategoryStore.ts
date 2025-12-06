@@ -11,6 +11,7 @@ export interface Category {
   englishName?: string | null;
   slug: string;
   imageUrl: string | null;
+  gridSize: "SMALL" | "MEDIUM" | "LARGE";
   metaTitle: string | null;
   metaDescription: string | null;
 }

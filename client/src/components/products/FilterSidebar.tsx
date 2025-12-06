@@ -14,11 +14,10 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
 import { useState, useTransition, useMemo, useEffect } from "react";
-import { Filter, Search, Trash2, X } from "lucide-react";
+import { Filter, Search, Trash2 } from "lucide-react";
 import { FilterOption } from "@/lib/data/get-filters";
 import { cn } from "@/lib/utils";
 
-// --- تابع کمکی برای یکدست‌سازی متن‌ها ---
 const normalizeText = (text: string) => {
   if (!text) return "";
   return text.toString().replace(/ي/g, "ی").replace(/ك/g, "ک").trim();
@@ -43,14 +42,11 @@ export default function FilterSidebar({
 }: FilterSidebarProps) {
   const [isLoading, startTransition] = useTransition();
 
-  // 1. فراخوانی هوک صفحه
   const [page, setPage] = useQueryState("page", searchParamsParsers.page);
-
   const [inStock, setInStock] = useQueryState(
     "inStock",
     searchParamsParsers.inStock
   );
-
   const [categories, setCategories] = useQueryState(
     "categories",
     searchParamsParsers.categories
@@ -82,7 +78,6 @@ export default function FilterSidebar({
   useEffect(() => {
     const currentMin = minPriceParam !== null ? minPriceParam : minPriceData;
     const currentMax = maxPriceParam !== null ? maxPriceParam : maxPriceData;
-
     setLocalPriceRange([currentMin, currentMax]);
   }, [minPriceParam, maxPriceParam, minPriceData, maxPriceData]);
 
@@ -123,11 +118,8 @@ export default function FilterSidebar({
     const list = currentList || [];
     startTransition(() => {
       const options = { shallow: false, scroll: true };
-
       setPage(null, options);
-
       const exists = isChecked(list, value);
-
       if (exists) {
         const normalizedValue = normalizeText(value);
         const newList = list.filter(
@@ -143,13 +135,12 @@ export default function FilterSidebar({
   const clearAllFilters = () => {
     startTransition(() => {
       const options = { shallow: false, scroll: true };
-
       setPage(null, options);
       setCategories(null, options);
       setBrands(null, options);
       setMinPriceParam(null, options);
       setMaxPriceParam(null, options);
-      setInStock(null, options); // پاک کردن فیلتر موجودی
+      setInStock(null, options);
       setLocalPriceRange([minPriceData, maxPriceData]);
     });
   };
@@ -159,7 +150,7 @@ export default function FilterSidebar({
     (brands?.length || 0) > 0 ||
     minPriceParam !== null ||
     maxPriceParam !== null ||
-    inStock === "true"; // بررسی فعال بودن فیلتر موجودی
+    inStock === "true";
 
   return (
     <div
@@ -211,94 +202,99 @@ export default function FilterSidebar({
       </div>
 
       <Accordion type="multiple" defaultValue={["price"]} className="w-full">
-        {/* --- دسته‌بندی --- */}
-        <AccordionItem value="category" className="border-b border-gray-100">
-          <AccordionTrigger className="hover:no-underline py-4 text-sm font-bold text-gray-800">
-            دسته‌بندی‌ها
-          </AccordionTrigger>
-          <AccordionContent>
-            <div className="mb-3 relative">
-              <Input
-                placeholder="جستجو..."
-                className="h-9 text-xs bg-gray-50 border-gray-200 focus-visible:ring-gray-400 pl-8"
-                value={categorySearch}
-                onChange={(e) => setCategorySearch(e.target.value)}
-              />
-              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            </div>
-            <div className="space-y-2 max-h-60 overflow-y-auto pl-1 custom-scrollbar">
-              {filteredCategories.map((cat) => (
-                <div
-                  key={cat.id}
-                  className="flex items-center gap-2 group cursor-pointer hover:bg-gray-50 p-1.5 rounded-md transition-colors"
-                  onClick={() =>
-                    handleCheckboxChange(cat.name, categories, setCategories)
-                  }
-                >
-                  <Checkbox
-                    id={`cat-${cat.id}`}
-                    checked={isChecked(categories, cat.name)}
-                    className="data-[state=checked]:bg-black data-[state=checked]:border-black border-gray-300"
-                  />
-                  <Label
-                    htmlFor={`cat-${cat.id}`}
-                    className="text-sm text-gray-600 cursor-pointer w-full flex justify-between"
+        {/* --- ۱. دسته‌بندی (نمایش فقط اگر دسته‌بندی وجود دارد) --- */}
+        {allCategories && allCategories.length > 0 && (
+          <AccordionItem value="category" className="border-b border-gray-100">
+            <AccordionTrigger className="hover:no-underline py-4 text-sm font-bold text-gray-800">
+              دسته‌بندی‌ها
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="mb-3 relative">
+                <Input
+                  placeholder="جستجو..."
+                  className="h-9 text-xs bg-gray-50 border-gray-200 focus-visible:ring-gray-400 pl-8"
+                  value={categorySearch}
+                  onChange={(e) => setCategorySearch(e.target.value)}
+                />
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              </div>
+              <div className="space-y-2 max-h-60 overflow-y-auto pl-1 custom-scrollbar">
+                {filteredCategories.map((cat) => (
+                  <div
+                    key={cat.id}
+                    className="flex items-center gap-2 group cursor-pointer hover:bg-gray-50 p-1.5 rounded-md transition-colors"
+                    onClick={() =>
+                      handleCheckboxChange(cat.name, categories, setCategories)
+                    }
                   >
-                    <span>{cat.name}</span>
-                  </Label>
-                </div>
-              ))}
-            </div>
-          </AccordionContent>
-        </AccordionItem>
+                    <Checkbox
+                      id={`cat-${cat.id}`}
+                      checked={isChecked(categories, cat.name)}
+                      className="data-[state=checked]:bg-black data-[state=checked]:border-black border-gray-300"
+                    />
+                    <Label
+                      htmlFor={`cat-${cat.id}`}
+                      className="text-sm text-gray-600 cursor-pointer w-full flex justify-between"
+                    >
+                      <span>{cat.name}</span>
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        )}
 
-        {/* --- برند --- */}
-        <AccordionItem value="brand" className="border-b border-gray-100">
-          <AccordionTrigger className="hover:no-underline py-4 text-sm font-bold text-gray-800">
-            برند
-          </AccordionTrigger>
-          <AccordionContent>
-            <div className="mb-3 relative">
-              <Input
-                placeholder="جستجو..."
-                className="h-9 text-xs bg-gray-50 border-gray-200 focus-visible:ring-gray-400 pl-8"
-                value={brandSearch}
-                onChange={(e) => setBrandSearch(e.target.value)}
-              />
-              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            </div>
-            <div className="space-y-2 max-h-60 overflow-y-auto pl-1 custom-scrollbar">
-              {filteredBrands.map((brand) => (
-                <div
-                  key={brand.id}
-                  className="flex items-center gap-2 group cursor-pointer hover:bg-gray-50 p-1.5 rounded-md transition-colors"
-                  onClick={() =>
-                    handleCheckboxChange(brand.name, brands, setBrands)
-                  }
-                >
-                  <Checkbox
-                    id={`br-${brand.id}`}
-                    checked={isChecked(brands, brand.name)}
-                    className="data-[state=checked]:bg-black data-[state=checked]:border-black border-gray-300"
-                  />
-                  <Label
-                    htmlFor={`br-${brand.id}`}
-                    className="text-sm text-gray-600 cursor-pointer w-full flex justify-between"
+        {/* --- ۲. برند (نمایش فقط اگر برند وجود دارد) --- */}
+        {/* ✅ تغییر مهم: شرط اضافه شد */}
+        {allBrands && allBrands.length > 0 && (
+          <AccordionItem value="brand" className="border-b border-gray-100">
+            <AccordionTrigger className="hover:no-underline py-4 text-sm font-bold text-gray-800">
+              برند
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="mb-3 relative">
+                <Input
+                  placeholder="جستجو..."
+                  className="h-9 text-xs bg-gray-50 border-gray-200 focus-visible:ring-gray-400 pl-8"
+                  value={brandSearch}
+                  onChange={(e) => setBrandSearch(e.target.value)}
+                />
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              </div>
+              <div className="space-y-2 max-h-60 overflow-y-auto pl-1 custom-scrollbar">
+                {filteredBrands.map((brand) => (
+                  <div
+                    key={brand.id}
+                    className="flex items-center gap-2 group cursor-pointer hover:bg-gray-50 p-1.5 rounded-md transition-colors"
+                    onClick={() =>
+                      handleCheckboxChange(brand.name, brands, setBrands)
+                    }
                   >
-                    <span>{brand.name}</span>
-                    {brand.englishName && (
-                      <span className="text-[10px] text-gray-400 font-sans">
-                        {brand.englishName}
-                      </span>
-                    )}
-                  </Label>
-                </div>
-              ))}
-            </div>
-          </AccordionContent>
-        </AccordionItem>
+                    <Checkbox
+                      id={`br-${brand.id}`}
+                      checked={isChecked(brands, brand.name)}
+                      className="data-[state=checked]:bg-black data-[state=checked]:border-black border-gray-300"
+                    />
+                    <Label
+                      htmlFor={`br-${brand.id}`}
+                      className="text-sm text-gray-600 cursor-pointer w-full flex justify-between"
+                    >
+                      <span>{brand.name}</span>
+                      {brand.englishName && (
+                        <span className="text-[10px] text-gray-400 font-sans">
+                          {brand.englishName}
+                        </span>
+                      )}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        )}
 
-        {/* --- محدوده قیمت --- */}
+        {/* --- ۳. محدوده قیمت --- */}
         <AccordionItem value="price" className="border-b-0">
           <AccordionTrigger className="hover:no-underline py-4 text-sm font-bold text-gray-800">
             محدوده قیمت

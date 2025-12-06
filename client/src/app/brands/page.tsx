@@ -1,75 +1,47 @@
-import Link from "next/link";
 import Image from "next/image";
-import { fetchAllBrands } from "@/lib/data-fetching"; // تابع دریافت دیتا از سرور
-import { Brand } from "@/store/useBrandStore";
+import { fetchAllBrands } from "@/lib/data-fetching";
 import { Metadata } from "next";
+import BrandsDirectory from "@/components/brands/BrandsDirectory"; // کامپوننت جدید
+import { AnimatedGrid } from "@/components/ui/animated-grid"; // برای هدر زیبا
 
 export const metadata: Metadata = {
-  title: "همه برندها",
+  title: "برندهای معتبر",
   description:
-    "مجموعه‌ای کامل از بهترین و معتبرترین برندهای زیبایی و مراقبت از پوست جهان، گردآوری شده در فروشگاه تیامارا.",
+    "مجموعه‌ای کامل از بهترین و معتبرترین برندهای زیبایی جهان در تیامارا.",
   openGraph: {
-    title: "کشف برندهای برتر در تیامارا",
-    description: "بهترین برندهای آرایشی و بهداشتی را در تیامارا پیدا کنید.",
-    images: [
-      {
-        url: "/images/brand-banner.webp",
-        width: 1200,
-        height: 630,
-        alt: "برندهای تیامارا",
-      },
-    ],
-  },
-  alternates: {
-    canonical: "/brands",
+    title: "برندهای تیامارا",
+    images: ["/images/brand-banner.webp"],
   },
 };
 
 const BrandsPage = async () => {
-  const brands: Brand[] = await fetchAllBrands();
+  // دریافت دیتا در سمت سرور
+  const brands = await fetchAllBrands();
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Page Header/Banner */}
-      <div className="relative bg-gray-100 rounded-2xl p-8 md:p-12 mb-10 overflow-hidden text-center">
-        <div className="absolute inset-0">
-          <Image
-            src="/images/abstract-design-1.png"
-            alt="Tiamara Categories"
-            width={750}
-            height={200}
-            className="m-auto opacity-20 object-fit"
-          />
-        </div>
-        <div className="relative z-10">
-          <h1 className="text-3xl md:text-5xl font-extrabold text-gray-800">
-            کشف برندهای برتر
+    <div className="min-h-screen bg-white">
+      {/* --- هدر ایمرسیو و جذاب --- */}
+      <div className="relative h-[35vh] min-h-[300px] w-full bg-neutral-950 flex flex-col items-center justify-center overflow-hidden">
+        <AnimatedGrid className="opacity-30" />
+
+        <div className="relative z-10 text-center px-4 space-y-6 max-w-3xl">
+          <h1 className="text-4xl md:text-6xl font-black text-white tracking-tighter drop-shadow-2xl">
+            تالار برندها
           </h1>
-          <p className="mt-4 text-md md:text-lg text-gray-600 max-w-2xl mx-auto">
-            مجموعه‌ای از بهترین و معتبرترین برندهای زیبایی و مراقبت از پوست،
-            گردآوری شده برای شما.
+          <p className="text-lg md:text-xl text-gray-300 font-light leading-relaxed">
+            مجموعه‌ای از اصیل‌ترین نام‌ها در دنیای زیبایی،{" "}
+            <br className="hidden md:block" />
+            گردآوری شده با وسواس برای شما.
           </p>
         </div>
+
+        {/* افکت محو شدن پایین هدر برای ادغام با بدنه */}
+        <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white to-transparent z-20" />
       </div>
 
-      {/* Brands Grid */}
-      {/* دیگر نیازی به Skeleton نیست چون دیتا از قبل آماده است */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-6">
-        {brands.map((brand) => (
-          <Link href={`/brands/${brand.slug}`} key={brand.id} legacyBehavior>
-            <a className="group flex flex-col items-center text-center gap-3 p-4 rounded-xl transition-all duration-300 hover:bg-gray-100 hover:shadow-lg">
-              <div className="relative h-16 w-16 rounded-full overflow-hidden transition-transform duration-300 group-hover:scale-[102%]">
-                <Image
-                  src={brand.logoUrl || "/images/placeholder.png"}
-                  alt={brand.name}
-                  fill
-                  className="w-[50%] h-[50%] object-cover"
-                />
-              </div>
-              <h3 className="font-semibold text-gray-800">{brand.name}</h3>
-            </a>
-          </Link>
-        ))}
+      {/* --- بدنه اصلی (کلاینت کامپوننت) --- */}
+      <div className="relative z-30 -mt-12">
+        <BrandsDirectory allBrands={brands} />
       </div>
     </div>
   );
