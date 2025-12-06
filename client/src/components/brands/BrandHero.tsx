@@ -20,8 +20,10 @@ export default function BrandHero({ brand }: { brand: Brand }) {
             src={brand.coverImageUrl}
             alt={brand.name}
             fill
+            sizes="100vw"
             className="object-cover"
             priority
+            quality={85}
           />
         ) : (
           // فال‌بک: اگر عکس کاور نداشت

@@ -605,8 +605,10 @@ export const getAdminProductsPaginated = async (
     const order = (req.query.order as "asc" | "desc") || "desc";
     const stockStatus = req.query.stockStatus as string;
 
+    const isArchived = req.query.isArchived === "true";
+
     const where: Prisma.ProductWhereInput = {
-      isArchived: false,
+      isArchived: isArchived,
     };
 
     if (search) {
