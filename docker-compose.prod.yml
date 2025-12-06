@@ -54,7 +54,7 @@ services:
     entrypoint: ["/bin/sh", "-c", "node server.js"]
     # بررسی سلامت کلاینت (جلوگیری از هنگ کردن)
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3000"]
       interval: 60s # هر 40 ثانیه چک کن
       timeout: 20s # اگر 10 ثانیه جواب نداد، تایم‌اوت بده
       retries: 3 # اگر 3 بار پشت سر هم تایم‌اوت شد، اعلام خرابی کن
