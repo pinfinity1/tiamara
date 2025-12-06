@@ -7,18 +7,12 @@ import NextAuthProvider from "@/components/common/NextAuthProvider";
 import { auth } from "@/auth";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("http://www.tiamara.ir"),
+  metadataBase: new URL("https://www.tiamara.ir"),
   title: {
     template: "%s | تیامارا",
     default: "تیامارا | لوازم آرایشی و بهداشتی",
   },
   description: "لوازم آرایشی و بهداشتی ، آراستن ، لطافت و زیبایی",
-  verification: {
-    other: {
-      // این خط، متاتگ <meta name="enamad" content="48644659" /> را می‌سازد
-      enamad: "48644659",
-    },
-  },
 };
 
 const organizationSchema = {
@@ -44,7 +38,7 @@ export default async function RootLayout({
   return (
     <html lang="fa" dir="rtl">
       <body className={`antialiased`}>
-        <NextAuthProvider>
+        <NextAuthProvider session={session}>
           <CommonLayout session={session}>{children}</CommonLayout>
           <Toaster />
         </NextAuthProvider>

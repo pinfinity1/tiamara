@@ -35,14 +35,27 @@ async function generateTokens(
     .setExpirationTime("7d")
     .sign(secret);
 
-  // ذخیره رفرش توکن در دیتابیس
-  await prisma.refreshToken.create({
-    data: {
-      userId: userId,
-      token: refreshToken,
-      expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    },
-  });
+  // ذخیره رفرش توکن در دیتابیس با مدیریت خطا
+  try {
+    await prisma.refreshToken.create({
+      data: {
+        userId: userId,
+        token: refreshToken,
+        expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+  } catch (error: any) {
+    // کد خطای P2002 مربوط به یونیک بودن فیلد در پریزما است
+    if (error.code === "P2002") {
+      console.log(
+        "⚠️ Token already exists (Race condition handled implicitly)."
+      );
+      // ارور را نادیده می‌گیریم چون توکن قبلاً توسط ترد دیگر ذخیره شده است
+    } else {
+      // اگر ارور دیگری بود، آن را پرتاب کن
+      throw error;
+    }
+  }
 
   return { accessToken, refreshToken };
 }
