@@ -3,7 +3,7 @@ import { useCartStore } from "@/store/useCartStore";
 import { SessionProvider, useSession, signOut } from "next-auth/react";
 import { useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import FullPageLoader from "@/components/common/FullPageLoader"; // <--- ایمپورت جدید
+import FullPageLoader from "./FullPageLoader";
 
 const SessionManager = ({ children }: { children: React.ReactNode }) => {
   const { data: session, status } = useSession();
@@ -12,17 +12,18 @@ const SessionManager = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
   const isSigningOut = useRef(false);
 
-  // منطق خروج (که در پاسخ قبلی اصلاح کردیم)
+  // منطق خروج
   useEffect(() => {
     // @ts-ignore
     if (session?.error === "RefreshAccessTokenError" && !isSigningOut.current) {
       isSigningOut.current = true;
+      // وقتی توکن خراب است، فقط خارج شویم. رفرش نکنیم!
       signOut({ redirect: false }).then(() => {
+        // فقط اگر کاربر در صفحات محافظت شده بود، او را به لاگین ببر
         if (pathname.includes("/account") || pathname.includes("/checkout")) {
           router.push("/auth/login");
-        } else {
-          router.refresh();
         }
+        // نکته مهم: خط router.refresh() را حذف کردیم تا لوپ درست نشود
         isSigningOut.current = false;
       });
     }
@@ -35,9 +36,9 @@ const SessionManager = ({ children }: { children: React.ReactNode }) => {
     }
   }, [status, fetchCart]);
 
-  // !! --- بخش جدید: نمایش لودینگ --- !!
-  // وقتی کاربر بعد از چند ساعت می‌آید، NextAuth ابتدا در حالت 'loading' است
-  // تا زمانی که توکن را چک کند. در این فاصله ما لودینگ نشان می‌دهیم.
+  // !! --- حذف لودینگ تمام صفحه --- !!
+  // این بخش باعث پرش سفید (Flicker) می‌شد. آن را حذف می‌کنیم تا سایت بلافاصله نمایش داده شود.
+  // حتی اگر هنوز وضعیت لاگین مشخص نباشد، هدر و فوتر دیده می‌شوند که تجربه بهتری است.
   if (status === "loading") {
     return <FullPageLoader />;
   }
