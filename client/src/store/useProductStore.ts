@@ -148,7 +148,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
     }
   },
   createProduct: async (productData: FormData) => {
-    set({ isLoading: true, error: null });
+    set({ error: null });
     try {
       const response = await axiosAuth.post(
         `/products/create-new-product`,
@@ -161,7 +161,6 @@ export const useProductStore = create<ProductState>((set, get) => ({
       );
       set((state) => ({
         products: [response.data, ...state.products],
-        isLoading: false,
       }));
       return response.data;
     } catch (e) {
@@ -170,7 +169,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
     }
   },
   updateProduct: async (id: string, productData: FormData) => {
-    set({ isLoading: true, error: null });
+    set({ error: null });
     try {
       const response = await axiosAuth.put(`/products/${id}`, productData, {
         headers: {
@@ -184,7 +183,6 @@ export const useProductStore = create<ProductState>((set, get) => ({
         adminProducts: state.adminProducts.map((p) =>
           p.id === id ? updatedProduct : p
         ),
-        isLoading: false,
       }));
 
       return updatedProduct;
@@ -194,12 +192,11 @@ export const useProductStore = create<ProductState>((set, get) => ({
     }
   },
   deleteProduct: async (id: string) => {
-    set({ isLoading: true, error: null });
+    set({ error: null });
     try {
       const response = await axiosAuth.delete(`/products/${id}`);
       set((state) => ({
         products: state.products.filter((p) => p.id !== id),
-        isLoading: false,
       }));
       return response.data.success;
     } catch (e) {
