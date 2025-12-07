@@ -50,6 +50,7 @@ import {
   Mail,
   Phone,
   Loader2,
+  Map, // آیکون جدید
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -83,6 +84,8 @@ export default function UserAddresses({
     deleteAddress,
     setDefaultAddress,
     isLoading,
+    selectedAddress,
+    setSelectedAddress,
   } = useAddressStore();
   const { toast } = useToast();
 
@@ -123,20 +126,14 @@ export default function UserAddresses({
     if (!isDialogMode) fetchAddresses();
   }, [fetchAddresses, isDialogMode]);
 
-  // ✅ افکت جدید: اگر در حالت دیالوگ هستیم و آدرسی وجود ندارد، شماره کاربر را ست کن
+  // انتخاب خودکار اولین آدرس اگر آدرسی انتخاب نشده باشد (بدون باز کردن فرم)
   useEffect(() => {
-    if (isDialogMode && addresses.length === 0 && session?.user?.phone) {
-      reset({
-        recipientName: "",
-        fullAddress: "",
-        city: "",
-        province: "",
-        postalCode: "",
-        phone: session.user.phone,
-        isDefault: true, // چون اولین آدرس است، پیش‌فرض باشد
-      });
+    if (isDialogMode && !selectedAddress && addresses.length > 0) {
+      const defaultAddr = addresses.find((a) => a.isDefault);
+      if (defaultAddr) setSelectedAddress(defaultAddr.id);
+      else setSelectedAddress(addresses[0].id);
     }
-  }, [isDialogMode, addresses.length, session, reset]);
+  }, [isDialogMode, addresses, selectedAddress, setSelectedAddress]);
 
   const { defaultAddress, otherAddresses } = useMemo(() => {
     const defaultAddr = addresses.find((addr) => addr.isDefault) || null;
@@ -153,10 +150,10 @@ export default function UserAddresses({
       city: "",
       province: "",
       postalCode: "",
-      // اینجا هم مطمئن می‌شویم که شماره ست شود
       phone: session?.user?.phone || "",
       isDefault: addresses.length === 0,
     });
+    // اینجا کاربر دکمه را زده، پس فرم باز شود
     setIsFormDialogOpen(true);
   };
 
@@ -179,6 +176,12 @@ export default function UserAddresses({
     toast({ title: "آدرس پیش‌فرض شد." });
   };
 
+  const handleSelectAddress = (id: string) => {
+    if (isDialogMode) {
+      setSelectedAddress(id);
+    }
+  };
+
   const onSubmit = async (data: AddressFormData) => {
     const payload = { ...data, isDefault: data.isDefault || false };
     const result = editingAddress
@@ -191,106 +194,133 @@ export default function UserAddresses({
     if (result) {
       toast({ title: editingAddress ? "آدرس ویرایش شد." : "آدرس ثبت شد." });
       setIsFormDialogOpen(false);
+      // اگر آدرس جدیدی ساخته شد، آن را انتخاب کن
+      if (isDialogMode && result.id) {
+        setSelectedAddress(result.id);
+      }
       if (isDialogMode && onDialogClose) onDialogClose();
     }
   };
 
-  // --- اجزای UI ---
+  // --- کامپوننت کارت آدرس ---
   const AddressCard = ({
     address,
     isDefault = false,
   }: {
     address: Address;
     isDefault?: boolean;
-  }) => (
-    <div
-      className={cn(
-        "border p-4 rounded-lg transition-all hover:shadow-sm relative group",
-        isDefault && "bg-primary/5 border-primary/30"
-      )}
-    >
-      <div className="flex justify-between items-start mb-3">
-        <div className="flex items-center gap-2">
-          <User className="w-4 h-4 text-gray-500" />
-          <span className="font-bold text-gray-800">
-            {address.recipientName}
-          </span>
-          {isDefault && (
-            <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-              پیش‌فرض
-            </span>
-          )}
-        </div>
-        <div className="flex gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
-          {!isDefault && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-gray-500 hover:text-primary"
-              title="پیش‌فرض"
-              onClick={(e) => handleSetDefault(e, address.id)}
+  }) => {
+    const isSelected = isDialogMode ? selectedAddress === address.id : false;
+
+    return (
+      <div
+        onClick={() => isDialogMode && handleSelectAddress(address.id)}
+        className={cn(
+          "border p-4 rounded-lg transition-all relative group",
+          isDialogMode && "cursor-pointer",
+          isSelected
+            ? "bg-primary/5 border-primary ring-1 ring-primary"
+            : "hover:border-gray-300 hover:shadow-sm",
+          !isDialogMode && isDefault && "bg-gray-50/50 border-gray-200"
+        )}
+      >
+        <div className="flex justify-between items-start mb-3">
+          <div className="flex items-center gap-2">
+            {isSelected ? (
+              <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                <div className="w-1.5 h-1.5 rounded-full bg-white" />
+              </div>
+            ) : (
+              <User className="w-4 h-4 text-gray-500" />
+            )}
+            <span
+              className={cn(
+                "font-bold",
+                isSelected ? "text-primary" : "text-gray-800"
+              )}
             >
-              <Home className="h-4 w-4" />
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-gray-500 hover:text-blue-600"
-            onClick={() => handleEdit(address)}
-          >
-            <Edit className="h-4 w-4" />
-          </Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
+              {address.recipientName}
+            </span>
+            {isDefault && (
+              <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                پیش‌فرض
+              </span>
+            )}
+          </div>
+          <div className="flex gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+            {!isDefault && !isDialogMode && (
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-gray-500 hover:text-red-600"
+                className="h-8 w-8 text-gray-500 hover:text-primary"
+                onClick={(e) => handleSetDefault(e, address.id)}
               >
-                <Trash2 className="h-4 w-4" />
+                <Home className="h-4 w-4" />
               </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent dir="rtl">
-              <AlertDialogHeader>
-                <AlertDialogTitle>حذف آدرس</AlertDialogTitle>
-                <AlertDialogDescription>
-                  آیا مطمئن هستید؟
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>خیر</AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-red-600"
-                  onClick={() => handleDelete(address.id)}
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-gray-500 hover:text-blue-600"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEdit(address);
+              }}
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-gray-500 hover:text-red-600"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  بله، حذف کن
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent dir="rtl">
+                <AlertDialogHeader>
+                  <AlertDialogTitle>حذف آدرس</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    آیا مطمئن هستید؟
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>خیر</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-red-600"
+                    onClick={() => handleDelete(address.id)}
+                  >
+                    بله، حذف کن
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
+        <div className="text-sm text-gray-600 space-y-1">
+          <div className="flex items-start gap-2">
+            <MapPin className="w-4 h-4 mt-1 text-gray-400" />
+            <span>
+              {address.province}، {address.city}، {address.fullAddress}
+            </span>
+          </div>
+          <div className="flex gap-4 pr-6">
+            <span className="flex items-center gap-1">
+              <Mail className="w-3 h-3" />
+              {address.postalCode}
+            </span>
+            <span className="flex items-center gap-1">
+              <Phone className="w-3 h-3" />
+              <span dir="ltr">{address.phone}</span>
+            </span>
+          </div>
         </div>
       </div>
-      <div className="text-sm text-gray-600 space-y-1">
-        <div className="flex items-start gap-2">
-          <MapPin className="w-4 h-4 mt-1 text-gray-400" />
-          <span>
-            {address.province}، {address.city}، {address.fullAddress}
-          </span>
-        </div>
-        <div className="flex gap-4 pr-6">
-          <span className="flex items-center gap-1">
-            <Mail className="w-3 h-3" />
-            {address.postalCode}
-          </span>
-          <span className="flex items-center gap-1">
-            <Phone className="w-3 h-3" />
-            <span dir="ltr">{address.phone}</span>
-          </span>
-        </div>
-      </div>
-    </div>
-  );
+    );
+  };
 
   const dialogContent = (
     <div className="space-y-4 py-2">
@@ -330,7 +360,6 @@ export default function UserAddresses({
                     setValue("city", "");
                   }
                 }}
-                autoComplete="address-level1"
               >
                 <SelectTrigger>
                   <SelectValue placeholder="انتخاب استان" />
@@ -357,7 +386,6 @@ export default function UserAddresses({
                 value={field.value}
                 onValueChange={field.onChange}
                 disabled={!selectedProvinceId}
-                autoComplete="address-level2"
               >
                 <SelectTrigger>
                   <SelectValue placeholder="انتخاب شهر" />
@@ -409,6 +437,9 @@ export default function UserAddresses({
     </div>
   );
 
+  // ==========================================
+  // حالت چک‌اوت (Dialog Mode)
+  // ==========================================
   if (isDialogMode) {
     return (
       <form onSubmit={handleSubmit(onSubmit)}>
@@ -416,43 +447,65 @@ export default function UserAddresses({
           <div className="flex justify-center p-4">
             <Loader2 className="animate-spin" />
           </div>
-        ) : addresses.length === 0 || isFormDialogOpen ? (
+        ) : isFormDialogOpen ? (
+          // ✅ حالت ۱: نمایش فرم افزودن/ویرایش (فقط با زدن دکمه)
           <>
-            {" "}
-            {dialogContent}{" "}
+            {dialogContent}
             <div className="flex justify-end gap-2 mt-4">
-              {addresses.length > 0 && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsFormDialogOpen(false)}
-                >
-                  انصراف
-                </Button>
-              )}
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? "..." : "ثبت"}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsFormDialogOpen(false)}
+              >
+                انصراف
               </Button>
-            </div>{" "}
-          </>
-        ) : (
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <p className="text-sm text-gray-500">
-                آدرس ارسال را انتخاب یا ایجاد کنید.
-              </p>
-              <Button size="sm" onClick={handleAddNew}>
-                <PlusCircle className="w-4 h-4 ml-1" /> جدید
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? "..." : "ثبت آدرس"}
               </Button>
             </div>
+          </>
+        ) : (
+          // ✅ حالت ۲: نمایش لیست آدرس‌ها (یا حالت خالی)
+          <div className="space-y-3">
+            <div className="flex justify-between items-center bg-gray-50 p-2 rounded-lg border border-gray-100">
+              <p className="text-sm text-gray-600 px-2">
+                {addresses.length === 0
+                  ? "آدرسی ثبت نشده است."
+                  : "آدرس تحویل سفارش را انتخاب کنید."}
+              </p>
+              {/* دکمه برای باز کردن فرم (حتما type=button باشد) */}
+              <Button
+                size="sm"
+                onClick={handleAddNew}
+                type="button"
+                className="gap-2"
+              >
+                <PlusCircle className="w-4 h-4" />
+                آدرس جدید
+              </Button>
+            </div>
+
             <div className="space-y-2 max-h-[300px] overflow-y-auto px-1">
-              {addresses.map((addr) => (
-                <AddressCard
-                  key={addr.id}
-                  address={addr}
-                  isDefault={addr.isDefault}
-                />
-              ))}
+              {addresses.length === 0 ? (
+                // ✅ حالت خالی (Empty State) - بدون باز شدن فرم
+                <div className="flex flex-col items-center justify-center py-10 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/30">
+                  <Map className="w-10 h-10 text-gray-300 mb-2" />
+                  <span className="text-sm font-medium text-gray-500">
+                    لیست آدرس‌ها خالی است
+                  </span>
+                  <p className="text-xs text-gray-400 mt-1">
+                    برای ادامه، لطفا یک آدرس جدید اضافه کنید.
+                  </p>
+                </div>
+              ) : (
+                addresses.map((addr) => (
+                  <AddressCard
+                    key={addr.id}
+                    address={addr}
+                    isDefault={addr.isDefault}
+                  />
+                ))
+              )}
             </div>
           </div>
         )}
@@ -460,6 +513,9 @@ export default function UserAddresses({
     );
   }
 
+  // ==========================================
+  // حالت پروفایل (Profile Mode)
+  // ==========================================
   return (
     <>
       <Card>

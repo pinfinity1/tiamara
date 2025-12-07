@@ -3,10 +3,15 @@
 import { useEffect, useState } from "react";
 import { useAddressStore } from "@/store/useAddressStore";
 import UserAddresses from "@/app/account/UserAddresses";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { Button } from "../ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
-import { PlusCircle, User, MapPin, Mail, Phone } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { PlusCircle, User, MapPin, Mail, Phone, Map } from "lucide-react";
 
 const CheckoutView = () => {
   const {
@@ -19,18 +24,9 @@ const CheckoutView = () => {
   } = useAddressStore();
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
 
-  // 1. دریافت آدرس‌ها هنگام بارگذاری کامپوننت
   useEffect(() => {
     fetchAddresses();
   }, [fetchAddresses]);
-
-  // 2. این بخش کلیدی منطق شماست
-  // مودال فقط زمانی باز می‌شود که بارگذاری تمام شده (`!isLoading`) و هیچ آدرسی وجود نداشته باشد (`addresses.length === 0`)
-  useEffect(() => {
-    if (!isLoading && addresses.length === 0) {
-      setIsAddressModalOpen(true);
-    }
-  }, [isLoading, addresses.length]);
 
   const handleSetDefault = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -42,8 +38,9 @@ const CheckoutView = () => {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>آدرس ارسال</CardTitle>
-          {/* دکمه افزودن آدرس فقط زمانی نمایش داده می‌شود که کاربر آدرسی داشته باشد */}
-          {addresses.length > 0 && (
+
+          {/* ✅ اصلاح شد: دکمه هدر فقط وقتی نمایش داده می‌شود که حداقل یک آدرس وجود داشته باشد */}
+          {!isLoading && addresses.length > 0 && (
             <Button
               variant="outline"
               size="sm"
@@ -54,18 +51,21 @@ const CheckoutView = () => {
             </Button>
           )}
         </CardHeader>
+
         <CardContent>
           {isLoading ? (
-            <p>در حال بارگذاری آدرس‌ها...</p>
+            <p className="text-center py-4 text-gray-500">
+              در حال بارگذاری آدرس‌ها...
+            </p>
           ) : addresses.length > 0 ? (
-            // اگر آدرس وجود دارد، لیست آن‌ها نمایش داده می‌شود
+            // === حالت ۱: نمایش لیست آدرس‌ها ===
             <div className="space-y-4">
               {addresses.map((address) => (
                 <div
                   key={address.id}
                   className={`p-4 border rounded-lg cursor-pointer transition-all ${
                     selectedAddress === address.id
-                      ? "border-primary ring-2 ring-primary"
+                      ? "border-primary ring-2 ring-primary bg-primary/5"
                       : "hover:border-gray-300"
                   }`}
                   onClick={() => setSelectedAddress(address.id)}
@@ -82,8 +82,9 @@ const CheckoutView = () => {
                     ) : (
                       selectedAddress === address.id && (
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
+                          className="text-xs"
                           onClick={(e) => handleSetDefault(e, address.id)}
                         >
                           انتخاب به عنوان پیش‌فرض
@@ -95,25 +96,25 @@ const CheckoutView = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm text-gray-600">
                     <div className="flex items-center">
                       <MapPin className="w-4 h-4 ml-2" />
-                      <strong>استان / شهر:</strong>
-                      <span className="mr-2">
+                      <span className="text-gray-500 ml-1">استان / شهر:</span>
+                      <span>
                         {address.province} / {address.city}
                       </span>
                     </div>
                     <div className="flex items-center">
                       <Mail className="w-4 h-4 ml-2" />
-                      <strong>کد پستی:</strong>
-                      <span className="mr-2">{address.postalCode}</span>
+                      <span className="text-gray-500 ml-1">کد پستی:</span>
+                      <span className="font-mono">{address.postalCode}</span>
                     </div>
                     <div className="flex items-center col-span-full">
                       <MapPin className="w-4 h-4 ml-2" />
-                      <strong>آدرس کامل:</strong>
-                      <span className="mr-2">{address.fullAddress}</span>
+                      <span className="text-gray-500 ml-1">آدرس کامل:</span>
+                      <span>{address.fullAddress}</span>
                     </div>
                     <div className="flex items-center">
                       <Phone className="w-4 h-4 ml-2" />
-                      <strong>شماره تماس:</strong>
-                      <span className="mr-2" dir="ltr">
+                      <span className="text-gray-500 ml-1">شماره تماس:</span>
+                      <span className="font-mono" dir="ltr">
                         {address.phone}
                       </span>
                     </div>
@@ -122,11 +123,24 @@ const CheckoutView = () => {
               ))}
             </div>
           ) : (
-            // اگر آدرسی وجود ندارد، این پیام نمایش داده می‌شود
-            <div className="text-center py-10">
-              <p className="mb-4">برای ادامه، لطفا یک آدرس ارسال اضافه کنید.</p>
-              {/* این دکمه مودالی را باز می‌کند که از قبل به خاطر نبود آدرس باز شده است */}
-              <Button onClick={() => setIsAddressModalOpen(true)}>
+            // === حالت ۲: لیست خالی (Empty State) ===
+            // در این حالت فقط همین یک دکمه نمایش داده می‌شود
+            <div className="flex flex-col items-center justify-center py-10 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+              <div className="bg-white p-4 rounded-full shadow-sm mb-4">
+                <Map className="w-10 h-10 text-gray-300" />
+              </div>
+              <p className="text-gray-900 font-medium mb-1">
+                لیست آدرس‌ها خالی است
+              </p>
+              <p className="text-gray-500 text-sm mb-6">
+                برای ادامه خرید، لطفا یک آدرس جدید ثبت کنید.
+              </p>
+
+              <Button
+                onClick={() => setIsAddressModalOpen(true)}
+                className="gap-2"
+              >
+                <PlusCircle className="w-4 h-4" />
                 افزودن اولین آدرس
               </Button>
             </div>
@@ -134,29 +148,12 @@ const CheckoutView = () => {
         </CardContent>
       </Card>
 
-      {/* تنظیمات مودال */}
-      <Dialog
-        open={isAddressModalOpen}
-        // اگر کاربر آدرسی داشته باشد، می‌تواند مودال را ببندد
-        onOpenChange={addresses.length > 0 ? setIsAddressModalOpen : undefined}
-      >
-        <DialogContent
-          className="max-w-3xl"
-          // اگر کاربر هیچ آدرسی نداشته باشد، نمی‌تواند با کلیک بیرون یا دکمه Esc مودال را ببندد
-          onPointerDownOutside={(e) => {
-            if (addresses.length === 0) e.preventDefault();
-          }}
-          onEscapeKeyDown={(e) => {
-            if (addresses.length === 0) e.preventDefault();
-          }}
-        >
+      <Dialog open={isAddressModalOpen} onOpenChange={setIsAddressModalOpen}>
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>
-              {addresses.length > 0
-                ? "افزودن آدرس جدید"
-                : "لطفا آدرس خود را وارد کنید"}
-            </DialogTitle>
+            <DialogTitle>افزودن آدرس جدید</DialogTitle>
           </DialogHeader>
+
           <UserAddresses
             isDialogMode={true}
             onDialogClose={() => setIsAddressModalOpen(false)}

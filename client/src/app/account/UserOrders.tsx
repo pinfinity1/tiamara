@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useOrderStore, Order } from "@/store/useOrderStore";
+import { useRouter } from "next/navigation"; // ✅ Added
 import {
   Card,
   CardContent,
@@ -32,11 +33,13 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
+  UploadCloud, // ✅ Added
+  AlertCircle, // ✅ Added
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-// --- هلپر برای وضعیت سفارش ---
+// --- Helper for Order Status ---
 const getStatusConfig = (status: Order["status"]) => {
   switch (status) {
     case "PENDING":
@@ -68,7 +71,7 @@ const getStatusConfig = (status: Order["status"]) => {
   }
 };
 
-// --- مودال جزئیات ---
+// --- Details Modal ---
 const OrderDetailsModal = ({ order }: { order: Order }) => {
   const { toast } = useToast();
 
@@ -77,7 +80,6 @@ const OrderDetailsModal = ({ order }: { order: Order }) => {
     0
   );
   const couponDiscount = order.coupon ? subtotal - order.total : 0;
-  // محاسبه هزینه ارسال با اطمینان از عدد بودن
   const shippingCost = order.shippingMethod?.cost || 0;
 
   const copyToClipboard = (text: string) => {
@@ -94,7 +96,7 @@ const OrderDetailsModal = ({ order }: { order: Order }) => {
         </DialogTitle>
       </DialogHeader>
       <div className="py-2 space-y-6">
-        {/* وضعیت پرداخت */}
+        {/* Payment Status */}
         <div
           className={cn(
             "p-4 rounded-lg border flex flex-col sm:flex-row sm:items-center justify-between gap-4",
@@ -156,7 +158,7 @@ const OrderDetailsModal = ({ order }: { order: Order }) => {
           )}
         </div>
 
-        {/* اطلاعات ارسال */}
+        {/* Shipping Info */}
         <div className="bg-white rounded-lg border p-4 space-y-3">
           <h3 className="font-bold text-gray-800 flex items-center gap-2 text-sm">
             <Truck className="w-4 h-4 text-gray-500" />
@@ -203,7 +205,7 @@ const OrderDetailsModal = ({ order }: { order: Order }) => {
           )}
         </div>
 
-        {/* لیست محصولات */}
+        {/* Products List */}
         <div>
           <h3 className="font-bold text-gray-800 mb-3 text-sm">اقلام سفارش</h3>
           <div className="border rounded-lg divide-y">
@@ -245,7 +247,7 @@ const OrderDetailsModal = ({ order }: { order: Order }) => {
           </div>
         </div>
 
-        {/* فاکتور نهایی */}
+        {/* Final Invoice */}
         <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
           <div className="flex justify-between text-gray-600">
             <span>جمع کل کالاها</span>
@@ -276,18 +278,25 @@ const OrderDetailsModal = ({ order }: { order: Order }) => {
   );
 };
 
-// --- کامپوننت کارت سفارش ---
+// --- Order Card Component ---
 const OrderCard = ({ order }: { order: Order }) => {
+  const router = useRouter(); // ✅ Added
   const statusConfig = getStatusConfig(order.status);
   const StatusIcon = statusConfig.icon;
 
-  // نمایش حداکثر ۴ تصویر محصول
+  // Logic to determine if receipt upload is needed
+  const needsReceiptUpload =
+    order.paymentMethod === "CARD_TO_CARD" &&
+    order.paymentStatus !== "COMPLETED" &&
+    (!order.paymentReceipt || order.paymentReceipt.status === "REJECTED");
+
+  // Show max 4 product images
   const previewImages = order.items.slice(0, 4);
   const remainingCount = order.items.length - 4;
 
   return (
     <Card className="overflow-hidden hover:shadow-md transition-all duration-200 border-gray-200">
-      {/* هدر کارت: شماره و وضعیت */}
+      {/* Card Header: Number and Status */}
       <div className="flex flex-wrap items-center justify-between p-4 bg-gray-50/50 border-b border-gray-100 gap-3">
         <div className="flex items-center gap-3">
           <div className={cn("p-2 rounded-full", statusConfig.color)}>
@@ -307,7 +316,7 @@ const OrderCard = ({ order }: { order: Order }) => {
 
       <CardContent className="p-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8 mb-4">
-          {/* اطلاعات تاریخ و مبلغ */}
+          {/* Date and Amount Info */}
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-sm text-gray-500">
               <Calendar className="w-4 h-4" />
@@ -325,7 +334,7 @@ const OrderCard = ({ order }: { order: Order }) => {
             </div>
           </div>
 
-          {/* تصاویر محصولات (Preview) */}
+          {/* Product Images (Preview) */}
           <div className="flex items-center gap-2">
             {previewImages.map((item) => (
               <div
@@ -349,9 +358,47 @@ const OrderCard = ({ order }: { order: Order }) => {
             )}
           </div>
         </div>
+
+        {/* ✅ Receipt Status Warning */}
+        {order.paymentReceipt?.status === "PENDING" && (
+          <div className="mb-4 bg-blue-50 text-blue-700 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
+            <Clock className="w-4 h-4" />
+            فیش واریزی شما در حال بررسی توسط کارشناسان است.
+          </div>
+        )}
+
+        {order.paymentReceipt?.status === "REJECTED" && (
+          <div className="mb-4 bg-red-50 text-red-700 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" />
+            فیش واریزی رد شد:{" "}
+            {order.paymentReceipt.adminNote || "اطلاعات نامعتبر"}
+          </div>
+        )}
       </CardContent>
 
-      <CardFooter className="p-4 pt-0 flex justify-end">
+      <CardFooter className="p-4 pt-0 flex justify-between items-center gap-2">
+        {/* ✅ Right Side: Upload Button (Only if needed) */}
+        <div>
+          {needsReceiptUpload ? (
+            <Button
+              onClick={() =>
+                router.push(`/checkout/upload-receipt/${order.id}`)
+              }
+              className="bg-amber-500 hover:bg-amber-600 text-white gap-2 shadow-sm shadow-amber-200"
+              size="sm"
+            >
+              <UploadCloud className="w-4 h-4" />
+              {order.paymentReceipt ? "آپلود مجدد فیش" : "آپلود فیش واریزی"}
+            </Button>
+          ) : (
+            // If receipt is uploaded and pending
+            order.paymentReceipt?.status === "PENDING" && (
+              <span className="text-xs text-muted-foreground">منتظر تایید</span>
+            )
+          )}
+        </div>
+
+        {/* Left Side: Details Button */}
         <Dialog>
           <DialogTrigger asChild>
             <Button

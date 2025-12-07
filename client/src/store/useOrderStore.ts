@@ -6,6 +6,7 @@ import axiosAuth from "@/lib/axios";
 // --- Enums and Types ---
 export type OrderStatus = "PENDING" | "PROCESSING" | "SHIPPED" | "DELIVERED";
 export type PaymentStatus = "PENDING" | "COMPLETED" | "FAILED" | "CANCELLED";
+export type ReceiptStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 export interface OrderItem {
   id: string;
@@ -24,6 +25,7 @@ export interface Order {
   createdAt: string;
   total: number;
   status: OrderStatus;
+  paymentMethod: "CREDIT_CARD" | "CARD_TO_CARD";
   paymentStatus: PaymentStatus;
   paymentRefId?: string | null;
   paymentAuthority?: string | null;
@@ -56,6 +58,13 @@ export interface Order {
   shippingMethod?: {
     name: string;
     cost: number; // اضافه شد
+  } | null;
+
+  paymentReceipt?: {
+    id: string;
+    imageUrl: string;
+    status: ReceiptStatus;
+    adminNote?: string;
   } | null;
 }
 
@@ -103,7 +112,13 @@ interface OrderState {
     addressId: string;
     couponId?: string | null;
     shippingMethodId: string;
-  }) => Promise<{ success: boolean; paymentUrl?: string }>;
+    paymentMethod: "CREDIT_CARD" | "CARD_TO_CARD";
+  }) => Promise<{
+    success: boolean;
+    paymentUrl?: string;
+    isManual?: boolean;
+    orderId?: string;
+  }>;
 
   // Admin-facing actions
   fetchOrdersForAdmin: (filters: {
@@ -141,7 +156,12 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     try {
       const response = await axiosAuth.post("/order/create-final-order", data);
       if (response.data.success) {
-        return { success: true, paymentUrl: response.data.paymentUrl };
+        return {
+          success: true,
+          paymentUrl: response.data.paymentUrl,
+          isManual: response.data.isManual, // ✅ دریافت از سرور
+          orderId: response.data.orderId, // ✅ دریافت از سرور
+        };
       }
       return { success: false };
     } catch (error) {

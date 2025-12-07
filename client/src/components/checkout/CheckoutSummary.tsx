@@ -7,6 +7,7 @@ import { useAddressStore } from "@/store/useAddressStore";
 import { useCheckoutStore } from "@/store/useCheckoutStore";
 import { useToast } from "@/hooks/use-toast";
 import axiosAuth from "@/lib/axios";
+import { useRouter } from "next/navigation"; // ✅ اضافه شده
 
 import { Button } from "@/components/ui/button";
 import {
@@ -24,7 +25,8 @@ import {
   ArrowRight,
   Ticket,
   ShieldCheck,
-} from "lucide-react"; // ArrowRight اضافه شد
+  Receipt, // آیکون جدید برای کارت به کارت
+} from "lucide-react";
 
 interface AppliedCoupon {
   id: string;
@@ -37,20 +39,23 @@ interface CheckoutSummaryProps {
   isUserLoggedIn: boolean;
   step: number;
   onNext: () => void;
-  onPrev: () => void; // ✅ اضافه شد
+  onPrev: () => void;
 }
 
 export default function CheckoutSummary({
   isUserLoggedIn,
   step,
   onNext,
-  onPrev, // ✅ دریافت پراپ
+  onPrev,
 }: CheckoutSummaryProps) {
+  const router = useRouter(); // ✅ اضافه شده
   const { toast } = useToast();
   const { items: cartItems } = useCartStore();
   const { createFinalOrder, isLoading: isPaymentProcessing } = useOrderStore();
   const { selectedAddress: selectedAddressId } = useAddressStore();
-  const { shippingMethod } = useCheckoutStore();
+
+  // ✅ اضافه کردن paymentMethod
+  const { shippingMethod, paymentMethod } = useCheckoutStore();
 
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(
@@ -108,14 +113,24 @@ export default function CheckoutSummary({
       return;
     }
 
+    // ✅ ارسال paymentMethod به تابع createFinalOrder
     const result = await createFinalOrder({
       addressId: selectedAddressId,
       couponId: appliedCoupon?.id,
       shippingMethodId: shippingMethod.code,
+      paymentMethod: paymentMethod, // <-- اینجا اضافه شد
     });
 
-    if (result.success && result.paymentUrl) {
-      window.location.href = result.paymentUrl;
+    if (result.success) {
+      // ✅ بررسی نوع پاسخ (دستی یا آنلاین)
+      if (result.isManual) {
+        // isManual از سمت سرور میاد (که در orderController اضافه کردیم)
+        // اگر تایپ اسکریپت به isManual گیر داد، فعلاً any کنید یا در useOrderStore اینترفیس خروجی را اصلاح کنید
+        // @ts-ignore
+        router.push(`/checkout/upload-receipt/${result.orderId}`);
+      } else if (result.paymentUrl) {
+        window.location.href = result.paymentUrl;
+      }
     } else {
       toast({ title: "خطا در ایجاد سفارش", variant: "destructive" });
     }
@@ -133,6 +148,16 @@ export default function CheckoutSummary({
     if (!isUserLoggedIn) return "ورود برای ادامه خرید";
     if (step === 1) return "ثبت سفارش و ارسال";
     if (step === 2) return "تایید و بازبینی نهایی";
+
+    // ✅ متن داینامیک برای مرحله ۳
+    if (paymentMethod === "CARD_TO_CARD") {
+      return (
+        <span className="flex items-center gap-2">
+          <Receipt className="w-4 h-4" />
+          ثبت و آپلود فیش
+        </span>
+      );
+    }
     return "پرداخت آنلاین";
   };
 
@@ -225,7 +250,7 @@ export default function CheckoutSummary({
           {step < 3 && <ArrowLeft className="mr-2 w-4 h-4" />}
         </Button>
 
-        {/* ✅ دکمه جدید بازگشت به مرحله قبل */}
+        {/* دکمه بازگشت به مرحله قبل */}
         {step > 1 && (
           <Button
             variant="outline"

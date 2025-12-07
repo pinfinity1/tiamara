@@ -1,24 +1,27 @@
-// client/src/store/useCheckoutStore.ts
-
 import { create } from "zustand";
 
-// تعریف ساختار اطلاعاتی برای همخوانی با سرور و کامپوننت نمایش
 interface ShippingMethod {
   id: string;
-  code: string; // این فیلد برای ارسال به سرور لازم است
+  code: string;
   name: string;
-  description: string | null; // این فیلد از سرور می‌آید
+  description: string | null;
   cost: number;
 }
 
-// تعریف وضعیت‌ها و اکشن‌های مربوط به پرداخت
+export type PaymentMethodType = "CREDIT_CARD" | "CARD_TO_CARD";
+
 interface CheckoutState {
   shippingMethod: ShippingMethod | null;
   setShippingMethod: (method: ShippingMethod) => void;
+
+  // ✅ اضافه شده‌ها
+  paymentMethod: PaymentMethodType;
+  setPaymentMethod: (method: PaymentMethodType) => void;
 }
 
-// ایجاد store
 export const useCheckoutStore = create<CheckoutState>((set) => ({
-  shippingMethod: null, // در ابتدا هیچ روشی انتخاب نشده
-  setShippingMethod: (method) => set({ shippingMethod: method }), // تابعی برای به‌روزرسانی روش ارسال
+  shippingMethod: null,
+  setShippingMethod: (method) => set({ shippingMethod: method }),
+  paymentMethod: "CREDIT_CARD",
+  setPaymentMethod: (method) => set({ paymentMethod: method }),
 }));

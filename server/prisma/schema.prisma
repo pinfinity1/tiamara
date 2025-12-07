@@ -387,6 +387,31 @@ model OrderCounter {
   lastOrderNumber Int    @default(1000)
 }
 
+enum PaymentMethod {
+  CREDIT_CARD
+  CARD_TO_CARD
+}
+
+
+enum ReceiptStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model PaymentReceipt {
+  id          String        @id @default(cuid())
+  orderId     String        @unique
+  order       Order         @relation(fields: [orderId], references: [id])
+  imageUrl    String     
+  publicId    String 
+  status      ReceiptStatus @default(PENDING)
+  userNote    String?
+  adminNote   String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
 model Order {
   id          String @id @default(cuid())
   orderNumber Int    @unique
@@ -408,6 +433,8 @@ model Order {
   paymentStatus    PaymentStatus @default(PENDING)
   paymentAuthority String?
   paymentRefId     String?
+
+  paymentReceipt   PaymentReceipt?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -480,9 +507,7 @@ enum OrderStatus {
   DELIVERED
 }
 
-enum PaymentMethod {
-  CREDIT_CARD
-}
+
 
 enum PaymentStatus {
   PENDING

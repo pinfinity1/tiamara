@@ -1,15 +1,20 @@
 import { Response } from "express";
 import { AuthenticatedRequest } from "../middleware/authMiddleware";
 import { prisma } from "../server";
-import { OrderStatus, PaymentStatus, Prisma } from "@prisma/client";
+// ✅ تغییر ۱: اضافه کردن PaymentMethod به ایمپورت‌ها
+import {
+  OrderStatus,
+  PaymentStatus,
+  Prisma,
+  PaymentMethod,
+} from "@prisma/client";
 
 // تابع کمکی برای گرفتن شماره سفارش بعدی
 async function getNextOrderNumber() {
-  // از upsert استفاده می‌کنیم تا اگر شمارنده وجود نداشت، ایجاد شود
   const counter = await prisma.orderCounter.upsert({
     where: { id: "order_counter" },
     update: { lastOrderNumber: { increment: 1 } },
-    create: { id: "order_counter", lastOrderNumber: 1001 }, // اولین شماره سفارش 1001 خواهد بود
+    create: { id: "order_counter", lastOrderNumber: 1001 },
   });
   return counter.lastOrderNumber;
 }
@@ -17,14 +22,15 @@ async function getNextOrderNumber() {
 const SERVER_URL = process.env.SERVER_URL || "http://localhost:3001";
 
 /**
- * ایجاد یک سفارش اولیه (pending) قبل از ارسال به درگاه پرداخت
+ * ایجاد یک سفارش اولیه (pending) قبل از ارسال به درگاه پرداخت یا ثبت فیش
  */
 export const createFinalOrder = async (
   req: AuthenticatedRequest,
   res: Response
 ) => {
   const userId = req.user?.userId;
-  const { addressId, couponId, shippingMethodId } = req.body;
+  // ✅ تغییر ۲: دریافت paymentMethod از ورودی
+  const { addressId, couponId, shippingMethodId, paymentMethod } = req.body;
 
   if (!userId) {
     return res.status(401).json({ success: false, message: "Unauthenticated" });
@@ -37,7 +43,6 @@ export const createFinalOrder = async (
   }
 
   try {
-    // شروع تراکنش با استفاده از $transaction
     const result = await prisma.$transaction(async (tx) => {
       const cart = await tx.cart.findUnique({
         where: { userId },
@@ -77,7 +82,13 @@ export const createFinalOrder = async (
       total += shippingMethod.cost;
       total = Math.round(total);
 
-      const orderNumber = await getNextOrderNumber(); // این تابع خارج از تراکنش است که مشکلی ندارد
+      const orderNumber = await getNextOrderNumber();
+
+      // ✅ تغییر ۳: تعیین نوع پرداخت برای دیتابیس
+      const dbPaymentMethod =
+        paymentMethod === "CARD_TO_CARD"
+          ? PaymentMethod.CARD_TO_CARD
+          : PaymentMethod.CREDIT_CARD;
 
       const newOrder = await tx.order.create({
         data: {
@@ -88,7 +99,7 @@ export const createFinalOrder = async (
           total,
           shippingCost: shippingMethod.cost,
           shippingMethodCode: shippingMethod.code,
-          paymentMethod: "CREDIT_CARD",
+          paymentMethod: dbPaymentMethod, // ✅ استفاده از متغیر جدید
           paymentStatus: "PENDING",
           status: "PENDING",
           items: {
@@ -103,31 +114,47 @@ export const createFinalOrder = async (
         },
       });
 
-      const paymentUrl = `${SERVER_URL}/api/payment/create?orderId=${newOrder.id}`;
+      // ✅ تغییر ۴: انشعاب منطق بر اساس روش پرداخت
+      if (dbPaymentMethod === PaymentMethod.CARD_TO_CARD) {
+        // اگر کارت‌به‌کارت بود:
+        // ۱. لینک پرداخت نمی‌سازیم
+        // ۲. سبد خرید را همینجا خالی می‌کنیم (چون سفارش ثبت نهایی شده و منتظر آپلود فیش است)
+        await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
 
-      // برگرداندن مقادیر مورد نیاز از تراکنش
-      return { orderId: newOrder.id, paymentUrl };
+        return {
+          orderId: newOrder.id,
+          isManual: true,
+          paymentUrl: null,
+        };
+      } else {
+        // اگر درگاه بود:
+        const paymentUrl = `${SERVER_URL}/api/payment/create?orderId=${newOrder.id}`;
+        return {
+          orderId: newOrder.id,
+          isManual: false,
+          paymentUrl,
+        };
+      }
     });
 
-    // ارسال پاسخ موفقیت‌آمیز پس از اتمام تراکنش
     res.status(201).json({
       success: true,
-      message: "سفارش با موفقیت ایجاد شد. در حال انتقال به درگاه پرداخت...",
+      message: result.isManual
+        ? "سفارش ثبت شد. لطفاً فیش واریزی را آپلود کنید."
+        : "در حال انتقال به درگاه پرداخت...",
       orderId: result.orderId,
       paymentUrl: result.paymentUrl,
+      isManual: result.isManual, // فرانت‌اند با این فلگ می‌فهمد کجا ریدایرکت کند
     });
   } catch (error: any) {
     console.error("Error creating order:", error);
-    // اگر خطا از داخل تراکنش باشد (مثل سبد خالی)، پیام آن را نمایش بده
     res
       .status(500)
       .json({ success: false, message: error.message || "خطا در سرور" });
   }
 };
 
-/**
- * دریافت لیست سفارشات برای کاربر لاگین کرده
- */
+// ... (بقیه توابع این فایل مثل getOrdersByUserId و غیره بدون تغییر می‌مانند)
 export const getOrdersByUserId = async (
   req: AuthenticatedRequest,
   res: Response
@@ -141,9 +168,10 @@ export const getOrdersByUserId = async (
       where: { userId },
       orderBy: { createdAt: "desc" },
       include: {
-        items: true,
+        items: { include: { product: { include: { images: true } } } }, // عکس محصول برای نمایش لازم است
         address: true,
         shippingMethod: true,
+        paymentReceipt: true, // ✅ این خط اضافه شد (مهم)
       },
     });
     res.status(200).json({ success: true, orders });
@@ -152,9 +180,6 @@ export const getOrdersByUserId = async (
   }
 };
 
-/**
- * دریافت یک سفارش خاص برای کاربر
- */
 export const getSingleOrderForUser = async (
   req: AuthenticatedRequest,
   res: Response
@@ -177,13 +202,6 @@ export const getSingleOrderForUser = async (
   }
 };
 
-// ===============================================
-// ================ ADMIN ACTIONS ================
-// ===============================================
-
-/**
- * دریافت تمام سفارشات برای پنل ادمین با قابلیت فیلتر و جستجو
- */
 export const getAllOrdersForAdmin = async (
   req: AuthenticatedRequest,
   res: Response
@@ -193,28 +211,22 @@ export const getAllOrdersForAdmin = async (
 
     const where: Prisma.OrderWhereInput = {};
 
-    // فیلترهای وضعیت
     if (status && status !== "ALL") where.status = status as OrderStatus;
     if (paymentStatus && paymentStatus !== "ALL")
       where.paymentStatus = paymentStatus as PaymentStatus;
 
-    // منطق جستجوی پیشرفته (Search Logic)
     if (search) {
       const searchStr = search as string;
       const searchInt = parseInt(searchStr);
 
       const orConditions: Prisma.OrderWhereInput[] = [
-        // 1. جستجو در اطلاعات کاربر
         { user: { name: { contains: searchStr, mode: "insensitive" } } },
         { user: { email: { contains: searchStr, mode: "insensitive" } } },
-        { user: { phone: { contains: searchStr, mode: "insensitive" } } }, // ✅ اضافه شد: جستجوی شماره موبایل
-
-        // 2. جستجو در اطلاعات پرداخت
-        { paymentRefId: { contains: searchStr, mode: "insensitive" } }, // کد پیگیری بانک
-        { paymentAuthority: { contains: searchStr, mode: "insensitive" } }, // شناسه پرداخت
+        { user: { phone: { contains: searchStr, mode: "insensitive" } } },
+        { paymentRefId: { contains: searchStr, mode: "insensitive" } },
+        { paymentAuthority: { contains: searchStr, mode: "insensitive" } },
       ];
 
-      // 3. جستجو در شماره سفارش (فقط اگر ورودی عدد باشد)
       if (!isNaN(searchInt)) {
         orConditions.push({ orderNumber: { equals: searchInt } });
       }
@@ -226,7 +238,6 @@ export const getAllOrdersForAdmin = async (
       where,
       orderBy: { createdAt: "desc" },
       include: {
-        // اطلاعات مورد نیاز برای نمایش در جدول
         user: { select: { name: true, email: true, phone: true } },
       },
     });
@@ -237,9 +248,6 @@ export const getAllOrdersForAdmin = async (
   }
 };
 
-/**
- * دریافت جزئیات یک سفارش برای ادمین
- */
 export const getSingleOrderForAdmin = async (
   req: AuthenticatedRequest,
   res: Response
@@ -266,9 +274,6 @@ export const getSingleOrderForAdmin = async (
   }
 };
 
-/**
- * آپدیت وضعیت سفارش توسط ادمین
- */
 export const updateOrderStatus = async (
   req: AuthenticatedRequest,
   res: Response
@@ -281,7 +286,6 @@ export const updateOrderStatus = async (
       where: { id: orderId },
       data: { status: status as OrderStatus },
     });
-    // TODO: در آینده اینجا می‌توان برای کاربر ایمیل یا پیامک اطلاع‌رسانی ارسال کرد
     res.status(200).json({ success: true, order: updatedOrder });
   } catch (error) {
     res.status(500).json({ success: false, message: "Server error" });
