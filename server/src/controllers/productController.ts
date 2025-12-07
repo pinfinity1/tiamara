@@ -1031,6 +1031,22 @@ export const prepareProductFromUrl = async (
       .filter(Boolean)
       .join(", ");
 
+    const concernList = [
+      "آکنه و جوش",
+      "لک و تیرگی",
+      "چروک و خطوط ریز",
+      "افتادگی و شلی پوست",
+      "منافذ باز",
+      "خشکی و کم‌آبی",
+      "قرمزی و التهاب",
+      "چربی بیش از حد",
+      "کدری و خستگی",
+      "جوش سرسیاه",
+      "ناهمواری بافت پوست",
+      "تیرگی و پف دور چشم",
+      "آسیب‌های آفتاب",
+    ].join(", ");
+
     const aiPrompt = `
 You are the Senior Content Strategist for "Tiamara", a premier beauty e-commerce platform.
 Your task is to transform raw product data into a **Masterpiece Product Entry** in Persian (Farsi).
@@ -1045,38 +1061,39 @@ ${scrapedData.rawText}
 **🚨 STRICT GUIDELINES:**
 1.  **Persona:** Write like a beauty expert—knowledgeable, empathetic, and trustworthy. Avoid robotic translations.
 2.  **Accuracy:** NO HALLUCINATIONS. If specific details (like volume) are missing in the text, leave them as null or 0. Do not guess.
-3.  **Description Formatting (HTML):** - Start with a **Hook** (emotional benefit).
+3.  **Language:** All content (name, description, how_to_use, etc.) MUST be in **Persian (Farsi)**, except 'englishName'.
+4.  **Description Formatting (HTML):** - Start with a **Hook** (emotional benefit).
     - Use **<p>** tags for paragraphs.
     - MUST include a **<ul>** list with **<li>** items for "Key Benefits" (ویژگی‌های کلیدی).
     - Use **<strong>** to highlight ingredients or key claims.
     - Mention **Texture** (بافت) and **Scent** (رایحه) if available in the source.
-4.  **SKU Generation:** Create a meaningful SKU based on Brand + Product Name (e.g., BRAND-PRODUCT-VOL).
-5.  **Tags:** Generate 5-8 high-traffic Persian search tags.
+5.  **SKU Generation:** Create a meaningful SKU based on Brand + Product Name (e.g., BRAND-PRODUCT-VOL).
+6.  **Tags:** Generate 5-8 high-traffic Persian search tags.
+7.  **Matching Logic:**
+    - Compare brand with: [${brandList}]. Use exact match or suggest new English name.
+    - Compare category with: [${categoryList}]. Use exact match or suggest "General".
+8.  **Concerns:** Select ALL applicable concerns from this list: [${concernList}].
 
 **REQUIRED JSON OUTPUT (Flat Object):**
 {
-  "name": "Persian Name + English Brand (e.g., اسنس حلزون 96 کوزارکس COSRX)",
-  "englishName": "Exact English Name",
-  "brandName": "Select from the provided list (e.g. ${
-    existingBrands[0]?.englishName || "Brand"
-  })",
-  "categoryName": "Select from the provided list (e.g. ${
-    existingCategories[0]?.name || "Category"
-  })",
+  "name": "string (Persian Name + English Brand)",
+  "englishName": "string (Exact English Name)",
+  "brandName": "string",
+  "categoryName": "string",
   "description": "HTML string: Intro paragraph + <ul><li>Benefit 1</li><li>Benefit 2</li></ul> + Conclusion/Texture description.",
   "how_to_use": "Clear, step-by-step instructions in Persian.",
-  "caution": "Safety warnings (e.g., patch test recommended).",
-  "ingredients": ["Ingredient 1", "Ingredient 2", "Key Active Ingredient"],
-  "skin_type": ["Select from: چرب, خشک, مختلط, نرمال, حساس"],
-  "concern": ["Select from: آکنه و جوش, لک و تیرگی, چروک و پیری, منافذ باز, خشکی, التهاب"],
-  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"],
-  "price": 0,
-  "stock": 10,
-  "sku": "SUGGESTED-SMART-SKU (e.g. CSX-SNAIL-100)",
-  "volume": 0,
-  "unit": "ml",
-  "country_of_origin": "Manufacturing Country (e.g. South Korea)",
-  "product_form": "Type (e.g. سرم, کرم, تونر, فوم)",
+  "caution": "Safety warnings (e.g., patch test recommended) or null",
+  "ingredients": ["string"],
+  "skin_type": ["string"] (Select from: چرب, خشک, مختلط, نرمال, حساس, انواع پوست),
+  "concern": ["string"] (Select multiple from the provided list),
+  "tags": ["string"] (5-8 Persian SEO tags),
+  "price": number (0 if unknown),
+  "stock": number (default 10),
+  "sku": "string (Pattern: BRAND-PROD-VOL)",
+  "volume": number (or null),
+  "unit": "string" (ml, g, etc.),
+  "country_of_origin": "Manufacturing Country",
+  "product_form": "string",
   "metaTitle": "Click-worthy SEO Title (max 60 chars)",
   "metaDescription": "Compelling SEO Description (max 160 chars)"
 }
